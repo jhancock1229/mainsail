@@ -189,6 +189,7 @@ export interface GuiState {
             autoscale: boolean
             datasetSettings: Record<string, Record<string, unknown>>
         }
+        temperatureCards: import('@/plugins/temperatureCards').TemperatureCardSettings
         timelapse: {
             countPerPage: number
             sortBy: string

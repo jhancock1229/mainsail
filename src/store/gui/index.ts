@@ -300,6 +300,13 @@ export const getDefaultState = (): GuiState => {
                 autoscale: false,
                 datasetSettings: {},
             },
+            temperatureCards: {
+                viewMode: 'cards',
+                order: [],
+                hidden: [],
+                sparklineWindow: 300,
+                chartExpanded: false,
+            },
             timelapse: {
                 countPerPage: 10,
                 sortBy: 'modified',
