@@ -9,6 +9,7 @@ import {
     mdiPlay,
     mdiRestart,
     mdiSnowflake,
+    mdiSwapHorizontal,
 } from '@mdi/js'
 import type { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 
@@ -24,6 +25,7 @@ export type PaletteRun =
     | { type: 'socket'; method: string; loading: string }
     | { type: 'print'; filename: string }
     | { type: 'settings'; tab: string }
+    | { type: 'setting'; name: string; value: string }
 
 export interface PaletteCommand {
     id: string
@@ -58,6 +60,7 @@ export interface PaletteContext {
     cooldownGcode: string
     confirmOnCoolDown: boolean
     settingsTabs: { name: string; title: string; icon: string }[]
+    interfaceShell?: 'new' | 'classic'
     t: (key: string, values?: Record<string, unknown>) => string
 }
 
@@ -73,7 +76,7 @@ export const MAX_RECENT_COMMANDS = 8
 
 const DEFAULT_MACRO_DESCRIPTION = 'G-Code macro'
 
-const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
+export const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
     const scripts: string[] = []
 
     for (const [name, attributes] of Object.entries(preset.values ?? {})) {
@@ -239,6 +242,21 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         disabledReason: notConnected ?? (context.klipperState === 'shutdown' ? reason('AlreadyShutdown') : null),
         run: { type: 'socket', method: 'printer.emergency_stop', loading: 'topbarEmergencyStop' },
     })
+
+    if (context.interfaceShell !== undefined) {
+        const next = context.interfaceShell === 'new' ? 'classic' : 'new'
+
+        add({
+            id: 'action:switchInterface',
+            group: 'actions',
+            title: t(
+                next === 'classic' ? 'CommandPalette.Actions.SwitchToClassic' : 'CommandPalette.Actions.SwitchToNew'
+            ),
+            icon: mdiSwapHorizontal,
+            keywords: ['interface', 'shell', 'layout', 'classic', 'new', 'stock'],
+            run: { type: 'setting', name: 'uiSettings.interfaceShell', value: next },
+        })
+    }
 
     context.presets.forEach((preset) => {
         add({

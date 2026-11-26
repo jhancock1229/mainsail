@@ -480,6 +480,9 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
             case 'settings':
                 EventBus.$emit(OPEN_SETTINGS_TAB, run.tab)
                 break
+            case 'setting':
+                this.$store.dispatch('gui/saveSetting', { name: run.name, value: run.value })
+                break
             case 'gcode':
                 run.scripts.forEach((script) => {
                     this.$store.dispatch('server/addEvent', { message: script, type: 'command' })

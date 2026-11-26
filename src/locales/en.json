@@ -190,7 +190,9 @@
             "Home": "Home all axes",
             "Pause": "Pause print",
             "Preheat": "Preheat {name}",
-            "Resume": "Resume print"
+            "Resume": "Resume print",
+            "SwitchToClassic": "Switch to the classic interface",
+            "SwitchToNew": "Switch to the new interface"
         },
         "Confirm": {
             "Cancel": "The running print job is stopped and cannot be resumed.",
@@ -1529,6 +1531,7 @@
             "DbHistoryTotals": "History Totals",
             "DbMaintenance": "Maintenance",
             "DbNavigation": "Navigation",
+            "DbSpoolTracker": "Spool tracker",
             "DbTimelapseSettings": "Timelapse Settings",
             "DbView": "View Settings",
             "EstimateValues": {
@@ -1837,6 +1840,10 @@
             "HideSaveConfigButtonForBedMeshDescription": "Hide SAVE_CONFIG, if only bed_mesh changes are pending to be saved in Klipper.",
             "HideUpdateWarnings": "Hide Update Warnings",
             "HideUpdateWarningsDescription": "This option will hide all update warnings in the update manager.",
+            "InterfaceShell": "Interface",
+            "InterfaceShellClassic": "Classic",
+            "InterfaceShellDescription": "New is the task-based layout that never scrolls. Classic is the stock Mainsail layout. Phone-width screens always use Classic.",
+            "InterfaceShellNew": "New",
             "LockSliders": "Lock sliders on touchscreen devices",
             "LockSlidersDelay": "Slider lock delay",
             "LockSlidersDelayDescription": "Sliders will lock after a given delay. If set to 0 or left blank, sliders will only lock on page change/reload.",
@@ -1861,6 +1868,8 @@
             "ScrewsTiltAdjustDialogDescription": "Display helper dialog for SCREWS_TILT_CALCULATE.",
             "ShowModeToggle": "Light/dark toggle in the top bar",
             "ShowModeToggleDescription": "Show a button in the top bar that switches between light and dark mode.",
+            "SpoolTracker": "Built-in spool tracker",
+            "SpoolTrackerDescription": "Estimate on Home how much filament is left on the spool. Not shown when Spoolman is configured.",
             "TempchartHeight": "Height Temperature Chart",
             "TempchartHeightDescription": "Modify the height of the temperature chart on the Dashboard.",
             "Theme": "Theme",
@@ -1917,6 +1926,300 @@
             "WebrtcGo2rtc": "WebRTC (go2rtc)",
             "WebrtcJanus": "WebRTC (janus-gateway)",
             "WebrtcMediaMTX": "WebRTC (MediaMTX)"
+        }
+    },
+    "Shell": {
+        "Camera": {
+            "Add": "Add a camera",
+            "None": "No camera is set up"
+        },
+        "Duration": {
+            "Hours": "{hours} h {minutes} min",
+            "LessThanMinute": "< 1 min",
+            "Minutes": "{minutes} min"
+        },
+        "Error": {
+            "More": "More ways to fix a problem",
+            "NoDetails": "The print stopped, but the printer did not say why. The console may show more.",
+            "Title": "What went wrong"
+        },
+        "Events": {
+            "Cancelled": "Cancelled",
+            "Complete": "Finished",
+            "Empty": "Nothing yet.",
+            "Error": "Stopped with an error",
+            "FirstLayer": "First layer done",
+            "Milestone": "{percent}% done",
+            "Paused": "Paused",
+            "PausedFor": "Paused for {duration}",
+            "Resumed": "Resumed",
+            "Started": "Print started",
+            "Title": "What happened",
+            "Warmup": "Started warming up"
+        },
+        "Fix": {
+            "AllGood": "Nothing is wrong right now",
+            "AllGoodHelp": "The printer is connected and ready. If a print looks bad, the console and the logs show what the printer has been doing.",
+            "EndstopsLater": "Endstops can be checked once the printer is ready.",
+            "FirmwareRestart": "Firmware restart",
+            "KlipperRestart": "Restart Klipper",
+            "Restart": "Restart",
+            "RestartText": "A restart stops any running print and switches the heaters off. Continue?",
+            "WhatIsWrong": "What is wrong"
+        },
+        "Headlines": {
+            "Cancelled": "The print was cancelled",
+            "Complete": "Your print is finished",
+            "Disconnected": "The printer is not connected",
+            "KlipperError": "The printer needs attention",
+            "Paused": "Your print is paused at {percent}%",
+            "PrintFailed": "The print stopped with an error",
+            "Printing": "Your print is {percent}% done",
+            "Ready": "Ready to print",
+            "Shutdown": "The printer has shut down",
+            "Startup": "The printer is starting up",
+            "WarmingUp": "Warming up for your print"
+        },
+        "Heat": {
+            "Adjust": "Set temperatures",
+            "Bed": "Bed",
+            "cooling": "cooling",
+            "falling": "falling",
+            "heating": "heating",
+            "hot": "cooling down",
+            "Nozzle": "Nozzle",
+            "NozzleNumber": "Nozzle {number}",
+            "off": "off",
+            "onTarget": "on target",
+            "rising": "rising",
+            "steady": "steady",
+            "Title": "Heat"
+        },
+        "Idle": {
+            "AllFiles": "All files and folders",
+            "CameraAndLast": "Camera and last print",
+            "CoolDown": "Cool down",
+            "Finished": "Finished {time}",
+            "GetReady": "Get ready",
+            "HomeAll": "Home all axes",
+            "LastPrint": "Last print",
+            "LevelBed": "Level the bed",
+            "LoadFilament": "Load or change filament",
+            "MoveToolhead": "Move the toolhead",
+            "NoFiles": "No files yet. Upload one to start printing.",
+            "PreheatFor": "Preheat for",
+            "Start": "Start a print",
+            "Stopped": "Stopped {time}",
+            "Upload": "Upload a file",
+            "Uploading": "Cancel upload ({percent}%)"
+        },
+        "Move": {
+            "Back": "Move back",
+            "Down": "Move down",
+            "FirstLayer": "First layer height",
+            "FirstLayerHelp": "Raise if the first layer looks squashed or rough. Lower if lines do not stick or have gaps.",
+            "Front": "Move front",
+            "GoTo": "Go to",
+            "GoToLabel": "Go to a position",
+            "HintHome": "Home the printer with the centre button before moving.",
+            "HintNotReady": "The printer is not ready to move.",
+            "HintPrinting": "Moving is locked while a print is running.",
+            "HomeOne": "Home one axis",
+            "Later": "Later",
+            "Left": "Move left",
+            "Lower": "Lower {amount}",
+            "Motors": "Motors",
+            "PadXY": "Move left, right, back and front",
+            "PadXYCaption": "Left, right, back, front",
+            "PadZ": "Move up and down",
+            "PadZCaption": "Up, down",
+            "Places": {
+                "back": "Park at the back",
+                "centre": "Centre of the bed",
+                "front": "Front, for cleaning the nozzle"
+            },
+            "Raise": "Raise {amount}",
+            "Release": "Release the motors",
+            "ResetOffset": "Back to zero",
+            "Right": "Move right",
+            "SaveAndRestart": "Save and restart",
+            "SaveDefault": "Save as the new default",
+            "SaveDefaultText": "The new height is stored. Klipper has to save its config and restart before it becomes the default.",
+            "Step": "Step",
+            "StepSize": "Step size",
+            "Title": "Move the toolhead",
+            "Up": "Move up"
+        },
+        "Pages": {
+            "fix": "Fix a problem",
+            "home": "Home",
+            "machine": "Machine and files",
+            "print": "Print something",
+            "settings": "Settings",
+            "tune": "Tune and calibrate"
+        },
+        "Print": {
+            "Cancel": "Cancel",
+            "ChangeFilament": "Change filament",
+            "Done": "Clear",
+            "ExcludeObject": "Exclude an object",
+            "Facts": {
+                "filament": "Filament used",
+                "layer": "Layer",
+                "result": "Result",
+                "speed": "Speed",
+                "timeLeft": "Time left",
+                "took": "Took"
+            },
+            "Nudge": "Nudge first layer",
+            "Pause": "Pause",
+            "PauseAtLayer": "Pause at a layer",
+            "Phases": {
+                "paused": "Paused",
+                "printing": "Printing",
+                "remaining": "To go",
+                "Started": "started {time}",
+                "Title": "Time so far",
+                "warmup": "Warming up"
+            },
+            "PrintAgain": "Print it again",
+            "QueueNext": "Queue next print",
+            "Results": {
+                "cancelled": "Cancelled",
+                "complete": "Finished",
+                "error": "Failed"
+            },
+            "Resume": "Resume",
+            "SpeedAndFlow": "Speed and flow",
+            "Title": "This print",
+            "View": "View",
+            "Views": {
+                "camera": "Camera",
+                "console": "Console"
+            },
+            "While": "While it prints"
+        },
+        "Rail": {
+            "EmergencyStop": "Emergency stop",
+            "Main": "Main",
+            "Search": "Search or run"
+        },
+        "SaveConfig": "Save config and restart",
+        "Settings": {
+            "Status": "Changes are saved as you make them"
+        },
+        "Spool": {
+            "AboutLeft": "about {weight} left",
+            "Dialog": {
+                "Intro": "The estimate starts again from a full spool. It is worked out from the filament each print uses, so treat it as a guide.",
+                "Material": "Filament type",
+                "Name": "Name (optional)",
+                "NamePlaceholder": "Black PLA",
+                "Save": "Start tracking",
+                "Size": "Spool size",
+                "SizeHint": "The weight of filament on a full spool. Most spools hold 1000 g.",
+                "Title": "I loaded a new spool"
+            },
+            "Enough": "Enough for this print ({needed} to go)",
+            "Left": "{weight} left",
+            "Loaded": "{name} · loaded {date}",
+            "NewSpool": "I loaded a new spool",
+            "NotEnough": "Not enough for this print ({needed} to go)",
+            "NotTracked": "Tell the printer when you load a spool and it will estimate how much is left.",
+            "Of": "of {size}",
+            "OfUsed": "of {size} · {used} used",
+            "SpoolmanChange": "Change spool",
+            "SpoolmanNone": "No spool is selected in Spoolman.",
+            "Title": "Spool",
+            "UsedSinceLoading": "{used} used since loading"
+        },
+        "States": {
+            "error": "Print failed",
+            "finished": "Print finished",
+            "idle": "Idle",
+            "offline": "Not ready",
+            "paused": "Paused",
+            "printing": "Printing"
+        },
+        "Status": {
+            "Bed": "Bed {temperature}",
+            "DoneAt": "done at {time}",
+            "Homed": "homed",
+            "Loaded": "{material} loaded",
+            "NotHomed": "not homed",
+            "Nozzle": "Nozzle {temperature}",
+            "Took": "took {duration}"
+        },
+        "Tabs": {
+            "fix": {
+                "console": "Console",
+                "logs": "Logs",
+                "status": "What is wrong"
+            },
+            "machine": {
+                "cameras": "Cameras",
+                "config": "Config files",
+                "history": "History",
+                "outputs": "Fans and outputs",
+                "printers": "Printers",
+                "system": "System",
+                "timelapse": "Timelapse",
+                "updates": "Updates"
+            },
+            "print": {
+                "files": "Files",
+                "preview": "G-code preview",
+                "queue": "Job queue"
+            },
+            "tune": {
+                "bed-level": "Bed level",
+                "extruder": "Extruder",
+                "heater-tuning": "Heater tuning",
+                "limits": "Limits",
+                "macros": "Macros",
+                "move": "Move",
+                "resonance": "Resonance"
+            }
+        },
+        "Tune": {
+            "Level": {
+                "BedScrews": "Adjust the bed screws by hand",
+                "BedTilt": "Calibrate the bed tilt",
+                "Delta": "Calibrate the delta geometry",
+                "Qgl": "Level the gantry (quad gantry level)",
+                "ScrewsTilt": "Measure the bed screws",
+                "ZTilt": "Adjust the Z tilt"
+            },
+            "LevelTools": "Level the bed",
+            "NoBedLevel": "This printer has no bed mesh or levelling helper configured.",
+            "NoMacros": "This printer has no macros.",
+            "NotReady": "The printer is not ready, so these controls are switched off.",
+            "NotReadyTitle": "Not available right now",
+            "Pid": {
+                "After": "When it has finished, save the config to keep the result.",
+                "Help": "Tuning heats to the temperature you choose and measures how the heater reacts, so it holds a steady temperature afterwards. It takes a few minutes.",
+                "Invalid": "Enter a temperature between 1 and {max}°.",
+                "Start": "Tune",
+                "Started": "Heater tuning started. Watch the console for the result.",
+                "Target": "Tuning temperature for {heater}",
+                "Title": "Tune a heater",
+                "Unavailable": "Heater tuning is not available on this printer."
+            },
+            "Resonance": {
+                "About": "Input shaping cancels the ringing that fast moves leave on the surface of a print. Automatic tuning shakes each axis and needs an accelerometer on the toolhead.",
+                "AboutTitle": "About",
+                "Noise": "Measure the background noise",
+                "NoSensor": "No accelerometer commands are available, so automatic tuning cannot run here.",
+                "NotConfigured": "No input shaper is configured.",
+                "OpenConsole": "Open the console",
+                "Query": "Check the accelerometer",
+                "Results": "Results appear in the console. Save the config afterwards to keep them.",
+                "Title": "Input shaper",
+                "TuneX": "Measure and tune the X axis",
+                "TuneY": "Measure and tune the Y axis"
+            },
+            "SpeedHelp": "Scales every move of the running print. 100% is the speed the slicer asked for.",
+            "SpeedTitle": "Speed"
         }
     },
     "Timelapse": {

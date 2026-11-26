@@ -860,3 +860,38 @@ describe('sanitizePaletteSettings', () => {
         expect(sanitizePaletteSettings('broken')).toEqual(defaults)
     })
 })
+
+describe('interface switch command', () => {
+    const context = (interfaceShell?: 'new' | 'classic') =>
+        ({
+            socketConnected: true,
+            klipperState: 'ready',
+            printerState: 'standby',
+            naviPoints: [],
+            macros: [],
+            hiddenMacros: [],
+            files: [],
+            presets: [],
+            cooldownGcode: 'TURN_OFF_HEATERS',
+            confirmOnCoolDown: false,
+            settingsTabs: [],
+            interfaceShell,
+            t: (key: string) => key,
+        }) as Parameters<typeof buildPaletteCommands>[0]
+    const find = (interfaceShell?: 'new' | 'classic') =>
+        buildPaletteCommands(context(interfaceShell)).find((command) => command.id === 'action:switchInterface')
+
+    it('offers the classic interface from the new one', () => {
+        expect(find('new')?.title).toBe('CommandPalette.Actions.SwitchToClassic')
+        expect(find('new')?.run).toEqual({ type: 'setting', name: 'uiSettings.interfaceShell', value: 'classic' })
+    })
+
+    it('offers the new interface from the classic one', () => {
+        expect(find('classic')?.title).toBe('CommandPalette.Actions.SwitchToNew')
+        expect(find('classic')?.run).toEqual({ type: 'setting', name: 'uiSettings.interfaceShell', value: 'new' })
+    })
+
+    it('is left out when the interface is not known', () => {
+        expect(find(undefined)).toBeUndefined()
+    })
+})
