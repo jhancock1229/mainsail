@@ -207,7 +207,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         group: 'actions',
         title: t('CommandPalette.Actions.Cooldown'),
         icon: mdiSnowflake,
-        keywords: ['heaters off', 'temperature', 'preset'],
+        keywords: ['heaters off', 'temperature'],
         disabledReason: whileIdle,
         run: { type: 'gcode', scripts: [context.cooldownGcode] },
     })
@@ -244,7 +244,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             title: t('CommandPalette.Actions.Preheat', { name: preset.name }),
             subtitle: presetSummary(preset),
             icon: mdiFire,
-            keywords: ['preset', 'heat', 'temperature'],
+            keywords: ['preset', 'temperature'],
             disabledReason: whileIdle,
             run: { type: 'gcode', scripts: presetScripts(preset) },
         })
@@ -260,7 +260,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             group: 'navigation',
             title: point.title,
             icon: point.icon,
-            keywords: ['go to', 'open', 'page'],
             run: point.to
                 ? { type: 'route', to: point.to }
                 : { type: 'link', href: point.href ?? '', target: point.target },
@@ -276,7 +275,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             title: macro.name,
             subtitle: description === DEFAULT_MACRO_DESCRIPTION ? '' : description,
             icon: mdiCodeTags,
-            keywords: ['macro', 'run'],
             disabledReason: notReady,
             run: { type: 'gcode', scripts: [macro.name] },
         })
@@ -294,7 +292,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
                 title: file.filename.slice(slash + 1),
                 subtitle: file.filename.slice(0, slash + 1),
                 icon: mdiFileOutline,
-                keywords: ['print', 'start', 'file'],
                 confirmText: t('CommandPalette.Confirm.Print', { filename: file.filename }),
                 disabledReason: whileIdle,
                 run: { type: 'print', filename: file.filename },
@@ -308,7 +305,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             title: tab.title,
             icon: tab.icon,
             // the internal name can differ from the title (e.g. "command-palette" for "Commands")
-            keywords: ['settings', 'preferences', 'options', tab.name.replace(/-/g, ' ')],
+            keywords: [tab.name.replace(/-/g, ' ')],
             run: { type: 'settings', tab: tab.name },
         })
     })
@@ -337,6 +334,17 @@ const SCORE_SCATTERED = 60
 const SCORE_INITIALS_MAX = 650
 const LENGTH_PENALTY = 0.5
 const LENGTH_PENALTY_MAX = 40
+// Words for a whole group, e.g. "print benchy" or "settings webcams". They only count from a few letters on and
+// score below every match of a title, otherwise a short search term would list whole groups.
+const GROUP_KEYWORDS: Record<PaletteGroup, string[]> = {
+    actions: ['action', 'printer'],
+    navigation: ['go to', 'open', 'page'],
+    macros: ['macro'],
+    files: ['print', 'start', 'file', 'gcode'],
+    settings: ['settings', 'preferences', 'options'],
+}
+const MIN_GROUP_KEYWORD_LENGTH = 4
+const SCORE_GROUP_KEYWORD = 300
 // titles count fully, keywords and subtitles count less and only when they contain the search term as it is
 const SECONDARY_WEIGHT = 0.6
 const MIN_SECONDARY_SCORE = SCORE_INSIDE - LENGTH_PENALTY_MAX
@@ -392,6 +400,9 @@ const matchInitials = (query: string, text: string, lower: string, start: number
 
         positions.push(index)
     }
+
+    // too many characters from the middle of words, the text only contains the letters by chance
+    if (score < SCORE_INITIALS) return null
 
     return { score: Math.min(SCORE_INITIALS_MAX, score), positions }
 }
@@ -513,7 +524,10 @@ const scoreCommand = (command: PaletteCommand, terms: string[]): { score: number
             .map((text) => fuzzyMatch(term, text)?.score ?? 0)
             .filter((value) => value >= MIN_SECONDARY_SCORE)
             .reduce((best, value) => Math.max(best, value * SECONDARY_WEIGHT), 0)
-        if (title === null && secondary === 0) return null
+        const group =
+            term.length >= MIN_GROUP_KEYWORD_LENGTH &&
+            GROUP_KEYWORDS[command.group].some((keyword) => keyword.startsWith(term))
+        if (title === null && secondary === 0 && !group) return null
 
         if (title !== null && title.score >= secondary) {
             title.positions.forEach((position) => positions.add(position))
@@ -521,7 +535,7 @@ const scoreCommand = (command: PaletteCommand, terms: string[]): { score: number
             continue
         }
 
-        score += secondary
+        score += secondary || SCORE_GROUP_KEYWORD
     }
 
     return { score: score / terms.length, positions: [...positions].sort((a, b) => a - b) }

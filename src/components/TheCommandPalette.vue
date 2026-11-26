@@ -109,7 +109,7 @@
                                     :result="row.result"
                                     :selected="row.index === selectedIndex"
                                     @run="run(row.result.command)"
-                                    @hover="select(row.index)"
+                                    @hover="hover(row.index, $event)"
                                     @pin="pin(row.result.command.id)" />
                             </template>
                             <div v-if="!flatResults.length" class="command-palette__empty text-center pa-8">
@@ -195,6 +195,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     query = ''
     selectedIndex = -1
     confirming: PaletteCommand | null = null
+    pointerPosition = ''
 
     get sections(): PaletteSection[] {
         // nothing to compute while the palette is closed
@@ -364,6 +365,16 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         if (this.flatResults[index]?.command.disabledReason !== null) return
 
         this.selectedIndex = index
+    }
+
+    hover(index: number, event: MouseEvent): void {
+        // browsers also send mousemove when the list scrolls below a resting pointer, which must not steal the
+        // selection from the keyboard
+        const position = `${event.screenX},${event.screenY}`
+        if (position === this.pointerPosition) return
+
+        this.pointerPosition = position
+        this.select(index)
     }
 
     selectFirst(): void {

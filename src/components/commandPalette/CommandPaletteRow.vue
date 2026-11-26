@@ -7,7 +7,7 @@
         :aria-disabled="disabled ? 'true' : 'false'"
         :data-command="command.id"
         @click="$emit('run')"
-        @mousemove="$emit('hover')">
+        @mousemove="$emit('hover', $event)">
         <div class="command-palette-row__icon" :class="{ 'command-palette-row__icon--danger': danger }">
             <v-icon small>{{ command.icon }}</v-icon>
         </div>

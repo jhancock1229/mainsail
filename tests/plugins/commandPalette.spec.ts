@@ -320,6 +320,12 @@ describe('fuzzyMatch', () => {
 
     it('does not match scattered letters in the middle of words', () => {
         expect(fuzzyMatch('oe', 'Console')).toBeNull()
+        expect(fuzzyMatch('pre', 'PARK_TOOLHEAD')).toBeNull()
+        expect(fuzzyMatch('pre', 'PURGE_LINE')).toBeNull()
+    })
+
+    it('tolerates one skipped letter in an abbreviation', () => {
+        expect(fuzzyMatch('prk', 'PARK_TOOLHEAD')?.positions).toEqual([0, 2, 3])
     })
 
     it('ranks exact over prefix over word start over inner matches over initials', () => {
@@ -464,6 +470,28 @@ describe('searchPaletteCommands', () => {
 
         expect(find('park')).toContain('macro:TEST_DELAY')
         expect(find('fpd')).not.toContain('macro:TEST_DELAY')
+    })
+
+    it('lists a whole group for its name, but not for a short part of it', () => {
+        const find = (query: string) =>
+            flattenPaletteSections(searchPaletteCommands(commands, query, { pinned: [], recent: [] })).map(
+                (result) => result.command.id
+            )
+
+        expect(find('settings')).toEqual(expect.arrayContaining(['settings:general', 'settings:webcams']))
+        expect(find('pref')).toContain('settings:general')
+        expect(find('pre')).not.toContain('settings:general')
+        expect(find('file')).toContain('file:benchy.gcode')
+        expect(find('fil')).not.toContain('file:benchy.gcode')
+        expect(find('macro')).toContain('macro:LOAD_FILAMENT')
+    })
+
+    it('ranks a match of the title above the commands that only match by their group', () => {
+        const withMacro = buildPaletteCommands(createContext({ macros: [{ name: 'START_PRINT', description: null }] }))
+        const all = flattenPaletteSections(searchPaletteCommands(withMacro, 'print', { pinned: [], recent: [] }))
+
+        expect(all[0].command.id).toBe('macro:START_PRINT')
+        expect(all.map((result) => result.command.id)).toContain('file:benchy.gcode')
     })
 
     it('shows invalid commands with their reason when they are searched for, after the valid ones', () => {
