@@ -8,16 +8,29 @@
             </p>
             <!-- KLIPPER MESSAGE -->
             <div v-if="klippy_message !== null">
-                <pre style="white-space: pre-wrap">{{ klippy_message.trim() }}</pre>
+                <error-explainer v-if="explanation" :explanation="explanation" :color="messageType.color" />
+                <pre v-else style="white-space: pre-wrap">{{ klippy_message.trim() }}</pre>
                 <v-divider class="mt-2 pb-3" />
                 <v-row>
                     <!-- RESTART BUTTONS -->
                     <v-col>
-                        <v-btn small outlined text :class="buttonClasses" @click="restart">
+                        <v-btn
+                            v-if="!suggestedActions.includes('restart')"
+                            small
+                            outlined
+                            text
+                            :class="buttonClasses"
+                            @click="restart">
                             <v-icon class="mr-sm-2">{{ mdiRestart }}</v-icon>
                             {{ $t('Panels.KlippyStatePanel.Restart') }}
                         </v-btn>
-                        <v-btn small outlined text :class="buttonClasses" @click="firmwareRestart">
+                        <v-btn
+                            v-if="!suggestedActions.includes('firmwareRestart')"
+                            small
+                            outlined
+                            text
+                            :class="buttonClasses"
+                            @click="firmwareRestart">
                             <v-icon class="mr-sm-2">{{ mdiRestart }}</v-icon>
                             {{ $t('Panels.KlippyStatePanel.FirmwareRestart') }}
                         </v-btn>
@@ -25,6 +38,7 @@
                     <!-- LOG DOWNLOAD BUTTONS -->
                     <v-col>
                         <v-btn
+                            v-if="!suggestedActions.includes('klipperLog')"
                             :href="apiUrl + '/server/files/klippy.log'"
                             small
                             outlined
@@ -83,10 +97,13 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Watch } from 'vue-property-decorator'
 import BaseMixin from '../mixins/base'
 import ConnectionStatus from '../ui/ConnectionStatus.vue'
 import Panel from '@/components/ui/Panel.vue'
+import ErrorExplainer from '@/components/ui/ErrorExplainer.vue'
+import { ErrorActionId, ErrorExplanation, explainError, isKlipperFault } from '@/plugins/errorExplainer'
+import { resolveAlertSettings } from '@/plugins/notificationRules'
 import {
     mdiRestart,
     mdiDownload,
@@ -99,7 +116,7 @@ import {
 } from '@mdi/js'
 
 @Component({
-    components: { Panel, ConnectionStatus },
+    components: { Panel, ConnectionStatus, ErrorExplainer },
 })
 export default class KlippyStatePanel extends Mixins(BaseMixin) {
     mdiPrinter3d = mdiPrinter3d
@@ -107,8 +124,29 @@ export default class KlippyStatePanel extends Mixins(BaseMixin) {
     mdiDownload = mdiDownload
     mdiPower = mdiPower
 
-    get klippy_message(): string | null {
+    // Mainsail asks Klipper for its state again and again while it is not ready, and the message is empty in
+    // between: the last one is kept, so the panel does not jump between the message and the loader
+    lastKlippyMessage: string | null = null
+
+    get currentKlippyMessage(): string | null {
         return this.$store.state.server.klippy_message ?? null
+    }
+
+    get klippy_message(): string | null {
+        return this.currentKlippyMessage ?? this.lastKlippyMessage
+    }
+
+    // plain-language explanation of the message, while Klipper is in error or shutdown
+    get explanation(): ErrorExplanation | null {
+        if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
+        if (!isKlipperFault(this.klipperState)) return null
+
+        return explainError(this.klippy_message, { klipperState: this.klipperState })
+    }
+
+    // these are offered by the explanation, so they are not repeated in the button row below it
+    get suggestedActions(): ErrorActionId[] {
+        return this.explanation?.actions ?? []
     }
 
     get messageType(): { color: string; icon: string } {
@@ -140,6 +178,16 @@ export default class KlippyStatePanel extends Mixins(BaseMixin) {
         return `${this.$t('Panels.KlippyStatePanel.ServiceReports', {
             service: 'Moonraker',
         })}: ${this.klipperState.toUpperCase()}`
+    }
+
+    @Watch('klipperState')
+    klipperStateChanged(): void {
+        this.lastKlippyMessage = this.currentKlippyMessage
+    }
+
+    @Watch('currentKlippyMessage', { immediate: true })
+    currentKlippyMessageChanged(message: string | null): void {
+        if (message !== null) this.lastKlippyMessage = message
     }
 
     restart() {

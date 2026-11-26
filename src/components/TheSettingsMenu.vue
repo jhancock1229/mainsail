@@ -81,12 +81,14 @@ import SettingsGCodeViewerTab from '@/components/settings/SettingsGCodeViewerTab
 import SettingsEditorTab from '@/components/settings/SettingsEditorTab.vue'
 import SettingsTimelapseTab from '@/components/settings/SettingsTimelapseTab.vue'
 import SettingsNavigationTab from '@/components/settings/SettingsNavigationTab.vue'
+import SettingsNotificationsTab from '@/components/settings/SettingsNotificationsTab.vue'
 import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
 import { commandPaletteBus, OPEN_SETTINGS_TAB, PaletteSettingsTab } from '@/plugins/commandPaletteBus'
 import { EventBus } from '@/plugins/eventBus'
 
 import Panel from '@/components/ui/Panel.vue'
 import {
+    mdiBellOutline,
     mdiCloseThick,
     mdiCodeTags,
     mdiCog,
@@ -127,6 +129,7 @@ import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
         SettingsTimelapseTab,
         SettingsMiscellaneousTab,
         SettingsNavigationTab,
+        SettingsNotificationsTab,
         SettingsHeightmapTab,
         SettingsCommandPaletteTab,
     },
@@ -211,6 +214,11 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
                 icon: mdiGrid,
                 name: 'heightmap',
                 title: this.$t('Settings.HeightmapTab.Heightmap'),
+            },
+            {
+                icon: mdiBellOutline,
+                name: 'notifications',
+                title: this.$t('Settings.NotificationsTab.Notifications'),
             },
             {
                 icon: mdiKeyboardOutline,

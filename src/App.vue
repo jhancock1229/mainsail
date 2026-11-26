@@ -18,6 +18,7 @@
             <the-bed-screws-dialog />
             <the-screws-tilt-adjust-dialog />
             <the-macro-prompt />
+            <the-event-notifier />
         </template>
         <the-select-printer-dialog v-else-if="instancesDB !== 'moonraker'" />
         <the-connecting-dialog v-else />
@@ -45,10 +46,12 @@ import TheScrewsTiltAdjustDialog from '@/components/dialogs/TheScrewsTiltAdjustD
 import { setAndLoadLocale } from './plugins/i18n'
 import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
+import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 
 @Component({
     components: {
+        TheEventNotifier,
         TheMacroPrompt,
         TheTimelapseRenderingSnackbar,
         TheEditor,

@@ -6,9 +6,12 @@ import { ServerHistoryStateJob } from '@/store/server/history/types'
 import { GuiNotificationState } from '@/store/gui/notifications/types'
 import { FileStateFile, FileStateGcodefile } from '@/store/files/types'
 import { GuiNavigationState } from '@/store/gui/navigation/types'
+import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
 
 export interface GuiState {
+    // error explainer and printer event notifications
+    alerts: AlertSettings
     general: {
         printername: string
         language: string

@@ -11,6 +11,7 @@ import {
     defaultBigThumbnailBackground,
     defaultMode,
 } from '@/store/variables'
+import { getDefaultAlertSettings } from '@/plugins/notificationRules'
 
 // load modules
 import { console } from '@/store/gui/console'
@@ -29,6 +30,7 @@ import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 
 export const getDefaultState = (): GuiState => {
     return {
+        alerts: getDefaultAlertSettings(),
         general: {
             printername: '',
             language: 'en',
