@@ -206,6 +206,7 @@
             "KlipperNotConnected": "Klipper is not connected",
             "KlipperNotReady": "Klipper is not ready",
             "NoPrintRunning": "No print is running",
+            "NotConnected": "Not connected to the printer",
             "NotPaused": "No print is paused",
             "WhilePrinting": "Not available while printing"
         },

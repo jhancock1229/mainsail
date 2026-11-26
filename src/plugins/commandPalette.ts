@@ -54,6 +54,8 @@ export interface PaletteNaviPoint {
 }
 
 export interface PaletteContext {
+    // false while the websocket to Moonraker is down; the printer state in the store is then the last known one
+    socketConnected: boolean
     // 'disconnected' while Klipper is not connected to Moonraker
     klipperState: string
     printerState: string
@@ -143,7 +145,8 @@ export const collectGcodeFiles = (
             return
         }
 
-        const extension = entry.filename.slice(entry.filename.lastIndexOf('.')).toLowerCase()
+        // compared as written, like files/getGcodeFiles: the start print dialog takes its file from that list
+        const extension = entry.filename.slice(entry.filename.lastIndexOf('.'))
         if (extensions.includes(extension)) files.push({ filename: path + entry.filename, modified: entry.modified })
     })
 
@@ -154,14 +157,17 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
     const { t } = context
     const reason = (name: string): string => t(`CommandPalette.Reasons.${name}`)
 
-    const connected = context.klipperState !== 'disconnected'
-    const ready = context.klipperState === 'ready'
+    // without the websocket nothing reaches the printer, whatever state was last received
+    const online = context.socketConnected
+    const connected = online && context.klipperState !== 'disconnected'
+    const ready = online && context.klipperState === 'ready'
     // print_stats can be stale while Klipper is not ready, so the print state only counts while it is
     const printing = ready && context.printerState === 'printing'
     const paused = ready && context.printerState === 'paused'
     const busy = printing || paused
 
-    const notReady = !connected ? reason('KlipperNotConnected') : !ready ? reason('KlipperNotReady') : null
+    const notConnected = !online ? reason('NotConnected') : !connected ? reason('KlipperNotConnected') : null
+    const notReady = notConnected ?? (!ready ? reason('KlipperNotReady') : null)
     const whileIdle = notReady ?? (busy ? reason('WhilePrinting') : null)
 
     const commands: PaletteCommand[] = []
@@ -242,7 +248,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         keywords: ['FIRMWARE_RESTART', 'reboot', 'klipper'],
         confirmText: t('CommandPalette.Confirm.FirmwareRestart'),
         danger: true,
-        disabledReason: !connected ? reason('KlipperNotConnected') : null,
+        disabledReason: notConnected,
         run: { type: 'socket', method: 'printer.firmware_restart', loading: 'firmwareRestart' },
     })
     add({
@@ -253,11 +259,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         keywords: ['estop', 'e-stop', 'M112', 'kill', 'halt'],
         confirmText: t('CommandPalette.Confirm.EmergencyStop'),
         danger: true,
-        disabledReason: !connected
-            ? reason('KlipperNotConnected')
-            : context.klipperState === 'shutdown'
-              ? reason('AlreadyShutdown')
-              : null,
+        disabledReason: notConnected ?? (context.klipperState === 'shutdown' ? reason('AlreadyShutdown') : null),
         run: { type: 'socket', method: 'printer.emergency_stop', loading: 'topbarEmergencyStop' },
     })
 

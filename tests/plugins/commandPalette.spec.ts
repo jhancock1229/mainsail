@@ -23,6 +23,7 @@ import type { PaletteCommand, PaletteContext, PaletteSection } from '@/plugins/c
 const t = (key: string, values?: Record<string, unknown>) => (values ? `${key} ${JSON.stringify(values)}` : key)
 
 const createContext = (overrides: Partial<PaletteContext> = {}): PaletteContext => ({
+    socketConnected: true,
     klipperState: 'ready',
     printerState: 'standby',
     naviPoints: [
@@ -314,6 +315,23 @@ describe('buildPaletteCommands', () => {
             expect(reasons({ klipperState: 'error' })('action:firmwareRestart')).toBeNull()
         })
 
+        it('blocks all printer commands while the connection to Moonraker is lost, whatever the last known state', () => {
+            const reason = reasons({ socketConnected: false, klipperState: 'ready', printerState: 'printing' })
+            const notConnected = 'CommandPalette.Reasons.NotConnected'
+
+            expect(reason('action:emergencyStop')).toBe(notConnected)
+            expect(reason('action:firmwareRestart')).toBe(notConnected)
+            expect(reason('action:pause')).toBe(notConnected)
+            expect(reason('action:cancel')).toBe(notConnected)
+            expect(reason('action:home')).toBe(notConnected)
+            expect(reason('action:cooldown')).toBe(notConnected)
+            expect(reason('preset:pla')).toBe(notConnected)
+            expect(reason('macro:LOAD_FILAMENT')).toBe(notConnected)
+            expect(reason('file:demo.gcode')).toBe(notConnected)
+            expect(reason('nav:/console')).toBeNull()
+            expect(reason('settings:general')).toBeNull()
+        })
+
         it('blocks all printer commands while Klipper is disconnected', () => {
             const reason = reasons({ klipperState: 'disconnected' })
 
@@ -333,14 +351,21 @@ describe('collectGcodeFiles', () => {
         const root = dir('gcodes', [
             file('demo.gcode', 5),
             file('notes.txt'),
-            dir('functional', [file('clip.GCODE', 7), dir('deep', [file('part.g')])]),
+            dir('functional', [file('clip.gcode', 7), dir('deep', [file('part.g')])]),
         ])
 
         expect(collectGcodeFiles(root as never, ['.gcode', '.g'])).toEqual([
             { filename: 'demo.gcode', modified: 5 },
-            { filename: 'functional/clip.GCODE', modified: 7 },
+            { filename: 'functional/clip.gcode', modified: 7 },
             { filename: 'functional/deep/part.g', modified: 1 },
         ])
+    })
+
+    it('matches the extension like the file list of Mainsail does, so every command can find its file', () => {
+        // files/getGcodeFiles compares the extension as it is written; part.GCODE is not listed there
+        const root = dir('gcodes', [file('part.GCODE'), file('part.gcode')])
+
+        expect(collectGcodeFiles(root as never, ['.gcode'])).toEqual([{ filename: 'part.gcode', modified: 1 }])
     })
 
     it('skips hidden files and folders', () => {

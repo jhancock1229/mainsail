@@ -32,6 +32,7 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
         const macros: PrinterStateMacro[] = this.$store.getters['printer/getMacros'] ?? []
 
         return buildPaletteCommands({
+            socketConnected: this.socketIsConnected,
             klipperState: this.klipperState,
             printerState: this.printer_state,
             naviPoints: this.naviPoints.map((point) => ({ ...point, title: point.title.toString() })),
