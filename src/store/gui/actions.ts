@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import { ActionTree } from 'vuex'
 import { GuiState, GuiStateDashboard, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
+import { DashboardLayoutState, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
 import { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 import { RootState } from '@/store/types'
 import { getDefaultState } from './index'
@@ -442,6 +443,49 @@ export const actions: ActionTree<GuiState, RootState> = {
         dispatch('saveSetting', {
             name: 'dashboard.' + name,
             value: newVal,
+        })
+    },
+
+    saveStateLayout(
+        { dispatch, state, getters },
+        payload: { layoutState: DashboardLayoutState; viewport: string; column: number; value: GuiStateLayoutoption[] }
+    ) {
+        const layoutName = payload.column ? `${payload.viewport}Layout${payload.column}` : `${payload.viewport}Layout`
+
+        if (payload.layoutState === 'idle') {
+            dispatch('saveSetting', { name: `dashboard.${layoutName}`, value: payload.value })
+            return
+        }
+
+        // a customized state layout stores all columns of the viewport, so later changes of the idle layout
+        // cannot duplicate or drop panels
+        const customLayouts = state.dashboard.stateLayouts?.[payload.layoutState] ?? {}
+        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
+            let value = payload.value
+            if (layoutKey !== layoutName) {
+                if (Array.isArray(customLayouts[layoutKey])) return
+
+                value = getters['getDashboardLayout'](layoutKey, payload.layoutState)
+            }
+
+            dispatch('saveSetting', {
+                name: `dashboard.stateLayouts.${payload.layoutState}.${layoutKey}`,
+                value,
+            })
+        })
+    },
+
+    resetStateLayout({ dispatch }, payload: { layoutState: DashboardLayoutState; viewport: string }) {
+        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
+            if (payload.layoutState === 'idle') {
+                dispatch('resetLayout', layoutKey)
+                return
+            }
+
+            dispatch('saveSetting', {
+                name: `dashboard.stateLayouts.${payload.layoutState}.${layoutKey}`,
+                value: null,
+            })
         })
     },
 

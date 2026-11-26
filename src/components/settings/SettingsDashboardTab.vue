@@ -7,6 +7,27 @@
 <template>
     <v-card flat>
         <v-card-text>
+            <settings-row
+                :title="$t('Settings.DashboardTab.StateLayouts')"
+                :sub-title="$t('Settings.DashboardTab.StateLayoutsDescription')"
+                :dynamic-slot-width="true">
+                <v-switch v-model="stateLayoutsEnabled" hide-details class="mt-0" />
+            </settings-row>
+            <v-divider class="my-2" />
+            <v-row v-if="stateLayoutsEnabled">
+                <v-col class="text-center pb-0">
+                    <v-btn-toggle v-model="currentLayoutState" class="mx-auto" mandatory>
+                        <v-btn v-for="layoutState in layoutStates" :key="layoutState.value" :value="layoutState.value">
+                            <span class="hidden-sm-and-down">{{ layoutState.text }}</span>
+                            <v-icon right class="hidden-sm-and-down">{{ layoutState.icon }}</v-icon>
+                            <v-icon class="hidden-md-and-up">{{ layoutState.icon }}</v-icon>
+                        </v-btn>
+                    </v-btn-toggle>
+                    <p v-if="activeLayoutState !== 'idle'" class="text-caption text--secondary mt-2 mb-0">
+                        {{ $t('Settings.DashboardTab.StateLayoutHint') }}
+                    </p>
+                </v-col>
+            </v-row>
             <v-row>
                 <v-col class="text-center">
                     <v-btn-toggle v-model="currentViewport" class="mx-auto" mandatory>
@@ -38,7 +59,7 @@
             </v-row>
             <v-row>
                 <v-col class="dashboard-rows-container">
-                    <component :is="currentTab"></component>
+                    <component :is="currentTab" :layout-state="activeLayoutState"></component>
                 </v-col>
             </v-row>
         </v-card-text>
@@ -53,7 +74,17 @@ import SettingsDashboardTabMobile from '@/components/settings/Dashboard/Mobile.v
 import SettingsDashboardTabTablet from '@/components/settings/Dashboard/Tablet.vue'
 import SettingsDashboardTabDesktop from '@/components/settings/Dashboard/Desktop.vue'
 import SettingsDashboardTabWidescreen from '@/components/settings/Dashboard/Widescreen.vue'
-import { mdiCellphone, mdiMonitorScreenshot, mdiMonitorDashboard, mdiTablet } from '@mdi/js'
+import SettingsRow from '@/components/settings/SettingsRow.vue'
+import {
+    mdiAlertCircleOutline,
+    mdiCellphone,
+    mdiMonitorScreenshot,
+    mdiMonitorDashboard,
+    mdiPrinter3dNozzle,
+    mdiSleep,
+    mdiTablet,
+} from '@mdi/js'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 
 @Component({
     components: {
@@ -61,6 +92,7 @@ import { mdiCellphone, mdiMonitorScreenshot, mdiMonitorDashboard, mdiTablet } fr
         SettingsDashboardTabTablet,
         SettingsDashboardTabDesktop,
         SettingsDashboardTabWidescreen,
+        SettingsRow,
     },
 })
 export default class SettingsDashboardTab extends Mixins(BaseMixin) {
@@ -70,6 +102,7 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
     mdiMonitorScreenshot = mdiMonitorScreenshot
 
     private currentViewport = 'desktop'
+    private currentLayoutState: DashboardLayoutState = 'idle'
 
     mounted() {
         if (this.isMobile) this.currentViewport = 'mobile'
@@ -77,6 +110,26 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
         else if (this.isDesktop) this.currentViewport = 'desktop'
         else if (this.isWidescreen) this.currentViewport = 'widescreen'
         else this.currentViewport = 'desktop'
+    }
+
+    get stateLayoutsEnabled(): boolean {
+        return this.$store.state.gui.dashboard.stateLayouts?.enabled ?? false
+    }
+
+    set stateLayoutsEnabled(newVal: boolean) {
+        this.$store.dispatch('gui/saveSetting', { name: 'dashboard.stateLayouts.enabled', value: newVal })
+    }
+
+    get activeLayoutState(): DashboardLayoutState {
+        return this.stateLayoutsEnabled ? this.currentLayoutState : 'idle'
+    }
+
+    get layoutStates() {
+        return [
+            { value: 'idle', text: this.$t('Settings.DashboardTab.Idle'), icon: mdiSleep },
+            { value: 'printing', text: this.$t('Settings.DashboardTab.Printing'), icon: mdiPrinter3dNozzle },
+            { value: 'error', text: this.$t('Settings.DashboardTab.Error'), icon: mdiAlertCircleOutline },
+        ]
     }
 
     get currentTab() {

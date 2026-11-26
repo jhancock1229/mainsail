@@ -1197,8 +1197,14 @@
         "DashboardTab": {
             "Dashboard": "Dashboard",
             "Desktop": "Desktop",
+            "Error": "Error",
+            "Idle": "Idle",
             "Mobile": "Mobile",
+            "Printing": "Printing",
             "ResetLayout": "Reset Layout",
+            "StateLayoutHint": "This layout starts from your idle layout with a few adjustments. It becomes independent once you change it. Reset Layout restores that behavior.",
+            "StateLayouts": "Adapt layout to printer state",
+            "StateLayoutsDescription": "Show a different dashboard layout while printing and when an error occurs.",
             "Tablet": "Tablet",
             "Widescreen": "Widescreen"
         },

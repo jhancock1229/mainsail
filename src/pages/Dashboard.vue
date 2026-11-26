@@ -122,35 +122,35 @@ import WebcamPanel from '@/components/panels/WebcamPanel.vue'
 })
 export default class PageDashboard extends Mixins(DashboardMixin) {
     get mobileLayout() {
-        return this.$store.getters['gui/getPanels']('mobile', 0, true)
+        return this.$store.getters['gui/getPanels']('mobile', 0, true, this.dashboardLayoutState)
     }
 
     get tabletLayout1() {
-        return this.$store.getters['gui/getPanels']('tablet', 1, true)
+        return this.$store.getters['gui/getPanels']('tablet', 1, true, this.dashboardLayoutState)
     }
 
     get tabletLayout2() {
-        return this.$store.getters['gui/getPanels']('tablet', 2, true)
+        return this.$store.getters['gui/getPanels']('tablet', 2, true, this.dashboardLayoutState)
     }
 
     get desktopLayout1() {
-        return this.$store.getters['gui/getPanels']('desktop', 1, true)
+        return this.$store.getters['gui/getPanels']('desktop', 1, true, this.dashboardLayoutState)
     }
 
     get desktopLayout2() {
-        return this.$store.getters['gui/getPanels']('desktop', 2, true)
+        return this.$store.getters['gui/getPanels']('desktop', 2, true, this.dashboardLayoutState)
     }
 
     get widescreenLayout1() {
-        return this.$store.getters['gui/getPanels']('widescreen', 1, true)
+        return this.$store.getters['gui/getPanels']('widescreen', 1, true, this.dashboardLayoutState)
     }
 
     get widescreenLayout2() {
-        return this.$store.getters['gui/getPanels']('widescreen', 2, true)
+        return this.$store.getters['gui/getPanels']('widescreen', 2, true, this.dashboardLayoutState)
     }
 
     get widescreenLayout3() {
-        return this.$store.getters['gui/getPanels']('widescreen', 3, true)
+        return this.$store.getters['gui/getPanels']('widescreen', 3, true, this.dashboardLayoutState)
     }
 
     extractPanelName(name: string) {

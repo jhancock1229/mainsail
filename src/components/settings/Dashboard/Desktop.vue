@@ -3,10 +3,10 @@
         <v-card-text>
             <v-row>
                 <v-col class="col-12 col-md-6">
-                    <settings-dashboard-sortable viewport-name="desktop" :column="1" />
+                    <settings-dashboard-sortable viewport-name="desktop" :column="1" :layout-state="layoutState" />
                 </v-col>
                 <v-col class="col-12 col-md-6">
-                    <settings-dashboard-sortable viewport-name="desktop" :column="2" />
+                    <settings-dashboard-sortable viewport-name="desktop" :column="2" :layout-state="layoutState" />
                 </v-col>
             </v-row>
             <v-row>
@@ -20,9 +20,10 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Prop } from 'vue-property-decorator'
 import DashboardMixin from '@/components/mixins/dashboard'
 import SettingsDashboardSortable from '@/components/settings/Dashboard/Sortable.vue'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 
 @Component({
     components: {
@@ -30,9 +31,10 @@ import SettingsDashboardSortable from '@/components/settings/Dashboard/Sortable.
     },
 })
 export default class SettingsDashboardTabDesktop extends Mixins(DashboardMixin) {
+    @Prop({ type: String, required: false, default: 'idle' }) declare readonly layoutState: DashboardLayoutState
+
     resetLayout() {
-        this.$store.dispatch('gui/resetLayout', 'desktopLayout1')
-        this.$store.dispatch('gui/resetLayout', 'desktopLayout2')
+        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'desktop' })
     }
 }
 </script>

@@ -18,6 +18,7 @@ import {
     mdiMulticast,
 } from '@mdi/js'
 import { afcIconLogo } from '@/plugins/afcIcons'
+import { DashboardLayoutState, resolveDashboardLayoutState } from '@/plugins/dashboardLayoutState'
 
 @Component
 export default class DashboardMixin extends BaseMixin {
@@ -27,6 +28,14 @@ export default class DashboardMixin extends BaseMixin {
 
     get webcams() {
         return this.$store.getters['gui/webcams/getWebcams'] ?? []
+    }
+
+    get dashboardLayoutState(): DashboardLayoutState {
+        return resolveDashboardLayoutState({
+            enabled: this.$store.state.gui.dashboard.stateLayouts?.enabled ?? false,
+            klipperState: this.klipperState,
+            printerState: this.printer_state,
+        })
     }
 
     getPanelName(name: string) {
