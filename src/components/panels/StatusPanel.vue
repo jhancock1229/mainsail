@@ -58,7 +58,13 @@
             <template v-if="print_stats_message">
                 <v-container>
                     <v-row>
-                        <v-col class="py-2">
+                        <v-col v-if="printErrorExplanation" class="pt-3 pb-2">
+                            <error-explainer
+                                :explanation="printErrorExplanation"
+                                :icon="mdiAlertOutline"
+                                color="warning" />
+                        </v-col>
+                        <v-col v-else class="py-2">
                             <span class="subtitle-2 px-0 text--disabled">
                                 <v-icon class="mr-2 mt-1 float-left" color="warning" small>
                                     {{ mdiAlertOutline }}
@@ -166,10 +172,14 @@ import {
 } from '@mdi/js'
 import { PrinterStateMacro } from '@/store/printer/types'
 import ConfirmationDialog from '@/components/dialogs/ConfirmationDialog.vue'
+import ErrorExplainer from '@/components/ui/ErrorExplainer.vue'
+import { ErrorExplanation, explainError } from '@/plugins/errorExplainer'
+import { resolveAlertSettings } from '@/plugins/notificationRules'
 
 @Component({
     components: {
         ConfirmationDialog,
+        ErrorExplainer,
         KlippyStatePanel,
         MinSettingsPanel,
         Panel,
@@ -331,6 +341,13 @@ export default class StatusPanel extends Mixins(BaseMixin) {
 
     get print_stats_message() {
         return this.$store.state.printer.print_stats?.message ?? null
+    }
+
+    // plain-language explanation of the message of a failed print
+    get printErrorExplanation(): ErrorExplanation | null {
+        if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
+
+        return explainError(this.print_stats_message, { klipperState: this.klipperState })
     }
 
     get layer_count() {
