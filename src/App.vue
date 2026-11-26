@@ -115,7 +115,8 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return this.$store.state.printer.print_stats?.filename ?? ''
     }
 
-    systemPrefersDark = window.matchMedia?.(systemPrefersDarkQuery).matches ?? true
+    systemDarkQuery: MediaQueryList | null = window.matchMedia?.(systemPrefersDarkQuery) ?? null
+    systemPrefersDark = this.systemDarkQuery?.matches ?? true
 
     get mode(): string {
         return this.$store.state.gui.uiSettings.mode
@@ -398,11 +399,17 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.appHeight()
         window.addEventListener('resize', this.appHeight)
         window.addEventListener('orientationchange', this.appHeight)
-        window.matchMedia?.(systemPrefersDarkQuery).addEventListener('change', this.systemPrefersDarkChanged)
+
+        // older Safari only has the deprecated addListener
+        if (this.systemDarkQuery?.addEventListener)
+            this.systemDarkQuery.addEventListener('change', this.systemPrefersDarkChanged)
+        else this.systemDarkQuery?.addListener?.(this.systemPrefersDarkChanged)
     }
 
     beforeDestroy(): void {
-        window.matchMedia?.(systemPrefersDarkQuery).removeEventListener('change', this.systemPrefersDarkChanged)
+        if (this.systemDarkQuery?.removeEventListener)
+            this.systemDarkQuery.removeEventListener('change', this.systemPrefersDarkChanged)
+        else this.systemDarkQuery?.removeListener?.(this.systemPrefersDarkChanged)
     }
 
     systemPrefersDarkChanged(event: MediaQueryListEvent): void {
