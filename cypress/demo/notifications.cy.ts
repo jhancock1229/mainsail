@@ -116,7 +116,7 @@ const openNotificationSettings = () => {
 }
 
 const closeSettings = () => {
-    cy.get('body').type('{esc}')
+    cy.get('.settings-menu-dialog .panel-toolbar button').last().click()
     cy.get('.v-dialog--active').should('not.exist')
 }
 
@@ -296,6 +296,54 @@ describe('Printer event notifications', () => {
         toast('Filament ran out').should('contain', 'runout_sensor')
         cy.contains('.panel-toolbar', 'Paused')
         expectNoToast('Print paused')
+
+        // the paused print says what it is waiting for, until filament is loaded and the print resumed
+        cy.contains('.status-panel .error-explainer__title', 'No filament at the sensor')
+        cy.contains('.status-panel .error-explainer__cause', 'runout_sensor')
+        cy.get('.status-panel').invoke('text').should('not.match', untranslated)
+        demo('resume')
+        cy.contains('.panel-toolbar', 'Printing')
+        cy.get('.status-panel .error-explainer').should('not.exist')
+    })
+
+    it('does not call it a runout when filament is pulled out of a paused print', () => {
+        open()
+        startPrint()
+        demo('pause')
+        toast('Print paused')
+
+        demo('runout')
+        cy.contains('.status-panel .error-explainer__title', 'No filament at the sensor')
+        expectNoToast('Filament ran out')
+    })
+
+    it('does not report the pause of a timelapse frame', () => {
+        open()
+        startPrint()
+        demo('frame')
+
+        // the frame takes about two seconds, a pause is told after a delay of 1.5 seconds
+        cy.wait(4500)
+        cy.contains('.panel-toolbar', 'Printing')
+        cy.contains('.v-toast__item', 'Print paused').should('not.exist')
+
+        // a pause that lasts is still told
+        demo('pause')
+        toast('Print paused')
+    })
+
+    it('tells about the failed print when a Klipper error stops it and Klipper errors are silenced', () => {
+        open()
+        openNotificationSettings()
+        toggleChannel('klipperError', 'toast')
+        cy.contains('[data-event=klipperError]', 'Silent')
+        closeSettings()
+
+        startPrint()
+        demo('error/lost-communication')
+
+        toast('Print failed').should('contain', 'The connection to the controller board was lost')
+        cy.contains('.v-toast__item', 'Klipper stopped with an error').should('not.exist')
     })
 
     it('stays quiet on page load for a print that has failed already', () => {
@@ -396,6 +444,36 @@ describe('Printer event notifications', () => {
                 { title: 'Klipper stopped with an error', body: 'This is a test notification.' },
             ])
         })
+    })
+
+    it('opens the dashboard from the toast of an error, but not from a test notification', () => {
+        open()
+        cy.contains('.v-navigation-drawer a', 'Console').click()
+        cy.location('pathname').should('eq', '/console')
+
+        openNotificationSettings()
+        cy.get('[data-event=printFailed] [data-action=test]').click()
+        closeSettings()
+        toast('This is a test notification.').click()
+        cy.contains('.v-toast__item', 'This is a test notification.').should('not.exist')
+        cy.location('pathname').should('eq', '/console')
+
+        demo('print')
+        toast('Print started')
+        demo('fail/heater')
+        toast('A heater is not heating up as expected').click()
+        cy.location('pathname').should('eq', '/')
+    })
+
+    it('offers the notification rules for backup in the general settings', () => {
+        open()
+        openNotificationSettings()
+        toggleChannel('printPaused', 'sound')
+        channel('printPaused', 'sound').should('be.checked')
+
+        cy.contains('.v-dialog--active .v-tab', /^\s*General\s*$/i).click()
+        cy.contains('.v-dialog--active .v-btn', /^\s*Backup\s*$/i).click()
+        cy.contains('.mainsail-backup-dialog', 'Notification Rules')
     })
 
     it('falls back to a toast and says why when browser notifications are blocked', () => {

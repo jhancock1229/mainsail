@@ -1,5 +1,6 @@
 // Detects printer events (print started, finished, failed, ...) from two consecutive printer states.
 import { isKlipperFault } from '@/plugins/errorExplainer'
+import type { ErrorExplanation } from '@/plugins/errorExplainer'
 
 export const printerEventNames = [
     'printStarted',
@@ -25,6 +26,7 @@ export const printerEventSeverities: Record<PrinterEventName, PrinterEventSeveri
 
 export interface PrinterEvent {
     name: PrinterEventName
+    // object name of the filament sensor, see filamentSensorLabel
     sensor?: string
 }
 
@@ -32,15 +34,16 @@ export interface PrinterSnapshot {
     klipperState: string
     // print_stats.state, empty while unknown
     printState: string
-    // enabled filament sensors: name -> filament detected
+    // enabled filament sensors: object name (e.g. "filament_switch_sensor runout") -> filament detected
     filamentSensors: Record<string, boolean>
 }
 
 const FILAMENT_SENSOR_PREFIXES = ['filament_switch_sensor', 'filament_motion_sensor']
-// a filament runout pauses the print, which is not worth a second notification
+// a filament runout pauses the print and a Klipper error fails it, which is not worth a second notification
 const FOLLOW_UP_WINDOW_MS = 30000
 const followUpEvents: Partial<Record<PrinterEventName, PrinterEventName>> = {
     printPaused: 'filamentRunout',
+    printFailed: 'klipperError',
 }
 
 const isActivePrint = (printState: string): boolean => ['printing', 'paused'].includes(printState)
@@ -58,7 +61,8 @@ export const buildPrinterSnapshot = (klipperState: string, printer: PrinterObjec
         const sensor = objects[key]
         if (sensor?.enabled !== true) return
 
-        filamentSensors[nameParts.join(' ')] = sensor.filament_detected === true
+        // the full object name: sensors of different types can have the same name
+        filamentSensors[key] = sensor.filament_detected === true
     })
 
     let printState = String(objects.print_stats?.state ?? '')
@@ -69,9 +73,16 @@ export const buildPrinterSnapshot = (klipperState: string, printer: PrinterObjec
     return { klipperState, printState, filamentSensors }
 }
 
+// name of a filament sensor without its type, for display
+export const filamentSensorLabel = (sensor: string): string => {
+    const [type, ...nameParts] = sensor.split(' ')
+
+    return nameParts.length > 0 ? nameParts.join(' ') : type
+}
+
 const detectRunouts = (previous: PrinterSnapshot, current: PrinterSnapshot): PrinterEvent[] => {
-    // without a print, an empty sensor just means the filament was unloaded
-    if (!isActivePrint(previous.printState) && !isActivePrint(current.printState)) return []
+    // while the print is paused or no print is running, an empty sensor means the filament was unloaded
+    if (previous.printState !== 'printing') return []
 
     return Object.keys(current.filamentSensors)
         .filter((sensor) => previous.filamentSensors[sensor] === true && !current.filamentSensors[sensor])
@@ -96,6 +107,10 @@ export const detectPrinterEvents = (previous: PrinterSnapshot | null, current: P
     const events: PrinterEvent[] = []
     if (isKlipperFault(current.klipperState) && !isKlipperFault(previous.klipperState)) {
         events.push({ name: 'klipperError' })
+        // the error also ends a running print: whether that is told as well is decided by dropFollowUpEvents
+        if (previous.klipperState === 'ready' && isActivePrint(previous.printState)) {
+            events.push({ name: 'printFailed' })
+        }
     }
 
     // print data is stale while Klipper is not ready, and the first state after it got ready is a new baseline
@@ -125,4 +140,33 @@ export const dropFollowUpEvents = (
 
         return firedAt === undefined || now - firedAt > FOLLOW_UP_WINDOW_MS
     })
+}
+
+// Some events are only told after a short delay, when they still hold:
+// - the timelapse macro resumes the print and clears its is_paused flag right after, so for a moment the print
+//   looks paused by the user,
+// - a failed print can be cleared or restarted right away.
+export const isEventStillCurrent = (name: PrinterEventName, current: PrinterSnapshot): boolean => {
+    if (name === 'printPaused') return current.klipperState === 'ready' && current.printState === 'paused'
+    // the print data is stale once Klipper stopped, but the print did fail
+    if (name === 'printFailed') return isKlipperFault(current.klipperState) || current.printState === 'error'
+
+    return true
+}
+
+// explanation for a paused print with an empty filament sensor: a runout, or filament that was pulled out
+export const explainMissingFilament = (current: PrinterSnapshot): ErrorExplanation | null => {
+    if (current.klipperState !== 'ready' || current.printState !== 'paused') return null
+
+    const sensor = Object.keys(current.filamentSensors).find((name) => !current.filamentSensors[name])
+    if (sensor === undefined) return null
+
+    return {
+        id: 'filamentMissing',
+        known: true,
+        raw: '',
+        summary: '',
+        params: { sensor: filamentSensorLabel(sensor) },
+        actions: [],
+    }
 }

@@ -13,6 +13,7 @@
 #   demo/demo.sh error <timer-too-close|lost-communication|thermistor|heater|mcu-connect|config|unknown>
 #                          stop Klipper with a specific error
 #   demo/demo.sh runout    the filament sensor runs empty  -> a running print is paused
+#   demo/demo.sh frame     take a timelapse frame          -> the print pauses for a moment
 #   demo/demo.sh idle      cancel the print / recover      -> idle state
 #   demo/demo.sh reset     fresh printer and default Mainsail settings
 #   demo/demo.sh status    show Klipper and print state
@@ -30,7 +31,7 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | pause | resume | finish | fail | error | runout | idle | reset | status)
+    print | pause | resume | finish | frame | fail | error | runout | idle | reset | status)
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
@@ -48,7 +49,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

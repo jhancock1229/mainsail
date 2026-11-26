@@ -16,6 +16,8 @@ export const errorIds = [
     'emergencyStop',
     'configError',
     'unknown',
+    // not matched from a message: a paused print with an empty filament sensor, see explainMissingFilament
+    'filamentMissing',
 ] as const
 
 export type ErrorId = (typeof errorIds)[number]
@@ -113,6 +115,34 @@ const faultOnlyActions: ErrorActionId[] = ['firmwareRestart', 'restart']
 const readyOnlyActions: ErrorActionId[] = ['home', 'reheat']
 
 export const isKlipperFault = (klipperState: string): boolean => ['error', 'shutdown'].includes(klipperState)
+
+// the message of Klipper, or null while it has not arrived yet
+export const settledKlipperMessage = (message: string | null | undefined): string | null => {
+    const text = (message ?? '').trim()
+
+    return text === '' || placeholderMessages.includes(text) ? null : text
+}
+
+const MAX_REHEAT_TEMPERATURE = 500
+
+// Which heater the "re-heat" action heats and to which temperature: the heater named in the message, or the
+// active extruder, to the temperature the loaded G-code file starts with. Null when that is not known.
+export const resolveReheatTarget = (input: {
+    heater: string | undefined
+    activeExtruder: string | undefined
+    heaters: string[]
+    file: Record<string, unknown> | undefined
+}): { heater: string; temperature: number } | null => {
+    const heater = input.heater ?? input.activeExtruder ?? 'extruder'
+    if (!input.heaters.includes(heater)) return null
+
+    let temperature: unknown
+    if (heater === 'heater_bed') temperature = input.file?.first_layer_bed_temp
+    else if (heater.startsWith('extruder')) temperature = input.file?.first_layer_extr_temp
+    if (typeof temperature !== 'number' || temperature <= 0 || temperature > MAX_REHEAT_TEMPERATURE) return null
+
+    return { heater, temperature: Math.round(temperature) }
+}
 
 const filterActions = (actions: ErrorActionId[], klipperState: string): ErrorActionId[] => {
     return actions.filter((action) => {

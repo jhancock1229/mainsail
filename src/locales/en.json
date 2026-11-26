@@ -273,6 +273,11 @@
                 "Fix": "Heat the nozzle to the printing temperature of your filament and try again.",
                 "Title": "The nozzle is too cold to extrude"
             },
+            "filamentMissing": {
+                "Cause": "The filament sensor \"{sensor}\" does not detect filament. The spool may be empty, or the filament broke, is stuck or was pulled out.",
+                "Fix": "Load filament, then resume the print.",
+                "Title": "No filament at the sensor"
+            },
             "filamentRunout": {
                 "Cause": "A filament sensor no longer detects filament. The spool is empty, or the filament broke or is stuck.",
                 "Fix": "Load new filament, then resume the print.",
@@ -1350,6 +1355,7 @@
             },
             "CannotReadJson": "Cannot read/parse backup file.",
             "DateFormat": "Date Format",
+            "DbAlerts": "Notification Rules",
             "DbConsoleHistory": "Console History",
             "DbHistoryJobs": "History Jobs",
             "DbHistoryTotals": "History Totals",

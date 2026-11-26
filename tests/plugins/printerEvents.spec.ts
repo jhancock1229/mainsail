@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildPrinterSnapshot, detectPrinterEvents, dropFollowUpEvents } from '@/plugins/printerEvents'
+import {
+    buildPrinterSnapshot,
+    detectPrinterEvents,
+    dropFollowUpEvents,
+    explainMissingFilament,
+    filamentSensorLabel,
+    isEventStillCurrent,
+} from '@/plugins/printerEvents'
 import type { PrinterSnapshot } from '@/plugins/printerEvents'
 
 const snapshot = (values: Partial<PrinterSnapshot> = {}): PrinterSnapshot => ({
@@ -62,10 +69,29 @@ describe('detectPrinterEvents', () => {
         expect(names(snapshot({ klipperState: 'shutdown' }), snapshot({ klipperState: 'error' }))).toEqual([])
     })
 
-    it('reports a shutdown during a print once, as a Klipper error', () => {
-        const before = snapshot({ printState: 'printing' })
+    it('reports a shutdown during a print as a Klipper error and a failed print', () => {
+        // which of the two is told is up to the rules, see dropFollowUpEvents
+        const both = ['klipperError', 'printFailed']
 
-        expect(names(before, snapshot({ klipperState: 'shutdown', printState: 'error' }))).toEqual(['klipperError'])
+        expect(names(snapshot({ printState: 'printing' }), snapshot({ klipperState: 'shutdown' }))).toEqual(both)
+        expect(
+            names(snapshot({ printState: 'paused' }), snapshot({ klipperState: 'shutdown', printState: 'error' }))
+        ).toEqual(both)
+    })
+
+    it('does not report a failed print for a shutdown without a running print', () => {
+        expect(names(snapshot(), snapshot({ klipperState: 'shutdown' }))).toEqual(['klipperError'])
+        expect(names(snapshot({ printState: 'complete' }), snapshot({ klipperState: 'error' }))).toEqual([
+            'klipperError',
+        ])
+        // the failed print was reported when it failed
+        expect(names(snapshot({ printState: 'error' }), snapshot({ klipperState: 'shutdown' }))).toEqual([
+            'klipperError',
+        ])
+        // print data from before Klipper was ready is stale
+        expect(
+            names(snapshot({ klipperState: 'startup', printState: 'printing' }), snapshot({ klipperState: 'error' }))
+        ).toEqual(['klipperError'])
     })
 
     it('ignores stale print data while Klipper is not ready', () => {
@@ -89,11 +115,22 @@ describe('detectPrinterEvents', () => {
         expect(names(snapshot({ printState: '' }), snapshot({ printState: 'printing' }))).toEqual([])
     })
 
-    it('detects a filament runout during a print, with the sensor name', () => {
-        const before = snapshot({ printState: 'printing', filamentSensors: { runout_sensor: true } })
-        const after = snapshot({ printState: 'printing', filamentSensors: { runout_sensor: false } })
+    it('detects a filament runout during a print, with the sensor', () => {
+        const sensor = 'filament_switch_sensor runout_sensor'
+        const before = snapshot({ printState: 'printing', filamentSensors: { [sensor]: true } })
+        const after = snapshot({ printState: 'printing', filamentSensors: { [sensor]: false } })
 
-        expect(detectPrinterEvents(before, after)).toEqual([{ name: 'filamentRunout', sensor: 'runout_sensor' }])
+        expect(detectPrinterEvents(before, after)).toEqual([{ name: 'filamentRunout', sensor }])
+    })
+
+    it('does not report filament that is pulled out while the print is paused', () => {
+        // e.g. a colour change
+        const before = snapshot({ printState: 'paused', filamentSensors: { runout_sensor: true } })
+
+        expect(names(before, snapshot({ printState: 'paused', filamentSensors: { runout_sensor: false } }))).toEqual([])
+        expect(names(before, snapshot({ printState: 'printing', filamentSensors: { runout_sensor: false } }))).toEqual(
+            []
+        )
     })
 
     it('reports a runout before the pause it causes', () => {
@@ -139,9 +176,112 @@ describe('dropFollowUpEvents', () => {
     })
 
     it('keeps other events', () => {
-        const events = [{ name: 'printFailed' as const }, { name: 'klipperError' as const }]
+        const events = [{ name: 'printFinished' as const }, { name: 'klipperError' as const }]
 
         expect(dropFollowUpEvents(events, { filamentRunout: 1000 }, 2000)).toEqual(events)
+    })
+
+    const failed = [{ name: 'printFailed' as const }]
+    const klipperError = { name: 'klipperError' as const }
+
+    it('drops the failed print that comes with or right after a Klipper error', () => {
+        expect(dropFollowUpEvents([klipperError, ...failed], {}, 5000)).toEqual([klipperError])
+        expect(dropFollowUpEvents(failed, { klipperError: 4000 }, 5000)).toEqual([])
+    })
+
+    it('keeps the failed print when no Klipper error was told', () => {
+        // a silenced Klipper error is not passed in and not recorded
+        expect(dropFollowUpEvents(failed, {}, 5000)).toEqual(failed)
+        expect(dropFollowUpEvents(failed, { klipperError: 1000 }, 120000)).toEqual(failed)
+    })
+})
+
+describe('isEventStillCurrent', () => {
+    it('confirms a pause that lasts', () => {
+        expect(isEventStillCurrent('printPaused', snapshot({ printState: 'paused' }))).toBe(true)
+    })
+
+    it('rejects a pause that was over a moment later', () => {
+        expect(isEventStillCurrent('printPaused', snapshot({ printState: 'printing' }))).toBe(false)
+        expect(isEventStillCurrent('printPaused', snapshot({ printState: 'cancelled' }))).toBe(false)
+        expect(isEventStillCurrent('printPaused', snapshot({ klipperState: 'shutdown', printState: 'paused' }))).toBe(
+            false
+        )
+    })
+
+    it('rejects the pause of a timelapse frame whose flag and print state arrive in different updates', () => {
+        // timelapse.cfg resumes the print first and clears is_paused right after: for a moment the print is
+        // still "paused" while the flag is gone already
+        const frame = (state: string, isPaused: boolean) =>
+            buildPrinterSnapshot('ready', {
+                print_stats: { state },
+                'gcode_macro TIMELAPSE_TAKE_FRAME': { is_paused: isPaused },
+            })
+        const takingFrame = frame('paused', true)
+        const flagCleared = frame('paused', false)
+        const resumed = frame('printing', false)
+
+        expect(detectPrinterEvents(frame('printing', false), takingFrame)).toEqual([])
+        expect(detectPrinterEvents(takingFrame, flagCleared)).toEqual([{ name: 'printPaused' }])
+        expect(isEventStillCurrent('printPaused', resumed)).toBe(false)
+        expect(detectPrinterEvents(flagCleared, resumed)).toEqual([])
+    })
+
+    it('confirms a failed print, also when Klipper stopped in the meantime', () => {
+        expect(isEventStillCurrent('printFailed', snapshot({ printState: 'error' }))).toBe(true)
+        expect(isEventStillCurrent('printFailed', snapshot({ klipperState: 'shutdown', printState: 'printing' }))).toBe(
+            true
+        )
+    })
+
+    it('rejects a failed print that was cleared or restarted already', () => {
+        expect(isEventStillCurrent('printFailed', snapshot({ printState: 'standby' }))).toBe(false)
+        expect(isEventStillCurrent('printFailed', snapshot({ printState: 'printing' }))).toBe(false)
+    })
+
+    it('confirms all other events', () => {
+        expect(isEventStillCurrent('printFinished', snapshot())).toBe(true)
+        expect(isEventStillCurrent('klipperError', snapshot())).toBe(true)
+    })
+})
+
+describe('filamentSensorLabel', () => {
+    it('strips the type of the sensor', () => {
+        expect(filamentSensorLabel('filament_switch_sensor runout_sensor')).toBe('runout_sensor')
+        expect(filamentSensorLabel('filament_motion_sensor my encoder')).toBe('my encoder')
+        expect(filamentSensorLabel('odd')).toBe('odd')
+    })
+})
+
+describe('explainMissingFilament', () => {
+    const sensor = 'filament_switch_sensor runout_sensor'
+
+    it('explains a paused print with an empty filament sensor', () => {
+        const result = explainMissingFilament(snapshot({ printState: 'paused', filamentSensors: { [sensor]: false } }))
+
+        expect(result?.id).toBe('filamentMissing')
+        expect(result?.known).toBe(true)
+        expect(result?.params.sensor).toBe('runout_sensor')
+        expect(result?.raw).toBe('')
+        expect(result?.actions).toEqual([])
+    })
+
+    it('returns null when the filament is there, the print is not paused or Klipper is not ready', () => {
+        expect(
+            explainMissingFilament(snapshot({ printState: 'paused', filamentSensors: { [sensor]: true } }))
+        ).toBeNull()
+        expect(explainMissingFilament(snapshot({ printState: 'paused' }))).toBeNull()
+        expect(
+            explainMissingFilament(snapshot({ printState: 'printing', filamentSensors: { [sensor]: false } }))
+        ).toBeNull()
+        expect(
+            explainMissingFilament(snapshot({ printState: 'standby', filamentSensors: { [sensor]: false } }))
+        ).toBeNull()
+        expect(
+            explainMissingFilament(
+                snapshot({ klipperState: 'shutdown', printState: 'paused', filamentSensors: { [sensor]: false } })
+            )
+        ).toBeNull()
     })
 })
 
@@ -158,7 +298,19 @@ describe('buildPrinterSnapshot', () => {
         expect(result).toEqual({
             klipperState: 'ready',
             printState: 'printing',
-            filamentSensors: { runout: true, encoder: false },
+            filamentSensors: { 'filament_switch_sensor runout': true, 'filament_motion_sensor encoder': false },
+        })
+    })
+
+    it('keeps sensors of different types with the same name apart', () => {
+        const result = buildPrinterSnapshot('ready', {
+            'filament_switch_sensor toolhead': { enabled: true, filament_detected: true },
+            'filament_motion_sensor toolhead': { enabled: true, filament_detected: false },
+        })
+
+        expect(result.filamentSensors).toEqual({
+            'filament_switch_sensor toolhead': true,
+            'filament_motion_sensor toolhead': false,
         })
     })
 

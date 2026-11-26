@@ -3,7 +3,7 @@ import { CreateElement, VNode } from 'vue'
 import Component from 'vue-class-component'
 import { Mixins, Watch } from 'vue-property-decorator'
 import EventNotificationsMixin from '@/components/mixins/eventNotifications'
-import { explainError, isKlipperFault, placeholderMessages } from '@/plugins/errorExplainer'
+import { explainError, isKlipperFault, settledKlipperMessage } from '@/plugins/errorExplainer'
 import {
     PrinterEvent,
     PrinterEventName,
@@ -11,10 +11,14 @@ import {
     buildPrinterSnapshot,
     detectPrinterEvents,
     dropFollowUpEvents,
+    filamentSensorLabel,
+    isEventStillCurrent,
 } from '@/plugins/printerEvents'
 
-// a failed print is often followed by a Klipper shutdown, which is then reported instead
-const PRINT_FAILED_DELAY_MS = 1500
+// These events are told after a short delay, if they still hold then (see isEventStillCurrent): a failed
+// print is often followed by the Klipper shutdown that caused it, and a pause can be a timelapse frame.
+const DELAYED_EVENTS: PrinterEventName[] = ['printFailed', 'printPaused']
+const SETTLE_DELAY_MS = 1500
 // Klipper's message arrives a moment after the state
 const KLIPPER_MESSAGE_POLL_MS = 250
 const KLIPPER_MESSAGE_MAX_WAIT_MS = 5000
@@ -24,6 +28,7 @@ const KLIPPER_MESSAGE_MAX_WAIT_MS = 5000
 @Component
 export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
     previousSnapshot: PrinterSnapshot | null = null
+    // when the events were last told (only events with at least one channel)
     lastFired: Partial<Record<PrinterEventName, number>> = {}
     timers: number[] = []
 
@@ -32,10 +37,7 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
     }
 
     get klipperMessage(): string | null {
-        const message = this.$store.state.server.klippy_message ?? null
-        if (message === null || placeholderMessages.includes(message)) return null
-
-        return message
+        return settledKlipperMessage(this.$store.state.server.klippy_message)
     }
 
     get filename(): string {
@@ -54,7 +56,9 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
 
         events.forEach((event) => {
             this.lastFired[event.name] = now
-            this.handleEvent(event)
+
+            if (DELAYED_EVENTS.includes(event.name)) this.later(SETTLE_DELAY_MS, () => this.confirmEvent(event))
+            else this.tellEvent(event)
         })
     }
 
@@ -66,19 +70,30 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         return h()
     }
 
-    handleEvent(event: PrinterEvent): void {
+    confirmEvent(event: PrinterEvent): void {
+        if (!isEventStillCurrent(event.name, this.snapshot)) return
+        // its cause may have been told in the meantime, e.g. the Klipper shutdown that failed the print
+        if (dropFollowUpEvents([event], this.lastFired, Date.now()).length === 0) return
+
+        this.tellEvent(event)
+    }
+
+    tellEvent(event: PrinterEvent): void {
         switch (event.name) {
-            case 'printFailed':
-                this.later(PRINT_FAILED_DELAY_MS, () => this.notifyPrintFailed())
+            case 'klipperError':
+                this.tellKlipperError(0)
                 break
 
-            case 'klipperError':
-                this.notifyKlipperError(0)
+            case 'printFailed':
+                this.sendEventNotification(event.name, [
+                    this.filename,
+                    this.explainInOneLine(this.printFailedMessage()),
+                ])
                 break
 
             case 'filamentRunout':
                 this.sendEventNotification(event.name, [
-                    this.$t('App.PrinterEvents.Sensor', { sensor: event.sensor ?? '' }).toString(),
+                    this.$t('App.PrinterEvents.Sensor', { sensor: filamentSensorLabel(event.sensor ?? '') }).toString(),
                 ])
                 break
 
@@ -87,22 +102,22 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         }
     }
 
-    notifyPrintFailed(): void {
-        if (isKlipperFault(this.klipperState)) return
-
-        const message = this.$store.state.printer.print_stats?.message ?? ''
-        this.sendEventNotification('printFailed', [this.filename, this.explainInOneLine(message)])
-    }
-
-    notifyKlipperError(waited: number): void {
+    tellKlipperError(waited: number): void {
         if (!isKlipperFault(this.klipperState)) return
 
         if (this.klipperMessage === null && waited < KLIPPER_MESSAGE_MAX_WAIT_MS) {
-            this.later(KLIPPER_MESSAGE_POLL_MS, () => this.notifyKlipperError(waited + KLIPPER_MESSAGE_POLL_MS))
+            this.later(KLIPPER_MESSAGE_POLL_MS, () => this.tellKlipperError(waited + KLIPPER_MESSAGE_POLL_MS))
             return
         }
 
         this.sendEventNotification('klipperError', [this.explainInOneLine(this.klipperMessage)])
+    }
+
+    // the message of the print, or of Klipper when it stopped the print before the print got a message
+    printFailedMessage(): string | null {
+        const message: string = this.$store.state.printer.print_stats?.message ?? ''
+
+        return message.trim() !== '' ? message : this.klipperMessage
     }
 
     explainInOneLine(message: string | null): string {

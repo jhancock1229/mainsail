@@ -76,6 +76,19 @@
                 </v-container>
                 <v-divider class="mt-0 mb-0" />
             </template>
+            <template v-if="missingFilamentExplanation">
+                <v-container>
+                    <v-row>
+                        <v-col class="pt-3 pb-0">
+                            <error-explainer
+                                :explanation="missingFilamentExplanation"
+                                :icon="mdiAlertOutline"
+                                color="warning" />
+                        </v-col>
+                    </v-row>
+                </v-container>
+                <v-divider class="mt-0 mb-0" />
+            </template>
             <template v-if="display_message">
                 <v-container>
                     <v-row class="flex-nowrap">
@@ -175,6 +188,7 @@ import ConfirmationDialog from '@/components/dialogs/ConfirmationDialog.vue'
 import ErrorExplainer from '@/components/ui/ErrorExplainer.vue'
 import { ErrorExplanation, explainError } from '@/plugins/errorExplainer'
 import { resolveAlertSettings } from '@/plugins/notificationRules'
+import { buildPrinterSnapshot, explainMissingFilament } from '@/plugins/printerEvents'
 
 @Component({
     components: {
@@ -348,6 +362,13 @@ export default class StatusPanel extends Mixins(BaseMixin) {
         if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
 
         return explainError(this.print_stats_message, { klipperState: this.klipperState })
+    }
+
+    // tells why a paused print waits, when a filament sensor is empty (a runout or a filament change)
+    get missingFilamentExplanation(): ErrorExplanation | null {
+        if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
+
+        return explainMissingFilament(buildPrinterSnapshot(this.klipperState, this.$store.state.printer))
     }
 
     get layer_count() {

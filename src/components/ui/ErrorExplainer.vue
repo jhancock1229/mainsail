@@ -29,7 +29,7 @@
                 {{ action.text }}
             </v-btn>
         </div>
-        <template v-if="explanation.known">
+        <template v-if="explanation.known && explanation.raw !== ''">
             <v-btn
                 text
                 small
@@ -55,7 +55,7 @@
 import Component from 'vue-class-component'
 import { Mixins, Prop, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
-import { ErrorActionId, ErrorExplanation } from '@/plugins/errorExplainer'
+import { ErrorActionId, ErrorExplanation, resolveReheatTarget } from '@/plugins/errorExplainer'
 import {
     mdiChevronRight,
     mdiDownload,
@@ -74,8 +74,6 @@ interface ErrorExplainerAction {
     loading?: string
     click: () => void
 }
-
-const MAX_REHEAT_TEMPERATURE = 500
 
 // Shows an error of Klipper or of a print in plain language, with the suggested actions as buttons.
 @Component
@@ -101,23 +99,25 @@ export default class ErrorExplainer extends Mixins(BaseMixin) {
         return this.text('Fix')
     }
 
-    // the heater named in the message, if it exists on this printer
-    get reheatHeater(): string | null {
-        const heater = this.explanation.params.heater ?? 'extruder'
-        const heaters: string[] = this.$store.state.printer.heaters?.available_heaters ?? []
-
-        return heaters.includes(heater) ? heater : null
+    get reheatTarget(): { heater: string; temperature: number } | null {
+        return resolveReheatTarget({
+            heater: this.explanation.params.heater,
+            activeExtruder: this.$store.state.printer.toolhead?.extruder,
+            heaters: this.$store.state.printer.heaters?.available_heaters ?? [],
+            file: this.$store.state.printer.current_file,
+        })
     }
 
-    // the temperature the loaded G-code file starts with
-    get reheatTemperature(): number | null {
-        if (this.reheatHeater === null) return null
+    get reheatAction(): ErrorExplainerAction | null {
+        const target = this.reheatTarget
+        if (target === null) return null
 
-        const file = this.$store.state.printer.current_file ?? {}
-        const temperature = this.reheatHeater === 'heater_bed' ? file.first_layer_bed_temp : file.first_layer_extr_temp
-        if (typeof temperature !== 'number' || temperature <= 0 || temperature > MAX_REHEAT_TEMPERATURE) return null
-
-        return Math.round(temperature)
+        return {
+            id: 'reheat',
+            text: this.$t('ErrorExplainer.Actions.Reheat', target).toString(),
+            icon: mdiFire,
+            click: () => this.sendGcode(`SET_HEATER_TEMPERATURE HEATER=${target.heater} TARGET=${target.temperature}`),
+        }
     }
 
     get availableActions(): Record<ErrorActionId, ErrorExplainerAction | null> {
@@ -150,21 +150,7 @@ export default class ErrorExplainer extends Mixins(BaseMixin) {
                 loading: 'homeAll',
                 click: () => this.sendGcode('G28', 'homeAll'),
             },
-            reheat:
-                this.reheatHeater === null || this.reheatTemperature === null
-                    ? null
-                    : {
-                          id: 'reheat',
-                          text: this.$t('ErrorExplainer.Actions.Reheat', {
-                              heater: this.reheatHeater,
-                              temperature: this.reheatTemperature,
-                          }).toString(),
-                          icon: mdiFire,
-                          click: () =>
-                              this.sendGcode(
-                                  `SET_HEATER_TEMPERATURE HEATER=${this.reheatHeater} TARGET=${this.reheatTemperature}`
-                              ),
-                      },
+            reheat: this.reheatAction,
             openConfig: {
                 id: 'openConfig',
                 text: this.$t('ErrorExplainer.Actions.OpenConfig').toString(),

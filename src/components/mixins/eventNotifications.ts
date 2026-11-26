@@ -13,6 +13,9 @@ import {
 import { playNotificationSound } from '@/plugins/notificationSound'
 import { PrinterEventName, PrinterEventSeverity, printerEventSeverities } from '@/plugins/printerEvents'
 
+// from the base path of the installation, so it also resolves on nested routes
+const NOTIFICATION_ICON = `${import.meta.env.BASE_URL ?? '/'}img/icons/icon-192.png`
+
 // errors stay long enough to be read, hovering a toast pauses its timer
 const TOAST_DURATIONS: Record<PrinterEventSeverity, number> = {
     info: 5000,
@@ -42,7 +45,8 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         return resolveChannels(this.alertSettings, name, this.readBrowserNotificationStatus())
     }
 
-    sendEventNotification(name: PrinterEventName, lines: string[]): void {
+    // a test notification comes from the settings and looks like the real one, but leads nowhere
+    sendEventNotification(name: PrinterEventName, lines: string[], options: { test?: boolean } = {}): void {
         const channels = this.getEventChannels(name)
         if (channels.length === 0) return
 
@@ -53,11 +57,11 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         let toast = channels.includes('toast')
         // a notification the browser refuses to show becomes a toast, so the event does not get lost
         if (channels.includes('browser') && !this.showBrowserNotification(name, title, text)) toast = true
-        if (toast) this.showEventToast(severity, title, text)
-        if (channels.includes('sound')) playNotificationSound(severity)
+        if (toast) this.showEventToast(severity, title, text, options.test !== true)
+        if (channels.includes('sound')) void playNotificationSound(severity)
     }
 
-    showEventToast(severity: PrinterEventSeverity, title: string, lines: string[]): void {
+    showEventToast(severity: PrinterEventSeverity, title: string, lines: string[], navigate: boolean): void {
         const message = [`<strong>${escapeHtml(title)}</strong>`, ...lines.map(escapeHtml)].join('<br />')
 
         this.$toast.open({
@@ -66,7 +70,7 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
             duration: TOAST_DURATIONS[severity],
             onClick: () => {
                 // the explanation of an error is on the dashboard
-                if (severity === 'error' && this.$route.path !== '/') this.$router.push('/')
+                if (navigate && severity === 'error' && this.$route.path !== '/') this.$router.push('/')
             },
         })
     }
@@ -79,7 +83,7 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
             const notification = new Notification(printerName !== '' ? `${printerName}: ${title}` : title, {
                 body: lines.join('\n'),
                 tag: `mainsail-${name}`,
-                icon: 'img/icons/icon-192.png',
+                icon: NOTIFICATION_ICON,
             })
             notification.onclick = () => {
                 window.focus()

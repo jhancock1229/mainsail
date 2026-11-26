@@ -2,7 +2,7 @@
 //
 // It answers Mainsail's startup requests from a recorded session (fixture.json) and simulates the parts that
 // change: Klipper state, print jobs, temperatures, toolhead position and a webcam picture.
-// Start it with `demo/demo.sh up`. Control it with `demo/demo.sh <print|pause|resume|finish|fail|error|runout|idle>`.
+// Start it with `demo/demo.sh up`. Control it with `demo/demo.sh <print|pause|resume|finish|frame|fail|error|runout|idle>`.
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -224,6 +224,18 @@ const filamentRunout = () => {
 
     gcodeResponse('// Filament runout detected')
     pausePrint()
+}
+
+// One frame of the timelapse macro: it pauses the print, and when the frame is taken it resumes the print and
+// clears its is_paused flag right after. The print state follows a moment later (stretched here to be testable).
+const timelapseFrame = () => {
+    if (status.print_stats.state !== 'printing') return
+
+    const macro = status['gcode_macro TIMELAPSE_TAKE_FRAME']
+    macro.is_paused = true
+    pausePrint()
+    setTimeout(() => (macro.is_paused = false), 1200)
+    setTimeout(resumePrint, 1900)
 }
 
 const DEMO_PRINTER_CFG = `# printer.cfg of the simulated printer (demo/mock-moonraker.mjs)
@@ -581,6 +593,7 @@ const controls = {
     error: (name) => (name === undefined ? emergencyStop() : klipperError(name)),
     runout: filamentRunout,
     finish: () => endPrint('complete'),
+    frame: timelapseFrame,
     idle: setIdle,
     // back to a freshly started printer with default settings
     reset: () => {

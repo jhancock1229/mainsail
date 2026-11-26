@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { errorIds, explainError } from '@/plugins/errorExplainer'
+import { errorIds, explainError, resolveReheatTarget, settledKlipperMessage } from '@/plugins/errorExplainer'
 import en from '@/locales/en.json'
 
 const SHUTDOWN_HINT =
@@ -138,6 +138,69 @@ describe('explainError', () => {
         expect(shutdown(`\nMCU 'mcu' shutdown: Timer too close\nmore`)?.summary).toBe(
             "MCU 'mcu' shutdown: Timer too close"
         )
+    })
+})
+
+describe('settledKlipperMessage', () => {
+    it('returns the message of Klipper', () => {
+        expect(settledKlipperMessage('Lost communication with MCU')).toBe('Lost communication with MCU')
+    })
+
+    it('treats a missing, blank or placeholder message as not arrived yet', () => {
+        expect(settledKlipperMessage(null)).toBeNull()
+        expect(settledKlipperMessage(undefined)).toBeNull()
+        expect(settledKlipperMessage('')).toBeNull()
+        expect(settledKlipperMessage('  \n ')).toBeNull()
+        expect(settledKlipperMessage('Shutdown...')).toBeNull()
+        expect(settledKlipperMessage('Disconnected...')).toBeNull()
+    })
+})
+
+describe('resolveReheatTarget', () => {
+    const printer = {
+        heaters: ['extruder', 'extruder1', 'heater_bed'],
+        activeExtruder: 'extruder1',
+        file: { first_layer_extr_temp: 215.4, first_layer_bed_temp: 60 },
+    }
+
+    it('heats the heater that the message names', () => {
+        expect(resolveReheatTarget({ ...printer, heater: 'extruder' })).toEqual({
+            heater: 'extruder',
+            temperature: 215,
+        })
+        expect(resolveReheatTarget({ ...printer, heater: 'heater_bed' })).toEqual({
+            heater: 'heater_bed',
+            temperature: 60,
+        })
+    })
+
+    it('heats the active extruder when the message names no heater', () => {
+        expect(resolveReheatTarget({ ...printer, heater: undefined })).toEqual({
+            heater: 'extruder1',
+            temperature: 215,
+        })
+    })
+
+    it('falls back to "extruder" when the active extruder is unknown', () => {
+        expect(resolveReheatTarget({ ...printer, heater: undefined, activeExtruder: undefined })).toEqual({
+            heater: 'extruder',
+            temperature: 215,
+        })
+    })
+
+    it('returns null for a heater that does not exist on the printer', () => {
+        expect(resolveReheatTarget({ ...printer, heater: 'chamber' })).toBeNull()
+        expect(resolveReheatTarget({ ...printer, heaters: ['heater_bed'], heater: undefined })).toBeNull()
+    })
+
+    it('returns null without a usable temperature of the loaded file', () => {
+        expect(resolveReheatTarget({ ...printer, heater: 'extruder', file: {} })).toBeNull()
+        expect(resolveReheatTarget({ ...printer, heater: 'extruder', file: undefined })).toBeNull()
+        expect(resolveReheatTarget({ ...printer, heater: 'extruder', file: { first_layer_extr_temp: 0 } })).toBeNull()
+        expect(
+            resolveReheatTarget({ ...printer, heater: 'extruder', file: { first_layer_extr_temp: '210' } })
+        ).toBeNull()
+        expect(resolveReheatTarget({ ...printer, heater: 'extruder', file: { first_layer_extr_temp: 900 } })).toBeNull()
     })
 })
 

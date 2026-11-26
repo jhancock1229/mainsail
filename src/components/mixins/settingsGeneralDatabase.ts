@@ -8,6 +8,10 @@ export default class SettingsGeneralDatabase extends BaseMixin {
         return [
             // gui namespace
             {
+                value: 'alerts',
+                label: this.$t('Settings.GeneralTab.DbAlerts'),
+            },
+            {
                 value: 'general',
                 label: this.$t('Settings.GeneralTab.General'),
             },

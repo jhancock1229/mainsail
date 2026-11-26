@@ -268,7 +268,7 @@ export default class SettingsNotificationsTab extends Mixins(EventNotificationsM
     }
 
     testEvent(name: PrinterEventName): void {
-        this.sendEventNotification(name, [this.$t('App.PrinterEvents.TestNotification').toString()])
+        this.sendEventNotification(name, [this.$t('App.PrinterEvents.TestNotification').toString()], { test: true })
     }
 }
 </script>
