@@ -177,6 +177,7 @@ import {
     PaletteSection,
     searchPaletteCommands,
 } from '@/plugins/commandPalette'
+import { kioskModeFor } from '@/plugins/kioskSession'
 import { commandPaletteBus, OPEN_SETTINGS_TAB } from '@/plugins/commandPaletteBus'
 import { EventBus } from '@/plugins/eventBus'
 import { mdiClose, mdiMagnify, mdiMagnifyClose } from '@mdi/js'
@@ -263,7 +264,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     }
 
     get enabled(): boolean {
-        return this.paletteSettings.enabled
+        return this.paletteSettings.enabled && !kioskModeFor(this.$store.getters['gui/getKioskSettings']).active
     }
 
     @Watch('show')

@@ -5,6 +5,7 @@ import { allDashboardPanels, defaultTheme, themes } from '@/store/variables'
 import { RootState, Theme } from '@/store/types'
 import { DashboardLayoutState, deriveStateLayout, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
 import { resolvePrintHeroSettings } from '@/plugins/printHero'
+import { KioskSettings, resolveKioskSettings } from '@/plugins/kiosk'
 
 export const getters: GetterTree<GuiState, RootState> = {
     theme: (state): string => {
@@ -37,6 +38,8 @@ export const getters: GetterTree<GuiState, RootState> = {
         const sensors = entry.additionalSensors as Record<string, unknown>
         return (sensors[payload.sensor] ?? true) as boolean
     },
+
+    getKioskSettings: (state): KioskSettings => resolveKioskSettings(state.kiosk),
 
     getPanelExpand: (state) => (name: string, viewport: string) => {
         if ('dashboard' in state && viewport in state.dashboard.nonExpandPanels) {

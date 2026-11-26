@@ -29,6 +29,7 @@ import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
 import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
+import { getDefaultKioskSettings } from '@/plugins/kiosk'
 
 export const getDefaultState = (): GuiState => {
     return {
@@ -142,6 +143,7 @@ export const getDefaultState = (): GuiState => {
             tabSize: 2,
             fileStructureSidebar: true,
         },
+        kiosk: getDefaultKioskSettings(),
         gcodeViewer: {
             extruderColors: ['#E76F51FF', '#F4A261FF', '#E9C46AFF', '#2A9D8FFF', '#264653FF'],
             gridColor: '#B3B3B3',

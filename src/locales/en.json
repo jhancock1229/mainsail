@@ -647,6 +647,62 @@
         "Start": "Start",
         "StartPrint": "Start Job"
     },
+    "Kiosk": {
+        "Actions": {
+            "cancelPrint": "Cancel print",
+            "configEdit": "Edit configuration",
+            "deleteFile": "Delete files",
+            "restart": "Restart and power",
+            "settings": "Interface settings"
+        },
+        "Blocked": "\"{action}\" is not available in touch mode on this printer.",
+        "Dashboard": {
+            "Position": "Panel {current} of {total}"
+        },
+        "Exit": "Leave touch mode",
+        "ExitDescription": "Back to the regular interface on this screen",
+        "More": "More",
+        "Pages": {
+            "console": "Console",
+            "dashboard": "Dashboard",
+            "gcodefiles": "Files",
+            "gcodeviewer": "Viewer",
+            "heightmap": "Heightmap",
+            "history": "History",
+            "machine": "Machine",
+            "timelapse": "Timelapse",
+            "webcam": "Webcam"
+        },
+        "Pin": {
+            "Backspace": "Delete last digit",
+            "Confirm": "Confirm PIN",
+            "DigitsEntered": "{count} digits entered",
+            "EnterHint": "Enter the PIN",
+            "Forgot": "Forgot the PIN?",
+            "Honesty": "The PIN guards against accidental taps and casual use. It is not a security boundary: anyone who can reach this printer on the network can bypass it.",
+            "Locked": "Too many wrong attempts. Try again in {seconds} s.",
+            "Reasons": {
+                "cancelPrint": "Enter the PIN to cancel the print",
+                "changePin": "Enter the current PIN",
+                "configEdit": "Enter the PIN to edit the configuration",
+                "deleteFile": "Enter the PIN to delete",
+                "exit": "Enter the PIN to leave touch mode",
+                "restart": "Enter the PIN to restart or power off",
+                "settings": "Enter the PIN to open the settings"
+            },
+            "RecoveryOtherDevice": "Open Mainsail on a device that is not in touch mode, for example a computer. Under Settings > Touch & kiosk > Change PIN, \"Forgot the PIN?\" resets it.",
+            "RecoveryReset": "You can reset the PIN here. Protected actions are open to everyone until a new PIN is set.",
+            "RecoveryThisDevice": "If this is your only device: delete the key \"kiosk.pin\" in the namespace \"mainsail\" of the Moonraker database, or clear this site's data in the browser and reset the PIN in the settings.",
+            "ResetPin": "Reset PIN",
+            "Wrong": "Wrong PIN"
+        },
+        "Suggestion": {
+            "Accept": "Use touch mode",
+            "Decline": "Don't ask again",
+            "Description": "Bigger buttons, a bottom bar and one dashboard panel at a time. You can switch it on or off later in the settings.",
+            "Title": "Use touch mode on this screen?"
+        }
+    },
     "Machine": {
         "ConfigFilesPanel": {
             "AllFiles": "All",
@@ -1527,6 +1583,7 @@
             "DbConsoleHistory": "Console History",
             "DbHistoryJobs": "History Jobs",
             "DbHistoryTotals": "History Totals",
+            "DbKiosk": "Touch & kiosk",
             "DbMaintenance": "Maintenance",
             "DbNavigation": "Navigation",
             "DbTimelapseSettings": "Timelapse Settings",
@@ -1569,6 +1626,55 @@
             }
         },
         "InterfaceSettings": "Interface Settings",
+        "KioskTab": {
+            "ActionDescriptions": {
+                "cancelPrint": "The cancel button and CANCEL_PRINT.",
+                "configEdit": "The Machine page with the configuration files, and SAVE_CONFIG.",
+                "deleteFile": "Deleting files and directories.",
+                "restart": "Klipper and firmware restart, restarting or stopping services, host reboot and shutdown, switching power devices off.",
+                "settings": "This dialog. Always asks for the PIN once one is set."
+            },
+            "Actions": "Actions",
+            "ActionsDescription": "Applies in touch mode only. The emergency stop is never restricted.",
+            "AllScreens": "Every screen in touch mode",
+            "AllScreensDescription": "These settings are stored on the printer and apply to every device that uses touch mode.",
+            "BottomBar": "Bottom bar",
+            "BottomBarDescription": "Up to {max} pages, in the order you pick them. The dashboard is always included, the other pages are under \"More\".",
+            "ChangePin": "Change PIN",
+            "ChoosePin": "Choose a PIN",
+            "Enable": "Touch mode on this screen",
+            "EnableDescription": "Large touch targets, a bottom bar instead of the side menu and one dashboard panel at a time. Remembered in this browser only, so other devices keep the regular interface.",
+            "Kiosk": "Touch & kiosk",
+            "Pages": "Pages",
+            "PagesDescription": "Unticked pages cannot be opened in touch mode. The dashboard is always available.",
+            "Panels": "Dashboard panels",
+            "PanelsDescription": "Unticked panels are left out of the dashboard in touch mode. The order follows your dashboard layout, the status panel always comes first.",
+            "Pin": "PIN",
+            "PinFormat": "{min} to {max} digits",
+            "PinIsSet": "A PIN is set. It is also needed to leave touch mode.",
+            "PinMismatch": "The PINs did not match. Start again.",
+            "PinMissing": "\"Require PIN\" has no effect until a PIN is set.",
+            "PinNotSet": "No PIN set. Anyone can leave touch mode and use every allowed action.",
+            "PinRecovery": "Only a salted hash of it is stored on the printer. A forgotten PIN can be reset here from any device that is not in touch mode.",
+            "PinSaved": "PIN saved",
+            "RemovePin": "Remove PIN",
+            "RepeatPin": "Repeat the PIN",
+            "Rules": {
+                "allow": "Allow",
+                "block": "Block",
+                "pin": "Require PIN"
+            },
+            "SetPin": "Set PIN",
+            "SmallScreenOptions": {
+                "apply": "Switch to touch mode automatically",
+                "off": "Do nothing",
+                "suggest": "Suggest touch mode once"
+            },
+            "SmallScreens": "Small touch screens",
+            "SmallScreensDescription": "What happens on a phone or a small printer screen that has not chosen yet.",
+            "ThisScreen": "This screen",
+            "UrlHint": "A kiosk browser can start in touch mode with this address:"
+        },
         "MacrosTab": {
             "Add": "add",
             "AddGroup": "add Group",

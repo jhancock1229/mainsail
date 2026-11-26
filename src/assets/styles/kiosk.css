@@ -1,0 +1,42 @@
+.kiosk-mode .topbar .v-app-bar__nav-icon,
+.kiosk-mode .topbar .command-palette-activator,
+.kiosk-mode .topbar .mode-toggle-button,
+.kiosk-mode .topbar .topbar-settings-menu {
+    display: none !important;
+}
+
+.kiosk-mode .topbar .v-toolbar__title {
+    padding-left: 16px !important;
+}
+
+.kiosk-mode .topbar .emergency-button {
+    min-width: 72px !important;
+    width: auto !important;
+    background-color: var(--v-error-base);
+    color: #fff !important;
+}
+
+.kiosk-mode .v-main .v-btn:not(.v-btn--icon):not(.v-btn--fab).v-size--default,
+.kiosk-mode .v-main .v-btn:not(.v-btn--icon):not(.v-btn--fab).v-size--small {
+    min-height: 44px;
+}
+
+.kiosk-mode .v-main .v-btn--icon.v-size--default,
+.kiosk-mode .v-main .v-btn--icon.v-size--small {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.kiosk-mode .v-menu__content .v-list-item {
+    min-height: 48px !important;
+}
+
+.kiosk-mode .v-menu__content .v-list-item .v-btn--icon {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.kiosk-mode .v-main .v-input--selection-controls {
+    min-height: 44px;
+    align-items: center;
+}

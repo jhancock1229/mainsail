@@ -9,6 +9,7 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { KioskSettings } from '@/plugins/kiosk'
 
 export interface GuiState {
     // error explainer and printer event notifications
@@ -23,6 +24,7 @@ export interface GuiState {
         calcEtaTime: string[] // file, filament, slicer are possible values
     }
     commandPalette: PaletteSettings
+    kiosk: KioskSettings
     console?: GuiConsoleState
     control: {
         style: 'bars' | 'circle' | 'cross'

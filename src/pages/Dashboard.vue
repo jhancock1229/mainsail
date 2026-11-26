@@ -1,6 +1,12 @@
 <template>
     <div :class="{ 'dashboard-layout-changed': layoutChanged }">
-        <v-row v-if="isMobile">
+        <kiosk-dashboard-frame v-if="kioskActive">
+            <template #panel="{ panel }">
+                <status-panel v-if="panel === 'status'" />
+                <component :is="extractPanelName(panel)" v-else :panel-id="extractPanelId(panel)"></component>
+            </template>
+        </kiosk-dashboard-frame>
+        <v-row v-else-if="isMobile">
             <v-col>
                 <status-panel />
                 <template v-for="component in mobileLayout">
@@ -100,6 +106,8 @@ import StatusPanel from '@/components/panels/StatusPanel.vue'
 import ToolheadControlPanel from '@/components/panels/ToolheadControlPanel.vue'
 import TemperaturePanel from '@/components/panels/TemperaturePanel.vue'
 import WebcamPanel from '@/components/panels/WebcamPanel.vue'
+import KioskDashboardFrame from '@/components/kiosk/KioskDashboardFrame.vue'
+import KioskMixin from '@/components/mixins/kiosk'
 
 @Component({
     components: {
@@ -120,9 +128,10 @@ import WebcamPanel from '@/components/panels/WebcamPanel.vue'
         ToolheadControlPanel,
         TemperaturePanel,
         WebcamPanel,
+        KioskDashboardFrame,
     },
 })
-export default class PageDashboard extends Mixins(DashboardMixin) {
+export default class PageDashboard extends Mixins(DashboardMixin, KioskMixin) {
     layoutChanged = false
     layoutChangedTimeout: number | null = null
 
