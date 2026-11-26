@@ -4,6 +4,7 @@ import { GuiMacrosStateMacrogroup } from '@/store/gui/macros/types'
 import { allDashboardPanels, defaultTheme, themes } from '@/store/variables'
 import { RootState, Theme } from '@/store/types'
 import { DashboardLayoutState, deriveStateLayout, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
+import { resolvePrintHeroSettings } from '@/plugins/printHero'
 
 export const getters: GetterTree<GuiState, RootState> = {
     theme: (state): string => {
@@ -111,7 +112,7 @@ export const getters: GetterTree<GuiState, RootState> = {
     },
 
     getDashboardLayout:
-        (state) =>
+        (state, getters) =>
         (layoutName: GuiStateDashboardLayoutKey, layoutState: DashboardLayoutState = 'idle') => {
             const idlePanels = (state.dashboard[layoutName] ?? []).filter((element) => element !== null)
             if (layoutState === 'idle') return idlePanels
@@ -119,7 +120,26 @@ export const getters: GetterTree<GuiState, RootState> = {
             const customPanels = state.dashboard.stateLayouts?.[layoutState]?.[layoutName]
             if (Array.isArray(customPanels)) return customPanels.filter((element) => element !== null)
 
-            return deriveStateLayout(layoutState, idlePanels)
+            const viewport = layoutName.replace(/Layout\d?$/, '')
+
+            return deriveStateLayout(layoutState, idlePanels, {
+                heroShowsWebcam: getters['getPrintHeroShowsWebcam'](viewport),
+            })
+        },
+
+    // The print hero panel is shown in this viewport with the webcam as its backdrop, and the webcam panel has
+    // nothing to add to it. With several cameras the webcam panel shows more than the hero (grid, switcher).
+    getPrintHeroShowsWebcam:
+        (state, getters) =>
+        (viewport: string): boolean => {
+            if (!getters['getAllPossiblePanels'].includes('print-hero')) return false
+            if ((getters['webcams/getWebcams'] ?? []).length !== 1) return false
+            if (resolvePrintHeroSettings(state.view?.printHero).backdrop !== 'webcam') return false
+
+            const idlePanels = getters['getAllPanelsFromViewport'](viewport, 'idle') as GuiStateLayoutoption[]
+
+            // a hero that is missing from a saved layout gets added as visible, see getPanels
+            return idlePanels.find((panel) => panel.name === 'print-hero')?.visible ?? true
         },
 
     hasCustomStateLayout:
@@ -129,6 +149,21 @@ export const getters: GetterTree<GuiState, RootState> = {
 
             const customLayouts = state.dashboard.stateLayouts?.[layoutState] ?? {}
             return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
+        },
+
+    // the print hero is a visible panel of the layout that is shown for the viewport and printer state
+    getPrintHeroInLayout:
+        (state, getters) =>
+        (viewport: string, layoutState: DashboardLayoutState = 'idle'): boolean => {
+            const columnCount = getViewportLayoutKeys(viewport).length
+            // a viewport with a single column has no column number (mobileLayout)
+            const columns = columnCount === 1 ? [0] : Array.from({ length: columnCount }, (_, index) => index + 1)
+
+            return columns.some((column) => {
+                const panels = getters['getPanels'](viewport, column, true, layoutState) as GuiStateLayoutoption[]
+
+                return panels.some((panel) => panel.name === 'print-hero')
+            })
         },
 
     getPanels:
@@ -166,10 +201,21 @@ export const getters: GetterTree<GuiState, RootState> = {
                             visible: true,
                         })
                 })
-                panels = panels.concat(missingPanels)
+                // The print hero goes in front, also in layouts that were saved before it existed. At the end
+                // of the column it would jump from the top to the bottom when the print ends.
+                const isHero = (panel: GuiStateLayoutoption) => panel.name === 'print-hero'
+                panels = [
+                    ...missingPanels.filter(isHero),
+                    ...panels,
+                    ...missingPanels.filter((panel) => !isHero(panel)),
+                ]
             }
 
-            if (isDerived) panels = deriveStateLayout(layoutState, panels)
+            if (isDerived) {
+                panels = deriveStateLayout(layoutState, panels, {
+                    heroShowsWebcam: getters['getPrintHeroShowsWebcam'](viewport),
+                })
+            }
 
             if (onlyVisible) {
                 panels = panels.filter((element) => element.visible)

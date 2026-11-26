@@ -16,6 +16,7 @@ import {
     mdiWebcam,
     mdiAdjust,
     mdiMulticast,
+    mdiMonitorDashboard,
 } from '@mdi/js'
 import { afcIconLogo } from '@/plugins/afcIcons'
 import { DashboardLayoutState, resolveDashboardLayoutState } from '@/plugins/dashboardLayoutState'
@@ -88,6 +89,8 @@ export default class DashboardMixin extends BaseMixin {
                 return mdiMulticast
             case 'afc':
                 return afcIconLogo
+            case 'print-hero':
+                return mdiMonitorDashboard
 
             default:
                 return mdiInformation

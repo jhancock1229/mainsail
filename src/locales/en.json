@@ -1122,6 +1122,53 @@
             },
             "Unknown": "Unknown"
         },
+        "PrintHeroPanel": {
+            "Backdrop": "Backdrop",
+            "BackdropNone": "None",
+            "BackdropThumbnail": "Thumbnail",
+            "BackdropWebcam": "Webcam",
+            "DoneAt": "Done at {time}",
+            "EndedCancelled": "Cancelled after {duration}",
+            "EndedComplete": "Finished in {duration}",
+            "EndedError": "Failed after {duration}",
+            "Headline": "Print Progress",
+            "Metrics": {
+                "Elapsed": "Elapsed",
+                "Eta": "Finish time",
+                "Filament": "Filament",
+                "Flow": "Flow",
+                "Layer": "Layer",
+                "Progress": "Progress",
+                "Remaining": "Time left",
+                "Speed": "Speed"
+            },
+            "Numbers": "Numbers",
+            "Remaining": "{duration} left",
+            "Settings": "Print progress settings",
+            "ShowTimeline": "Timeline",
+            "SimplifyStatusPanel": "Simplify the status panel",
+            "States": {
+                "Cancelled": "Cancelled",
+                "Complete": "Finished",
+                "Error": "Failed",
+                "Paused": "Paused",
+                "Printing": "Printing",
+                "WarmingUp": "Warming up"
+            },
+            "Timeline": {
+                "Cancelled": "Cancelled",
+                "Complete": "Finished",
+                "Earlier": "+{count} earlier",
+                "Error": "Failed",
+                "FirstLayer": "First layer done",
+                "Milestone": "{percent}%",
+                "MilestoneLayer": "{percent}% · layer {layer}",
+                "Paused": "Paused",
+                "Resumed": "Resumed",
+                "Started": "Print started",
+                "Warmup": "Warm-up"
+            }
+        },
         "SpoolmanPanel": {
             "ActiveSpool": "Active Spool",
             "ChangeSpool": "Change Spool",

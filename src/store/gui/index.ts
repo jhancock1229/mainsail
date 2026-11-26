@@ -13,6 +13,8 @@ import {
 } from '@/store/variables'
 import { getDefaultAlertSettings } from '@/plugins/notificationRules'
 
+import { getDefaultPrintHeroSettings } from '@/plugins/printHero'
+
 // load modules
 import { console } from '@/store/gui/console'
 import { gcodehistory } from '@/store/gui/gcodehistory'
@@ -75,6 +77,7 @@ export const getDefaultState = (): GuiState => {
                 widescreen: [],
             },
             mobileLayout: [
+                { name: 'print-hero', visible: true },
                 { name: 'webcam', visible: false },
                 { name: 'toolhead-control', visible: true },
                 { name: 'extruder-control', visible: true },
@@ -85,6 +88,7 @@ export const getDefaultState = (): GuiState => {
                 { name: 'miniconsole', visible: false },
             ],
             tabletLayout1: [
+                { name: 'print-hero', visible: true },
                 { name: 'webcam', visible: true },
                 { name: 'toolhead-control', visible: true },
                 { name: 'extruder-control', visible: true },
@@ -97,6 +101,7 @@ export const getDefaultState = (): GuiState => {
                 { name: 'miniconsole', visible: true },
             ],
             desktopLayout1: [
+                { name: 'print-hero', visible: true },
                 { name: 'webcam', visible: true },
                 { name: 'toolhead-control', visible: true },
                 { name: 'extruder-control', visible: true },
@@ -115,6 +120,7 @@ export const getDefaultState = (): GuiState => {
                 { name: 'miscellaneous', visible: true },
             ],
             widescreenLayout2: [
+                { name: 'print-hero', visible: true },
                 { name: 'temperature', visible: true },
                 { name: 'machine-settings', visible: true },
             ],
@@ -298,6 +304,7 @@ export const getDefaultState = (): GuiState => {
                 showClimate: true,
                 showUnavailableSpoolColor: false,
             },
+            printHero: getDefaultPrintHeroSettings(),
             tempchart: {
                 boolTempchart: true,
                 hiddenDataset: [],

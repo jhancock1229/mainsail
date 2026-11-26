@@ -13,7 +13,8 @@ const viewportLayoutKeys: Record<string, GuiStateDashboardLayoutKey[]> = {
 
 // The rules only reorder and reveal panels. They never hide one, because every panel has controls that are
 // needed in some situation (e.g. z-offset in the toolhead panel while printing, motion controls after a failed
-// print). Hiding is left to the user.
+// print). Hiding is left to the user. The one exception is the webcam panel while the print hero shows the
+// same picture, see deriveStateLayout.
 interface DeriveRule {
     promote: string[]
     demote: string[]
@@ -22,12 +23,12 @@ interface DeriveRule {
 
 const deriveRules: Record<Exclude<DashboardLayoutState, 'idle'>, DeriveRule> = {
     printing: {
-        promote: ['webcam', 'temperature'],
+        promote: ['print-hero', 'webcam', 'temperature'],
         demote: ['toolhead-control'],
         show: ['webcam'],
     },
     error: {
-        promote: ['miniconsole'],
+        promote: ['miniconsole', 'print-hero'],
         demote: [],
         show: ['miniconsole'],
     },
@@ -54,20 +55,37 @@ export const resolveDashboardLayoutState = (input: {
     return 'idle'
 }
 
+export interface DeriveStateLayoutOptions {
+    // the print hero panel is shown with the picture of the only webcam as its backdrop
+    heroShowsWebcam?: boolean
+}
+
 // default layout of a printer state, until the user customizes it
 export const deriveStateLayout = (
     layoutState: DashboardLayoutState,
-    panels: GuiStateLayoutoption[]
+    panels: GuiStateLayoutoption[],
+    options: DeriveStateLayoutOptions = {}
 ): GuiStateLayoutoption[] => {
     if (layoutState === 'idle') return panels
 
     const rule = deriveRules[layoutState]
-    const derived = panels.map((panel) => (rule.show.includes(panel.name) ? { ...panel, visible: true } : { ...panel }))
+    // The webcam panel right below the hero would stream the same camera a second time. It stays in the layout
+    // (hidden, at its idle position), so the user can show it again by customizing the printing layout.
+    const heroReplacesWebcam = layoutState === 'printing' && options.heroShowsWebcam === true
+    const unlessReplaced = (names: string[]) => (heroReplacesWebcam ? names.filter((name) => name !== 'webcam') : names)
+    const promote = unlessReplaced(rule.promote)
+    const show = unlessReplaced(rule.show)
+
+    const derived = panels.map((panel) => {
+        if (heroReplacesWebcam && panel.name === 'webcam') return { ...panel, visible: false }
+
+        return show.includes(panel.name) ? { ...panel, visible: true } : { ...panel }
+    })
     const pick = (names: string[]) =>
         names
             .map((name) => derived.find((panel) => panel.name === name))
             .filter((panel): panel is GuiStateLayoutoption => panel !== undefined)
-    const moved = [...rule.promote, ...rule.demote]
+    const moved = [...promote, ...rule.demote]
 
-    return [...pick(rule.promote), ...derived.filter((panel) => !moved.includes(panel.name)), ...pick(rule.demote)]
+    return [...pick(promote), ...derived.filter((panel) => !moved.includes(panel.name)), ...pick(rule.demote)]
 }

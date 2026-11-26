@@ -185,6 +185,8 @@ let status = clone(fixture.status)
 let klippyState = 'ready'
 let printElapsed = 0
 let lastSent = {}
+// length of the current print job and of its warm-up (no extrusion yet), see the print and quickprint controls
+let job = { seconds: PRINT_SECONDS, warmup: 0 }
 
 const resetStatus = () => {
     status = clone(fixture.status)
@@ -208,9 +210,10 @@ const gcodeResponse = (message) => {
     broadcast('notify_gcode_response', [message])
 }
 
-const startPrint = (filename = DEMO_FILE) => {
+const startPrint = (filename = DEMO_FILE, options = {}) => {
     if (klippyState !== 'ready') throw new Error('Klipper is not ready')
 
+    job = { seconds: options.seconds > 0 ? options.seconds : PRINT_SECONDS, warmup: Math.max(0, options.warmup || 0) }
     printElapsed = 0
     status.toolhead.homed_axes = 'xyz'
     status.extruder.target = 210
@@ -403,12 +406,16 @@ const restartKlipper = () => {
     }, 1500)
 }
 
+const clearPrintStats = () => {
+    Object.assign(status.print_stats, { state: 'standby', filename: '', message: '' })
+    status.display_status.message = null
+}
+
 const setIdle = () => {
     if (klippyState !== 'ready') return restartKlipper()
 
     endPrint('cancelled')
-    Object.assign(status.print_stats, { state: 'standby', filename: '', message: '' })
-    status.display_status.message = null
+    clearPrintStats()
 }
 
 const approach = (heater, seconds) => {
@@ -421,7 +428,7 @@ const approach = (heater, seconds) => {
 
 // the toolhead traces a square that shrinks and grows, one lap per layer
 const toolheadPosition = (elapsed) => {
-    const layerTime = PRINT_SECONDS / TOTAL_LAYERS
+    const layerTime = job.seconds / TOTAL_LAYERS
     const layer = Math.min(TOTAL_LAYERS, Math.floor(elapsed / layerTime) + 1)
     const lap = (elapsed % layerTime) / layerTime
     const half = 40 + 20 * Math.sin(layer / 6)
@@ -451,8 +458,14 @@ const tick = (seconds) => {
     if (['printing', 'paused'].includes(status.print_stats.state)) status.print_stats.total_duration += seconds
     if (status.print_stats.state !== 'printing') return
 
+    // warm-up: the job runs, but nothing is extruded yet (print_duration stays 0)
+    if (status.print_stats.total_duration <= job.warmup) {
+        status.display_status.message = 'Heating'
+        return
+    }
+
     printElapsed += seconds
-    const progress = Math.min(1, printElapsed / PRINT_SECONDS)
+    const progress = Math.min(1, printElapsed / job.seconds)
     const { layer, position } = toolheadPosition(printElapsed)
     const e = Math.round(printElapsed * 2.5 * 100) / 100
     const xyz = position.map((value) => Math.round(value * 1000) / 1000)
@@ -505,6 +518,9 @@ const runGcode = (script) => {
                 break
             case 'SDCARD_PRINT_FILE':
                 startPrint(param('FILENAME') ?? DEMO_FILE)
+                break
+            case 'SDCARD_RESET_FILE':
+                if (!['printing', 'paused'].includes(status.print_stats.state)) clearPrintStats()
                 break
             case 'M104':
             case 'M109':
@@ -687,14 +703,20 @@ const handlers = {
         layer_height: 0.2,
         first_layer_height: 0.2,
         object_height: TOTAL_LAYERS * 0.2,
-        filament_total: PRINT_SECONDS * 2.5,
+        filament_total: job.seconds * 2.5,
         filament_weight_total: 4.5,
-        estimated_time: PRINT_SECONDS,
+        estimated_time: job.seconds,
         nozzle_diameter: 0.4,
         first_layer_extr_temp: 210,
         first_layer_bed_temp: 60,
         gcode_start_byte: 0,
         gcode_end_byte: 1500000,
+        thumbnails: THUMBNAIL_SIZES.map((size) => ({
+            width: size,
+            height: size,
+            size: thumbnailSvg(size).length,
+            relative_path: `.thumbs/demo-${size}x${size}.svg`,
+        })),
     }),
 }
 
@@ -735,6 +757,18 @@ const handleRpc = (request) => {
 // servers
 // ---------------------------------------------------------------------------------------------------------
 
+// slicer preview of the demo file: the shape that the webcam picture shows growing
+const THUMBNAIL_SIZES = [32, 300]
+function thumbnailSvg(size) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 300 300">
+<defs><linearGradient id="side" x1="0" x2="1"><stop offset="0" stop-color="#f29a45"/><stop offset="1" stop-color="#b3621a"/></linearGradient></defs>
+<polygon points="150,236 262,180 150,124 38,180" fill="#2a2f36"/>
+<polygon points="86,180 150,212 150,112 86,80" fill="url(#side)"/>
+<polygon points="150,212 214,180 214,80 150,112" fill="#9c5414"/>
+<polygon points="86,80 150,112 214,80 150,48" fill="#ffb866"/>
+</svg>`
+}
+
 const webcamSvg = () => {
     const [x, y, z] = status.toolhead.position
     const printing = status.print_stats.state === 'printing'
@@ -746,17 +780,20 @@ const webcamSvg = () => {
 
     return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
 <rect width="640" height="480" fill="#15181c"/>
-<rect x="110" y="400" width="420" height="14" rx="3" fill="#3a4048"/>
-<rect x="230" y="${400 - height}" width="180" height="${height}" fill="#d9822b"/>
-<rect x="${105 + x * 1.9}" y="${352 - height}" width="34" height="30" rx="4" fill="#9aa4b1"/>
-<polygon points="${113 + x * 1.9},${382 - height} ${131 + x * 1.9},${382 - height} ${122 + x * 1.9},${398 - height}" fill="${printing ? '#ff7043' : '#6b7480'}"/>
-<text x="20" y="34" font-family="monospace" font-size="20" fill="#cfd8dc">DEMO CAM  ${label}</text>
+<rect x="110" y="340" width="420" height="14" rx="3" fill="#3a4048"/>
+<rect x="230" y="${340 - height}" width="180" height="${height}" fill="#d9822b"/>
+<rect x="${105 + x * 1.9}" y="${292 - height}" width="34" height="30" rx="4" fill="#9aa4b1"/>
+<polygon points="${113 + x * 1.9},${322 - height} ${131 + x * 1.9},${322 - height} ${122 + x * 1.9},${338 - height}" fill="${printing ? '#ff7043' : '#6b7480'}"/>
+<text x="20" y="436" font-family="monospace" font-size="20" fill="#cfd8dc">DEMO CAM  ${label}</text>
 <text x="20" y="462" font-family="monospace" font-size="16" fill="#78909c">X ${x.toFixed(1)}  Y ${y.toFixed(1)}  ${new Date().toLocaleTimeString()}</text>
 </svg>`
 }
 
 const controls = {
-    print: () => startPrint(),
+    // optional: /demo/print?seconds=<length of the print>&warmup=<seconds before the first extrusion>
+    print: (_name, params) =>
+        startPrint(DEMO_FILE, { seconds: Number(params.get('seconds')), warmup: Number(params.get('warmup')) }),
+    quickprint: () => startPrint(DEMO_FILE, { seconds: 90, warmup: 20 }),
     pause: pausePrint,
     resume: resumePrint,
     fail: failPrint,
@@ -774,6 +811,8 @@ const controls = {
         database = emptyDatabase()
         if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
     },
+    // drops the websocket connections: Mainsail reconnects and loads the printer data again
+    reconnect: () => wss.clients.forEach((client) => client.close()),
     status: () => {},
 }
 
@@ -814,6 +853,12 @@ const server = http.createServer((req, res) => {
         return res.end(webcamSvg())
     }
 
+    const thumbnail = url.pathname.match(/^\/server\/files\/gcodes\/\.thumbs\/demo-(\d+)x\d+\.svg$/)
+    if (thumbnail) {
+        res.writeHead(200, { ...headers, 'Content-Type': 'image/svg+xml' })
+        return res.end(thumbnailSvg(Number(thumbnail[1])))
+    }
+
     if (url.pathname === '/server/database/list') {
         res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
         return res.end(JSON.stringify({ result: { namespaces: Object.keys(database), backups: [] } }))
@@ -844,7 +889,7 @@ const server = http.createServer((req, res) => {
     const control = Object.hasOwn(controls, command) ? controls[command] : undefined
     if (url.pathname.startsWith('/demo/') && control) {
         try {
-            control(argument)
+            control(argument, url.searchParams)
             res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
             return res.end(`klipper: ${klippyState}  print: ${status.print_stats.state}\n`)
         } catch (error) {

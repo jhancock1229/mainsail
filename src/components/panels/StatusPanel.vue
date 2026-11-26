@@ -52,7 +52,7 @@
                     </v-list>
                 </v-menu>
             </template>
-            <status-panel-printstatus-thumbnail />
+            <status-panel-printstatus-thumbnail :compact="simplifiedByPrintHero" />
             <status-panel-exclude-object :show-dialog.sync="boolShowObjects" @update:showDialog="updateShowDialog" />
             <status-panel-pause-at-layer-dialog :show-dialog.sync="boolShowPauseAtLayer" />
             <template v-if="print_stats_message">
@@ -107,8 +107,8 @@
                 </v-container>
                 <v-divider class="mt-0 mb-0" />
             </template>
-            <v-tabs v-model="activeTab" fixed-tabs>
-                <v-tab v-if="current_filename" href="#status">
+            <v-tabs v-model="visibleTab" fixed-tabs>
+                <v-tab v-if="showStatusTab" href="#status">
                     <v-icon>{{ mdiSpeedometer }}</v-icon>
                 </v-tab>
                 <v-tab v-if="displayFilesTab" href="#files">
@@ -124,8 +124,8 @@
                 </v-tab>
             </v-tabs>
             <v-divider class="my-0" />
-            <v-tabs-items v-model="activeTab" class="_border-radius">
-                <v-tab-item v-if="current_filename" value="status">
+            <v-tabs-items v-model="visibleTab" class="_border-radius">
+                <v-tab-item v-if="showStatusTab" value="status">
                     <status-panel-printstatus />
                 </v-tab-item>
                 <v-tab-item v-if="displayFilesTab" value="files">
@@ -154,6 +154,7 @@
 import Component from 'vue-class-component'
 import { Mixins, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
+import PrintHeroStatusMixin from '@/components/mixins/printHeroStatus'
 import MinSettingsPanel from '@/components/panels/MinSettingsPanel.vue'
 import KlippyStatePanel from '@/components/panels/KlippyStatePanel.vue'
 import StatusPanelPrintstatus from '@/components/panels/Status/Printstatus.vue'
@@ -206,7 +207,7 @@ import { buildPrinterSnapshot, explainMissingFilament } from '@/plugins/printerE
         StatusPanelPauseAtLayerDialog,
     },
 })
-export default class StatusPanel extends Mixins(BaseMixin) {
+export default class StatusPanel extends Mixins(BaseMixin, PrintHeroStatusMixin) {
     mdiAlertOutline = mdiAlertOutline
     mdiCloseCircle = mdiCloseCircle
     mdiDotsVertical = mdiDotsVertical
@@ -432,6 +433,23 @@ export default class StatusPanel extends Mixins(BaseMixin) {
         const count = this.$store.state.gui.uiSettings.dashboardHistoryLimit ?? 5
 
         return count > 0
+    }
+
+    // the print hero panel shows the numbers of the print already
+    get showStatusTab(): boolean {
+        return this.current_filename !== '' && !this.simplifiedByPrintHero
+    }
+
+    // activeTab stays "status" while that tab is hidden, so it is back as soon as the tab is shown again
+    get visibleTab(): string {
+        if (this.activeTab !== 'status' || this.showStatusTab) return this.activeTab
+        if (this.displayFilesTab) return 'files'
+
+        return this.displayHistoryTab ? 'history' : 'jobqueue'
+    }
+
+    set visibleTab(newVal: string) {
+        this.activeTab = newVal
     }
 
     mounted() {
