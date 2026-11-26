@@ -165,6 +165,7 @@ export const getDefaultState = (): GuiState => {
         },
         uiSettings: {
             mode: defaultMode,
+            showModeToggle: true,
             theme: defaultTheme,
             logo: defaultLogoColor,
             primary: defaultPrimaryColor,

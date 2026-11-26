@@ -45,6 +45,7 @@ import TheScrewsTiltAdjustDialog from '@/components/dialogs/TheScrewsTiltAdjustD
 import { setAndLoadLocale } from './plugins/i18n'
 import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
+import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 
 @Component({
     components: {
@@ -114,8 +115,14 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return this.$store.state.printer.print_stats?.filename ?? ''
     }
 
+    systemPrefersDark = window.matchMedia?.(systemPrefersDarkQuery).matches ?? true
+
     get mode(): string {
         return this.$store.state.gui.uiSettings.mode
+    }
+
+    get darkMode(): boolean {
+        return resolveDarkMode(this.mode, this.systemPrefersDark)
     }
 
     get logoColor(): string {
@@ -218,9 +225,8 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         })
     }
 
-    @Watch('mode')
-    modeChanged(newVal: string): void {
-        const dark = newVal !== 'light'
+    @Watch('darkMode')
+    darkModeChanged(dark: boolean): void {
         this.$vuetify.theme.dark = dark
 
         const doc = document.documentElement
@@ -392,6 +398,15 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.appHeight()
         window.addEventListener('resize', this.appHeight)
         window.addEventListener('orientationchange', this.appHeight)
+        window.matchMedia?.(systemPrefersDarkQuery).addEventListener('change', this.systemPrefersDarkChanged)
+    }
+
+    beforeDestroy(): void {
+        window.matchMedia?.(systemPrefersDarkQuery).removeEventListener('change', this.systemPrefersDarkChanged)
+    }
+
+    systemPrefersDarkChanged(event: MediaQueryListEvent): void {
+        this.systemPrefersDark = event.matches
     }
 }
 </script>
