@@ -10,6 +10,7 @@
             <v-toolbar-title class="text-no-wrap ml-0 pl-2 mr-2">{{ printerName }}</v-toolbar-title>
             <printer-selector v-if="countPrinters" />
             <v-spacer />
+            <the-command-palette />
             <input
                 ref="fileUploadAndStart"
                 type="file"
@@ -116,6 +117,7 @@ import { TranslateResult } from 'vue-i18n'
 import EmergencyStopDialog from '@/components/dialogs/EmergencyStopDialog.vue'
 import InlineSvg from 'vue-inline-svg'
 import ThemeMixin from '@/components/mixins/theme'
+import TheCommandPalette from '@/components/TheCommandPalette.vue'
 
 type uploadSnackbar = {
     status: boolean
@@ -136,6 +138,7 @@ type uploadSnackbar = {
         PrinterSelector,
         MainsailLogo,
         TheNotificationMenu,
+        TheCommandPalette,
     },
 })
 export default class TheTopbar extends Mixins(BaseMixin, ThemeMixin) {

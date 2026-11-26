@@ -24,6 +24,7 @@ import { remoteprinters } from '@/store/gui/remoteprinters'
 import { maintenance } from '@/store/gui/maintenance'
 import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
+import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 
 export const getDefaultState = (): GuiState => {
@@ -37,6 +38,7 @@ export const getDefaultState = (): GuiState => {
             calcEstimateTime: ['file', 'filament'],
             calcEtaTime: ['file', 'filament', 'slicer'],
         },
+        commandPalette: getDefaultPaletteSettings(),
         control: {
             style: 'bars',
             actionButton: null,
