@@ -144,6 +144,19 @@ describe('Print hero panel', () => {
         })
     })
 
+    it('shows an ongoing pause when the page is opened during the pause', () => {
+        startPrint()
+        timelineEvents((labels) => expect(labels.join(' | ')).to.contain('First layer done'))
+        demo('pause')
+        cy.contains(`${hero} .print-hero__state`, 'Paused')
+
+        cy.reload()
+        cy.get(hero, { timeout: 15000 }).should('be.visible')
+        // the start of the pause is not known, so it is marked as an estimate
+        timelineEvents((labels) => expect(labels[labels.length - 1]).to.match(/^~\d+:\d+.*Paused$/))
+        cy.get(`${hero} .print-hero-timeline__phase--paused`).should('exist')
+    })
+
     it('stays after the print has finished, until the print stats are cleared', () => {
         startPrint('seconds=5&warmup=1')
 

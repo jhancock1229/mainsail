@@ -238,10 +238,10 @@ describe('advancePrintTimeline', () => {
             ])
         })
 
-        it('knows that the print is paused, but not since when', () => {
+        it('knows that the print is paused, but not since when: the pause is shown from the first look on', () => {
             const timeline = run([{ totalDuration: 300, printDuration: 100, state: 'paused', progress: 0.1 }])
 
-            expect(timeline?.events.at(-1)).toEqual({ type: 'paused', elapsed: null, approximate: true })
+            expect(timeline?.events.at(-1)).toEqual({ type: 'paused', elapsed: 300, approximate: true })
         })
 
         it('knows how a finished print ended, but not when it was started', () => {
@@ -295,11 +295,35 @@ describe('getPrintTimelinePhases', () => {
     })
 
     it('ignores events without a known time', () => {
-        const timeline = run([{ totalDuration: 300, printDuration: 100, state: 'paused', progress: 0.3 }])
+        const timeline = run([{ totalDuration: 300, printDuration: 260, currentLayer: 70, progress: 0.58 }])
 
         expect(getPrintTimelinePhases(timeline)).toEqual([
+            { type: 'warmup', from: 0, to: 40 },
+            { type: 'printing', from: 40, to: 300 },
+        ])
+    })
+
+    it('shows an ongoing pause of a rebuilt timeline from the moment the page was opened', () => {
+        const opened = { totalDuration: 300, printDuration: 100, state: 'paused', progress: 0.3 }
+        const paused = run([opened, { ...opened, totalDuration: 330 }])
+
+        expect(getPrintTimelinePhases(paused)).toEqual([
             { type: 'warmup', from: 0, to: 200 },
             { type: 'printing', from: 200, to: 300 },
+            { type: 'paused', from: 300, to: 330 },
+        ])
+
+        const resumed = run(
+            [
+                { totalDuration: 340, printDuration: 101, progress: 0.3 },
+                { totalDuration: 350, printDuration: 111, progress: 0.31 },
+            ],
+            paused
+        )
+
+        expect(getPrintTimelinePhases(resumed).slice(2)).toEqual([
+            { type: 'paused', from: 300, to: 340 },
+            { type: 'printing', from: 340, to: 350 },
         ])
     })
 })

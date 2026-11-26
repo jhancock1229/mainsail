@@ -92,7 +92,11 @@ const createTimeline = (snapshot: PrintTimelineSnapshot): PrintTimeline => {
     MILESTONE_PERCENTS.filter((percent) => percentOf(snapshot) >= percent).forEach((percent) => {
         events.push({ type: 'milestone', ...unobserved, percent })
     })
-    if (snapshot.state === 'paused') events.push({ type: 'paused', ...unobserved })
+    // The pause began at some unknown earlier time. It is shown from this first look on, so the phases do
+    // not count the ongoing pause as printing.
+    if (snapshot.state === 'paused') {
+        events.push({ type: 'paused', elapsed: snapshot.totalDuration, approximate: true })
+    }
     if (isEnded(snapshot.state)) events.push(endEvent(snapshot))
 
     return {
