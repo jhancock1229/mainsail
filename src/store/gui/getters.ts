@@ -1,8 +1,9 @@
 import { GetterTree } from 'vuex'
-import { GuiState, GuiStateDashboard, GuiStateLayoutoption } from '@/store/gui/types'
+import { GuiState, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
 import { GuiMacrosStateMacrogroup } from '@/store/gui/macros/types'
 import { allDashboardPanels, defaultTheme, themes } from '@/store/variables'
 import { RootState, Theme } from '@/store/types'
+import { DashboardLayoutState, deriveStateLayout, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
 
 export const getters: GetterTree<GuiState, RootState> = {
     theme: (state): string => {
@@ -109,17 +110,53 @@ export const getters: GetterTree<GuiState, RootState> = {
         return allPanels
     },
 
+    getDashboardLayout:
+        (state) =>
+        (layoutName: GuiStateDashboardLayoutKey, layoutState: DashboardLayoutState = 'idle') => {
+            const idlePanels = (state.dashboard[layoutName] ?? []).filter((element) => element !== null)
+            if (layoutState === 'idle') return idlePanels
+
+            const customPanels = state.dashboard.stateLayouts?.[layoutState]?.[layoutName]
+            if (Array.isArray(customPanels)) return customPanels.filter((element) => element !== null)
+
+            return deriveStateLayout(layoutState, idlePanels)
+        },
+
+    hasCustomStateLayout:
+        (state) =>
+        (viewport: string, layoutState: DashboardLayoutState): boolean => {
+            if (layoutState === 'idle') return false
+
+            const customLayouts = state.dashboard.stateLayouts?.[layoutState] ?? {}
+            return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
+        },
+
     getPanels:
         (state, getters, rootState) =>
-        (viewport: string, column: number, onlyVisible: boolean = false) => {
-            const layoutName = (column ? `${viewport}Layout${column}` : `${viewport}Layout`) as keyof GuiStateDashboard
-            let panels = state.dashboard[layoutName] as GuiStateLayoutoption[]
+        (
+            viewport: string,
+            column: number,
+            onlyVisible: boolean = false,
+            layoutState: DashboardLayoutState = 'idle'
+        ) => {
+            const layoutName = (
+                column ? `${viewport}Layout${column}` : `${viewport}Layout`
+            ) as GuiStateDashboardLayoutKey
 
-            panels = panels?.filter((element) => element !== null) ?? []
+            // a derived state layout is built from the idle layout after the missing panels are added, so the
+            // derive rules apply to them too
+            const isDerived =
+                layoutState !== 'idle' && !Array.isArray(state.dashboard.stateLayouts?.[layoutState]?.[layoutName])
+            const sourceState = isDerived ? 'idle' : layoutState
+            let panels = getters['getDashboardLayout'](layoutName, sourceState) as GuiStateLayoutoption[]
+
             const allPossiblePanels = getters['getAllPossiblePanels']
 
             if (column < 2) {
-                const allViewportPanels = getters['getAllPanelsFromViewport'](viewport) as GuiStateLayoutoption[]
+                const allViewportPanels = getters['getAllPanelsFromViewport'](
+                    viewport,
+                    sourceState
+                ) as GuiStateLayoutoption[]
                 const missingPanels: GuiStateLayoutoption[] = []
 
                 allPossiblePanels.forEach((panelname: string) => {
@@ -131,6 +168,8 @@ export const getters: GetterTree<GuiState, RootState> = {
                 })
                 panels = panels.concat(missingPanels)
             }
+
+            if (isDerived) panels = deriveStateLayout(layoutState, panels)
 
             if (onlyVisible) {
                 panels = panels.filter((element) => element.visible)
@@ -158,23 +197,19 @@ export const getters: GetterTree<GuiState, RootState> = {
             return panels.filter((element) => allPossiblePanels.includes(element.name))
         },
 
-    getAllPanelsFromViewport: (state) => (viewport: string) => {
-        let panels: GuiStateLayoutoption[] = []
+    getAllPanelsFromViewport:
+        (state, getters) =>
+        (viewport: string, layoutState: DashboardLayoutState = 'idle') => {
+            let panels: GuiStateLayoutoption[] = []
 
-        const layoutKey = `${viewport}Layout` as keyof GuiStateDashboard
-        if (layoutKey in state.dashboard) {
-            panels = panels.concat(state.dashboard[layoutKey] as GuiStateLayoutoption[])
-        }
+            getViewportLayoutKeys(viewport).forEach((layoutKey) => {
+                if (!(layoutKey in state.dashboard)) return
 
-        let nr = 1
-        while (`${viewport}Layout${nr}` in state.dashboard) {
-            const layoutKeyNr = `${viewport}Layout${nr}` as keyof GuiStateDashboard
-            panels = panels.concat(state.dashboard[layoutKeyNr] as GuiStateLayoutoption[])
-            nr++
-        }
+                panels = panels.concat(getters['getDashboardLayout'](layoutKey, layoutState))
+            })
 
-        return panels
-    },
+            return panels
+        },
 
     getDefaultControlActionButton: (state, getters, rootState, rootGetters) => {
         if (rootGetters['printer/existsQGL']) return 'qgl'

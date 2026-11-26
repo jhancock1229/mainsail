@@ -235,9 +235,17 @@ export interface GuiStateDashboard {
     widescreenLayout1: GuiStateLayoutoption[]
     widescreenLayout2: GuiStateLayoutoption[]
     widescreenLayout3: GuiStateLayoutoption[]
+    stateLayouts: {
+        enabled: boolean
+        printing: GuiStateDashboardStateLayouts
+        error: GuiStateDashboardStateLayouts
+    }
 }
 
-export type GuiStateDashboardLayoutKey = Exclude<keyof GuiStateDashboard, 'nonExpandPanels'>
+export type GuiStateDashboardLayoutKey = Exclude<keyof GuiStateDashboard, 'nonExpandPanels' | 'stateLayouts'>
+
+// a missing key means not customized: the layout is derived from the idle layout
+export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[]>>
 
 export interface GuiStateLayoutoption {
     name: string

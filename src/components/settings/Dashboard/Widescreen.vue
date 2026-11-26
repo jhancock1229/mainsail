@@ -3,13 +3,13 @@
         <v-card-text>
             <v-row>
                 <v-col class="col-12 col-md-4">
-                    <settings-dashboard-sortable viewport-name="widescreen" :column="1" />
+                    <settings-dashboard-sortable viewport-name="widescreen" :column="1" :layout-state="layoutState" />
                 </v-col>
                 <v-col class="col-12 col-md-4">
-                    <settings-dashboard-sortable viewport-name="widescreen" :column="2" />
+                    <settings-dashboard-sortable viewport-name="widescreen" :column="2" :layout-state="layoutState" />
                 </v-col>
                 <v-col class="col-12 col-md-4">
-                    <settings-dashboard-sortable viewport-name="widescreen" :column="3" />
+                    <settings-dashboard-sortable viewport-name="widescreen" :column="3" :layout-state="layoutState" />
                 </v-col>
             </v-row>
             <v-row>
@@ -23,19 +23,20 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Prop } from 'vue-property-decorator'
 import DashboardMixin from '@/components/mixins/dashboard'
 import SettingsDashboardSortable from '@/components/settings/Dashboard/Sortable.vue'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 @Component({
     components: {
         SettingsDashboardSortable,
     },
 })
 export default class SettingsDashboardTabWidescreen extends Mixins(DashboardMixin) {
+    @Prop({ type: String, required: false, default: 'idle' }) declare readonly layoutState: DashboardLayoutState
+
     resetLayout() {
-        this.$store.dispatch('gui/resetLayout', 'widescreenLayout1')
-        this.$store.dispatch('gui/resetLayout', 'widescreenLayout2')
-        this.$store.dispatch('gui/resetLayout', 'widescreenLayout3')
+        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'widescreen' })
     }
 }
 </script>

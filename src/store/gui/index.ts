@@ -117,6 +117,11 @@ export const getDefaultState = (): GuiState => {
                 { name: 'webcam', visible: true },
                 { name: 'miniconsole', visible: true },
             ],
+            stateLayouts: {
+                enabled: true,
+                printing: {},
+                error: {},
+            },
         },
         editor: {
             escToClose: true,

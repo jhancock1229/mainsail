@@ -42,6 +42,7 @@ import { mdiInformation, mdiLock } from '@mdi/js'
 import DashboardMixin from '@/components/mixins/dashboard'
 import SettingsDashboardSortableItem from '@/components/settings/Dashboard/SortableItem.vue'
 import { GuiStateLayoutoption } from '@/store/gui/types'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 
 @Component({
     components: { SettingsDashboardSortableItem, draggable },
@@ -55,25 +56,32 @@ export default class SettingsDashboardSortable extends Mixins(DashboardMixin) {
 
     @Prop({ type: String, required: true }) declare readonly viewportName: string
     @Prop({ type: Number, required: false, default: 1 }) declare readonly column: number
-
-    get layoutname() {
-        if (this.column) return `${this.viewportName}Layout${this.column}`
-
-        return `${this.viewportName}Layout`
-    }
+    @Prop({ type: String, required: false, default: 'idle' }) declare readonly layoutState: DashboardLayoutState
 
     get groupname() {
         return `${this.viewportName}Viewport`
     }
 
     get layout(): GuiStateLayoutoption[] {
-        return this.$store.getters['gui/getPanels'](this.viewportName, this.column) as GuiStateLayoutoption[]
+        return this.$store.getters['gui/getPanels'](
+            this.viewportName,
+            this.column,
+            false,
+            this.layoutState
+        ) as GuiStateLayoutoption[]
     }
 
     set layout(newVal: Array<GuiStateLayoutoption | undefined>) {
-        const filteredLayout = newVal.filter((element) => element !== undefined)
+        this.saveLayout(newVal.filter((element) => element !== undefined))
+    }
 
-        this.$store.dispatch('gui/saveSetting', { name: `dashboard.${this.layoutname}`, value: filteredLayout })
+    saveLayout(value: GuiStateLayoutoption[]): void {
+        this.$store.dispatch('gui/saveStateLayout', {
+            layoutState: this.layoutState,
+            viewport: this.viewportName,
+            column: this.column,
+            value,
+        })
     }
 
     changeVisible(name: string, newVal: boolean) {
@@ -82,10 +90,7 @@ export default class SettingsDashboardSortable extends Mixins(DashboardMixin) {
 
         const newLayout = [...this.layout]
         newLayout[index] = { ...newLayout[index], visible: newVal }
-        this.$store.dispatch('gui/saveSetting', {
-            name: `dashboard.${this.layoutname}`,
-            value: newLayout,
-        })
+        this.saveLayout(newLayout)
     }
 }
 </script>
