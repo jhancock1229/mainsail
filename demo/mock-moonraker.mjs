@@ -24,6 +24,114 @@ const startedAt = Date.now()
 const eventtime = () => (Date.now() - startedAt) / 1000
 
 // ---------------------------------------------------------------------------------------------------------
+// temperature objects that are not part of the recorded fixture, and the temperature history
+// ---------------------------------------------------------------------------------------------------------
+
+const CHAMBER = 'temperature_sensor chamber'
+const MCU = 'temperature_sensor mcu_temp'
+const ELECTRONICS_FAN = 'temperature_fan electronics'
+const HISTORY_SIZE = 1200
+const HISTORY_FIELDS = { temperature: 'temperatures', target: 'targets', power: 'powers', speed: 'speeds' }
+let temperatureHistory = {}
+let sinceLastRecord = 0
+
+const demoPreset = (name, extruder, bed) => ({
+    name,
+    gcode: '',
+    values: {
+        extruder: { bool: true, type: 'heater', value: extruder },
+        heater_bed: { bool: true, type: 'heater', value: bed },
+    },
+})
+const demoPresets = () => ({
+    presets: {
+        'demo-pla': demoPreset('PLA', 210, 60),
+        'demo-petg': demoPreset('PETG', 240, 80),
+        'demo-abs': demoPreset('ABS', 250, 100),
+    },
+})
+
+const addThermalObjects = () => {
+    const sensor = (temperature) => ({
+        temperature,
+        measured_min_temp: temperature,
+        measured_max_temp: temperature,
+    })
+
+    status[CHAMBER] = sensor(AMBIENT + 1)
+    status[MCU] = sensor(38)
+    status[ELECTRONICS_FAN] = { temperature: 32, target: 45, speed: 0 }
+    status.heaters.available_sensors.push(CHAMBER, MCU, ELECTRONICS_FAN)
+    Object.assign(status.configfile.settings, {
+        [CHAMBER]: { sensor_type: 'Generic 3950', min_temp: 0, max_temp: 80 },
+        [MCU]: { sensor_type: 'temperature_mcu', min_temp: 0, max_temp: 100 },
+        [ELECTRONICS_FAN]: { sensor_type: 'Generic 3950', min_temp: 0, max_temp: 80, target_temp: 45 },
+    })
+    fillTemperatureHistory()
+}
+
+const drift = (object, goal, rate, seconds, noise = 0.06) => {
+    object.temperature += (goal - object.temperature) * (1 - Math.exp(-rate * seconds)) + (Math.random() - 0.5) * noise
+    object.temperature = Math.round(object.temperature * 100) / 100
+    if (!('measured_min_temp' in object)) return
+
+    object.measured_min_temp = Math.min(object.measured_min_temp, object.temperature)
+    object.measured_max_temp = Math.max(object.measured_max_temp, object.temperature)
+}
+
+// the chamber follows the bed, the electronics warm up with the heater power and are cooled by their fan
+const simulateThermals = (printer, seconds) => {
+    const fan = printer[ELECTRONICS_FAN]
+    const printing = printer.print_stats.state === 'printing' ? 0.3 : 0
+    const load = (printer.extruder.power + printer.heater_bed.power) / 2 + printing
+
+    drift(printer[CHAMBER], AMBIENT + 1 + (printer.heater_bed.temperature - AMBIENT) * 0.35, 0.02, seconds)
+    drift(printer[MCU], 38 + load * 14, 0.05, seconds)
+    drift(fan, 32 + load * 30 - fan.speed * 15, 0.05, seconds)
+    const speed = fan.target > 0 ? (fan.temperature - fan.target + 2) / 6 : 0
+    fan.speed = Math.round(Math.min(1, Math.max(0, speed)) * 100) / 100
+}
+
+// like Moonraker, one entry per second
+const recordTemperatures = (printer) => {
+    for (const name of printer.heaters.available_sensors) {
+        const entry = (temperatureHistory[name] ??= {})
+        for (const [field, list] of Object.entries(HISTORY_FIELDS)) {
+            if (!(field in printer[name])) continue
+
+            entry[list] ??= []
+            entry[list].push(printer[name][field])
+            if (entry[list].length > HISTORY_SIZE) entry[list].shift()
+        }
+    }
+}
+
+// The history starts with an idle printer for the length of the store. That past is simulated on a copy, so the
+// printer itself starts at its initial temperatures whatever happens to it next.
+const fillTemperatureHistory = () => {
+    const idle = clone(status)
+    const settle = (heater) => drift(heater, AMBIENT, 0.03, 1, 0.2)
+
+    temperatureHistory = {}
+    sinceLastRecord = 0
+    for (let second = 0; second < HISTORY_SIZE; second++) {
+        settle(idle.extruder)
+        settle(idle.heater_bed)
+        simulateThermals(idle, 1)
+        recordTemperatures(idle)
+    }
+}
+
+const tickThermals = (seconds) => {
+    simulateThermals(status, seconds)
+    sinceLastRecord += seconds
+    if (sinceLastRecord < 1) return
+
+    sinceLastRecord = 0
+    recordTemperatures(status)
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // simulated printer
 // ---------------------------------------------------------------------------------------------------------
 
@@ -36,6 +144,7 @@ const resetStatus = () => {
     status = clone(fixture.status)
     status.extruder.temperature = AMBIENT
     status.heater_bed.temperature = AMBIENT
+    addThermalObjects()
     printElapsed = 0
 }
 resetStatus()
@@ -180,6 +289,7 @@ const tick = (seconds) => {
 
     approach(status.extruder, seconds)
     approach(status.heater_bed, seconds)
+    tickThermals(seconds)
     status.extruder.can_extrude = status.extruder.temperature >= 170
 
     if (['printing', 'paused'].includes(status.print_stats.state)) status.print_stats.total_duration += seconds
@@ -253,6 +363,11 @@ const runGcode = (script) => {
                 if (heater) heater.target = Number(param('TARGET') ?? 0)
                 break
             }
+            case 'SET_TEMPERATURE_FAN_TARGET': {
+                const fan = status[`temperature_fan ${param('TEMPERATURE_FAN') ?? ''}`]
+                if (fan) fan.target = Number(param('TARGET') ?? 0)
+                break
+            }
             case 'TURN_OFF_HEATERS':
                 status.extruder.target = 0
                 status.heater_bed.target = 0
@@ -280,7 +395,7 @@ const runGcode = (script) => {
 // database (Mainsail settings), kept across restarts of the mock
 // ---------------------------------------------------------------------------------------------------------
 
-const emptyDatabase = () => ({ mainsail: { initVersion: '2.19.0' }, maintenance: {} })
+const emptyDatabase = () => ({ mainsail: { initVersion: '2.19.0', presets: demoPresets() }, maintenance: {} })
 let database = emptyDatabase()
 try {
     if (DB_FILE !== 'none') database = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
@@ -351,6 +466,8 @@ const handlers = {
         state_message: status.webhooks.state_message,
     }),
     'server.gcode_store': () => ({ gcode_store: gcodeStore.slice(-100) }),
+    'printer.objects.list': () => ({ objects: Object.keys(status) }),
+    'server.temperature_store': () => clone(temperatureHistory),
     'printer.objects.query': (params) => queryObjects(params.objects),
     'printer.objects.subscribe': (params) => queryObjects(params.objects),
     'printer.gcode.script': (params) => {

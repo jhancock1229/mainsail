@@ -24,6 +24,7 @@ import { remoteprinters } from '@/store/gui/remoteprinters'
 import { maintenance } from '@/store/gui/maintenance'
 import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
+import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 
 export const getDefaultState = (): GuiState => {
     return {
@@ -301,6 +302,7 @@ export const getDefaultState = (): GuiState => {
                 autoscale: false,
                 datasetSettings: {},
             },
+            temperatureCards: getDefaultTemperatureCardSettings(),
             timelapse: {
                 countPerPage: 10,
                 sortBy: 'modified',
