@@ -24,6 +24,65 @@ const startedAt = Date.now()
 const eventtime = () => (Date.now() - startedAt) / 1000
 
 // ---------------------------------------------------------------------------------------------------------
+// command palette demo content: more macros, gcode files and preheat presets than the recorded printer has
+// ---------------------------------------------------------------------------------------------------------
+
+// name: [description, gcode]
+const DEMO_MACROS = {
+    PARK_TOOLHEAD: ['Park the toolhead at the front of the bed', 'G28\nRESPOND MSG="Toolhead parked"'],
+    PURGE_LINE: ['Prime the nozzle with a purge line', 'RESPOND MSG="Purge line printed"'],
+    CLEAN_NOZZLE: ['Wipe the nozzle on the brush', 'RESPOND MSG="Nozzle cleaned"'],
+    CALIBRATE_BED_MESH: ['Probe the bed and save the mesh', 'G28\nRESPOND MSG="Bed mesh saved"'],
+    LIGHTS_ON: ['Switch the chamber lights on', 'RESPOND MSG="Lights on"'],
+    LIGHTS_OFF: ['Switch the chamber lights off', 'RESPOND MSG="Lights off"'],
+    MOTORS_OFF: ['Disable the stepper motors', 'M84\nRESPOND MSG="Motors off"'],
+}
+for (const [name, [description, gcode]] of Object.entries(DEMO_MACROS)) {
+    fixture.status[`gcode_macro ${name}`] = {}
+    fixture.status.gcode.commands[name] = { help: description }
+    fixture.status.configfile.config[`gcode_macro ${name}`] = { description, gcode: `\n${gcode}` }
+    fixture.status.configfile.settings[`gcode_macro ${name.toLowerCase()}`] = { description, gcode: `\n${gcode}` }
+    fixture.responses['printer.objects.list|{}'].objects.push(`gcode_macro ${name}`)
+}
+
+// [path below the gcodes root, age in hours, size]
+const DEMO_FILES = [
+    ['benchy.gcode', 2, 2843110],
+    ['calibration_cube.gcode', 26, 412870],
+    ['phone_stand.gcode', 50, 5120044],
+    ['functional/cable_clip.gcode', 5, 301554],
+    ['functional/spool_holder.gcode', 120, 7405112],
+]
+{
+    const directoryKey = (dir) => `server.files.get_directory|${JSON.stringify({ path: dir })}`
+    const root = fixture.responses[directoryKey('gcodes')]
+    for (const [file, ageHours, size] of DEMO_FILES) {
+        const parts = file.split('/')
+        const dir = ['gcodes', ...parts.slice(0, -1)].join('/')
+        const modified = Date.now() / 1000 - ageHours * 3600
+        if (!fixture.responses[directoryKey(dir)]) {
+            fixture.responses[directoryKey(dir)] = { ...clone(root), dirs: [], files: [] }
+            root.dirs.push({ modified, size: 64, permissions: 'rw', dirname: parts[0] })
+        }
+        fixture.responses[directoryKey(dir)].files.push({ modified, size, permissions: 'rw', filename: parts.at(-1) })
+    }
+}
+
+const preset = (name, extruder, bed) => ({
+    name,
+    gcode: '',
+    values: {
+        extruder: { bool: true, type: 'heater', value: extruder },
+        heater_bed: { bool: true, type: 'heater', value: bed },
+    },
+})
+const DEMO_PRESETS = {
+    'demo-pla': preset('PLA', 210, 60),
+    'demo-petg': preset('PETG', 240, 80),
+    'demo-abs': preset('ABS', 250, 100),
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // simulated printer
 // ---------------------------------------------------------------------------------------------------------
 
@@ -425,6 +484,28 @@ const handlers = {
     }),
 }
 
+// command palette: run the gcode of the macros (lines without templates), answer RESPOND, and remember the
+// received scripts so the browser tests can check what was sent (/demo/gcode-log)
+const gcodeLog = []
+const MAX_MACRO_DEPTH = 3
+const runScript = (script, depth = 0) => {
+    for (const line of script.split('\n')) {
+        const command = line.trim().split(/\s+/)[0]
+        const respond = line.match(/^\s*RESPOND\s+MSG="(.*)"\s*$/i)
+        const macro = status.configfile.settings[`gcode_macro ${command.toLowerCase()}`]
+
+        if (respond) gcodeResponse(`// ${respond[1]}`)
+        else if (macro && !('rename_existing' in macro) && !macro.gcode.includes('{') && depth < MAX_MACRO_DEPTH)
+            runScript(macro.gcode, depth + 1)
+        else runGcode(line)
+    }
+}
+handlers['printer.gcode.script'] = (params) => {
+    gcodeLog.push(params.script ?? '')
+    runScript(params.script ?? '')
+    return 'ok'
+}
+
 const handleRpc = (request) => {
     const params = request.params ?? {}
     const handler = handlers[request.method]
@@ -479,6 +560,30 @@ const controls = {
     status: () => {},
 }
 
+// command palette: preheat presets for a fresh demo database
+const seedPresets = () => {
+    database.mainsail ??= {}
+    database.mainsail.presets ??= { presets: clone(DEMO_PRESETS) }
+}
+seedPresets()
+const resetWithoutPresets = controls.reset
+controls.reset = () => {
+    resetWithoutPresets()
+    gcodeLog.length = 0
+    seedPresets()
+}
+
+// printer.cfg as the editor shows it, rebuilt from the recorded config
+const configFileText = () =>
+    Object.entries(fixture.status.configfile.config)
+        .map(([name, options]) => {
+            const lines = Object.entries(options).map(
+                ([key, value]) => `${key}: ${String(value).replace(/\n/g, '\n  ')}`
+            )
+            return `[${name}]\n${lines.join('\n')}\n`
+        })
+        .join('\n')
+
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`)
     const headers = {
@@ -505,6 +610,16 @@ const server = http.createServer((req, res) => {
         return res.end(
             JSON.stringify(value === undefined ? { error: { code: 404 } } : { result: { namespace, key, value } })
         )
+    }
+
+    // command palette: the gcode scripts received so far, and file contents for the editor
+    if (url.pathname === '/demo/gcode-log') {
+        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify(gcodeLog))
+    }
+    if (req.method === 'GET' && /^\/server\/files\/config\/[^.][^/]*\.(cfg|conf)$/.test(url.pathname)) {
+        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
+        return res.end(configFileText())
     }
 
     const control = controls[url.pathname.replace('/demo/', '')]
