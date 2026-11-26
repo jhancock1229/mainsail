@@ -168,11 +168,10 @@
         },
         "Confirm": {
             "Cancel": "The running print job is stopped and cannot be resumed.",
+            "Cooldown": "All heaters are switched off.",
             "EmergencyStop": "The printer stops immediately and Klipper shuts down. A firmware restart is needed to use it again.",
             "FirmwareRestart": "Klipper and the printer firmware restart. A running print job is lost.",
-            "Headline": "Please confirm",
-            "Print": "Start printing {filename}?",
-            "StartPrint": "Start print"
+            "Headline": "Please confirm"
         },
         "Footer": {
             "Count": "{count} commands",
@@ -186,6 +185,14 @@
             "macros": "Run macro",
             "navigation": "Go to page",
             "settings": "Open settings"
+        },
+        "Keys": {
+            "Alt": "Alt",
+            "Ctrl": "Ctrl",
+            "Esc": "esc",
+            "Meta": "Meta",
+            "Shift": "Shift",
+            "Space": "Space"
         },
         "MoreResults": "+{count} more, type to find them",
         "NoResults": "No command matches \"{query}\"",

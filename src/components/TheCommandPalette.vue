@@ -28,7 +28,7 @@
             :transition="false"
             content-class="command-palette">
             <v-card v-if="show" class="command-palette__card d-flex flex-column">
-                <div class="command-palette__inner d-flex flex-column" @keydown="onKeydown">
+                <div class="command-palette__inner d-flex flex-column" @keydown="onKeydown" @mousedown="keepFocus">
                     <template v-if="confirming">
                         <div class="command-palette__confirm pa-6">
                             <div class="d-flex align-center mb-4">
@@ -46,7 +46,9 @@
                             <div class="d-flex justify-end align-center">
                                 <v-btn text class="mr-2 command-palette__back" @click="back">
                                     {{ $t('Buttons.Cancel') }}
-                                    <kbd class="command-palette-key ml-2 d-none d-sm-inline-block">esc</kbd>
+                                    <kbd class="command-palette-key ml-2 d-none d-sm-inline-block">
+                                        {{ $t('CommandPalette.Keys.Esc') }}
+                                    </kbd>
                                 </v-btn>
                                 <v-btn
                                     ref="confirmButton"
@@ -54,7 +56,7 @@
                                     :color="confirmColor"
                                     class="command-palette__confirm-button"
                                     @click="confirm">
-                                    {{ confirmLabel }}
+                                    {{ confirming.title }}
                                     <kbd class="command-palette-key ml-2 d-none d-sm-inline-block">↵</kbd>
                                 </v-btn>
                             </div>
@@ -80,7 +82,7 @@
                             <v-btn v-if="isMobile" icon small :aria-label="$t('Buttons.Close')" @click="close">
                                 <v-icon>{{ mdiClose }}</v-icon>
                             </v-btn>
-                            <kbd v-else class="command-palette-key">esc</kbd>
+                            <kbd v-else class="command-palette-key">{{ $t('CommandPalette.Keys.Esc') }}</kbd>
                         </div>
                         <v-divider />
                         <div
@@ -145,6 +147,12 @@
                 </div>
             </v-card>
         </v-dialog>
+        <start-print-dialog
+            v-if="printFile"
+            ref="startPrintDialog"
+            v-model="showStartPrint"
+            :file="printFile"
+            current-path="" />
     </div>
 </template>
 
@@ -155,11 +163,13 @@ import { Mixins, Ref, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CommandPaletteMixin from '@/components/mixins/commandPalette'
 import CommandPaletteRow from '@/components/commandPalette/CommandPaletteRow.vue'
+import StartPrintDialog from '@/components/dialogs/StartPrintDialog.vue'
+import { FileStateGcodefile } from '@/store/files/types'
 import {
     addRecentCommand,
     flattenPaletteSections,
-    formatShortcut,
     isEditorSearchTarget,
+    keepSelection,
     matchesShortcut,
     nextSelectableIndex,
     PaletteCommand,
@@ -178,9 +188,11 @@ interface IndexedSection {
 }
 
 const PIN_SHORTCUT = 'alt+p'
+// the start print dialog focuses itself after it opened (two ticks), the print button gets the focus after that
+const START_PRINT_FOCUS_DELAY = 100
 
 @Component({
-    components: { CommandPaletteRow },
+    components: { CommandPaletteRow, StartPrintDialog },
 })
 export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteMixin) {
     mdiClose = mdiClose
@@ -190,12 +202,18 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     @Ref() readonly input!: HTMLInputElement | undefined
     @Ref() readonly results!: HTMLElement | undefined
     @Ref() readonly confirmButton!: Vue | undefined
+    @Ref() readonly startPrintDialog!: Vue | undefined
 
     show = false
     query = ''
-    selectedIndex = -1
+    // the selection is a command, its position in the list can change while the palette is open
+    selectedId: string | null = null
+    // search term the current selection was made for
+    selectedQuery = ''
     confirming: PaletteCommand | null = null
     pointerPosition = ''
+    printFilename: string | null = null
+    showStartPrint = false
 
     get sections(): PaletteSection[] {
         // nothing to compute while the palette is closed
@@ -221,18 +239,27 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         }))
     }
 
+    get selectedIndex(): number {
+        if (this.selectedId === null) return -1
+
+        return this.flatResults.findIndex((result) => result.command.id === this.selectedId)
+    }
+
     get pinShortcutKeys(): string[] {
-        return formatShortcut(PIN_SHORTCUT, this.isMac)
+        return this.paletteKeyLabels(PIN_SHORTCUT)
     }
 
     get confirmColor(): string {
-        return this.confirming?.group === 'files' ? 'primary' : 'error'
+        return this.confirming?.danger ? 'error' : 'primary'
     }
 
-    get confirmLabel(): string {
-        if (this.confirming?.group === 'files') return this.$t('CommandPalette.Confirm.StartPrint').toString()
+    // the file as the start print dialog needs it, with the metadata that is loaded while the dialog is open
+    get printFile(): FileStateGcodefile | null {
+        if (this.printFilename === null) return null
 
-        return this.confirming?.title ?? ''
+        const files: FileStateGcodefile[] = this.$store.getters['files/getAllGcodes'] ?? []
+
+        return files.find((file) => file.filename === this.printFilename) ?? null
     }
 
     get enabled(): boolean {
@@ -251,15 +278,22 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 
     @Watch('query')
     onQueryChanged(): void {
-        this.selectFirst()
         if (this.results) this.results.scrollTop = 0
     }
 
-    // the selected command can become unavailable while the palette is open (e.g. the print finishes)
     @Watch('flatResults')
     onResultsChanged(): void {
-        const selected = this.flatResults[this.selectedIndex]
-        if (!selected || selected.command.disabledReason !== null) this.selectFirst()
+        // typing selects the best match
+        if (this.query !== this.selectedQuery) return this.selectFirst()
+
+        // The list changed by itself (e.g. the print finished). Without the command that was selected nothing is
+        // selected, so Enter cannot run the command that moved into its place.
+        this.selectedId = keepSelection(this.flatResults, this.selectedId)
+    }
+
+    @Watch('showStartPrint')
+    onShowStartPrintChanged(newVal: boolean): void {
+        if (!newVal) this.printFilename = null
     }
 
     @Watch('enabled')
@@ -294,8 +328,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 
         if (matchesShortcut(event, PIN_SHORTCUT, this.isMac)) {
             event.preventDefault()
-            const selected = this.flatResults[this.selectedIndex]
-            if (selected) this.pin(selected.command.id)
+            if (this.selectedId !== null) this.pin(this.selectedId)
             return
         }
 
@@ -361,10 +394,16 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         this.$nextTick(() => window.setTimeout(() => this.input?.focus(), 0))
     }
 
-    select(index: number): void {
-        if (this.flatResults[index]?.command.disabledReason !== null) return
+    // a click on anything but the search field must not take the focus away from it, or the keys stop working
+    keepFocus(event: MouseEvent): void {
+        if (event.target !== this.input) event.preventDefault()
+    }
 
-        this.selectedIndex = index
+    select(index: number): void {
+        const command = this.flatResults[index]?.command
+        if (!command || command.disabledReason !== null) return
+
+        this.selectedId = command.id
     }
 
     hover(index: number, event: MouseEvent): void {
@@ -378,11 +417,12 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     }
 
     selectFirst(): void {
-        this.selectedIndex = nextSelectableIndex(this.flatResults, -1, 1)
+        this.selectedQuery = this.query
+        this.selectedId = this.flatResults[nextSelectableIndex(this.flatResults, -1, 1)]?.command.id ?? null
     }
 
     move(delta: 1 | -1): void {
-        this.selectedIndex = nextSelectableIndex(this.flatResults, this.selectedIndex, delta)
+        this.select(nextSelectableIndex(this.flatResults, this.selectedIndex, delta))
         this.$nextTick(() => {
             const row = this.$refs['row-' + this.selectedIndex] as Vue[] | undefined
             row?.[0]?.$el.scrollIntoView({ block: 'nearest' })
@@ -391,10 +431,25 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 
     pin(id: string): void {
         this.togglePalettePin(id)
-        // the command moves into or out of the favourites, the selection follows it
+        this.focusInput()
+    }
+
+    // the start print dialog of Mainsail is the confirmation, it also has the spool and timelapse options
+    startPrint(filename: string): void {
+        this.printFilename = filename
+        if (this.printFile === null) {
+            this.printFilename = null
+            this.$toast.error(this.$t('CommandPalette.NotAvailable').toString())
+            return
+        }
+
+        // the dialog exists after the next render; its print button gets the focus, so Enter starts the print
         this.$nextTick(() => {
-            const index = this.flatResults.findIndex((result) => result.command.id === id)
-            if (index !== -1) this.select(index)
+            this.showStartPrint = true
+            window.setTimeout(() => {
+                const dialog = this.startPrintDialog?.$children[0]?.$refs.dialog as HTMLElement | undefined
+                dialog?.querySelector<HTMLElement>('.v-card__actions .v-btn.primary--text')?.focus()
+            }, START_PRINT_FOCUS_DELAY)
         })
     }
 
@@ -452,7 +507,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
                 this.$toast.info(this.$t('CommandPalette.Sent', { command: command.title }).toString())
                 break
             case 'print':
-                this.$socket.emit('printer.print.start', { filename: run.filename }, { action: 'switchToDashboard' })
+                this.startPrint(run.filename)
                 break
         }
     }

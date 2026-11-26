@@ -9,6 +9,7 @@ import {
     fuzzyMatch,
     highlightSegments,
     isEditorSearchTarget,
+    keepSelection,
     matchesShortcut,
     nextSelectableIndex,
     sanitizePaletteSettings,
@@ -33,6 +34,7 @@ const createContext = (overrides: Partial<PaletteContext> = {}): PaletteContext 
         { name: 'LOAD_FILAMENT', description: 'Load the filament' },
         { name: 'UNLOAD_FILAMENT', description: 'G-Code macro' },
     ],
+    hiddenMacros: [],
     files: [
         { filename: 'benchy.gcode', modified: 100 },
         { filename: 'functional/cable_clip.gcode', modified: 300 },
@@ -52,6 +54,7 @@ const createContext = (overrides: Partial<PaletteContext> = {}): PaletteContext 
         },
     ],
     cooldownGcode: 'TURN_OFF_HEATERS',
+    confirmOnCoolDown: false,
     settingsTabs: [
         { name: 'general', title: 'General', icon: 'i-cog' },
         { name: 'webcams', title: 'Webcams', icon: 'i-webcam' },
@@ -89,6 +92,38 @@ describe('buildPaletteCommands', () => {
         })
     })
 
+    it('gives sidebar links with the same target their own ids', () => {
+        const commands = buildPaletteCommands(
+            createContext({
+                naviPoints: [
+                    { title: 'Console', icon: 'i-console', to: '/console' },
+                    { title: 'Docs', icon: 'i-link', href: '#' },
+                    { title: 'Shop', icon: 'i-link', href: '#' },
+                    { title: 'Shop', icon: 'i-link', href: '#' },
+                    { title: 'Wiki', icon: 'i-link', href: 'https://example.com' },
+                ],
+            })
+        )
+        const navigation = commands.filter((command) => command.group === 'navigation').map((command) => command.id)
+
+        expect(new Set(navigation).size).toBe(5)
+        // a link with a target of its own keeps the short id, also when other links change
+        expect(navigation).toEqual([
+            'nav:/console',
+            'nav:#|Docs',
+            'nav:#|Shop',
+            'nav:#|Shop~2',
+            'nav:https://example.com',
+        ])
+    })
+
+    it('leaves out the macros the user hid in the macro settings, whatever their case', () => {
+        const commands = buildPaletteCommands(createContext({ hiddenMacros: ['load_filament'] }))
+        const macros = commands.filter((command) => command.group === 'macros').map((command) => command.id)
+
+        expect(macros).toEqual(['macro:UNLOAD_FILAMENT'])
+    })
+
     it('builds a command for every macro and hides the default description', () => {
         const commands = buildPaletteCommands(createContext())
 
@@ -102,7 +137,7 @@ describe('buildPaletteCommands', () => {
         expect(byId(commands, 'macro:UNLOAD_FILAMENT').subtitle).toBe('')
     })
 
-    it('builds a print command for every gcode file, newest first, and asks for confirmation', () => {
+    it('builds a print command for every gcode file, newest first', () => {
         const commands = buildPaletteCommands(createContext())
         const files = commands.filter((command) => command.group === 'files')
 
@@ -116,7 +151,8 @@ describe('buildPaletteCommands', () => {
             subtitle: 'functional/',
             run: { type: 'print', filename: 'functional/cable_clip.gcode' },
         })
-        expect(files[0].confirmText).toContain('functional/cable_clip.gcode')
+        // the start print dialog of Mainsail asks, with its spool and timelapse options
+        expect(files[0].confirmText).toBeNull()
         expect(files[1].subtitle).toBe('')
     })
 
@@ -170,11 +206,26 @@ describe('buildPaletteCommands', () => {
         expect(confirming).toEqual(
             expect.arrayContaining(['action:emergencyStop', 'action:cancel', 'action:firmwareRestart'])
         )
-        expect(confirming).toContain('file:demo.gcode')
+        expect(confirming).not.toContain('file:demo.gcode')
+        expect(confirming).not.toContain('action:cooldown')
         expect(confirming).not.toContain('action:home')
         expect(confirming).not.toContain('action:pause')
         expect(confirming).not.toContain('macro:LOAD_FILAMENT')
         expect(confirming).not.toContain('nav:/console')
+    })
+
+    it('marks the destructive actions as dangerous', () => {
+        const commands = buildPaletteCommands(createContext())
+        const dangerous = commands.filter((command) => command.danger).map((command) => command.id)
+
+        expect(dangerous.sort()).toEqual(['action:cancel', 'action:emergencyStop', 'action:firmwareRestart'])
+    })
+
+    it('asks before the cooldown when the user enabled that confirmation', () => {
+        const commands = buildPaletteCommands(createContext({ confirmOnCoolDown: true }))
+
+        expect(byId(commands, 'action:cooldown').confirmText).toBe('CommandPalette.Confirm.Cooldown')
+        expect(byId(commands, 'action:cooldown').danger).toBe(false)
     })
 
     it('sends the printer actions through the Moonraker API', () => {
@@ -223,9 +274,10 @@ describe('buildPaletteCommands', () => {
             expect(reason('action:cancel')).toBeNull()
             expect(reason('action:resume')).toBe('CommandPalette.Reasons.NotPaused')
             expect(reason('action:home')).toBe('CommandPalette.Reasons.WhilePrinting')
+            expect(reason('file:demo.gcode')).toBe('CommandPalette.Reasons.WhilePrinting')
+            // like the preset menu of the temperature panel, which is disabled while printing or paused
             expect(reason('action:cooldown')).toBe('CommandPalette.Reasons.WhilePrinting')
             expect(reason('preset:pla')).toBe('CommandPalette.Reasons.WhilePrinting')
-            expect(reason('file:demo.gcode')).toBe('CommandPalette.Reasons.WhilePrinting')
             expect(reason('macro:LOAD_FILAMENT')).toBeNull()
             expect(reason('action:emergencyStop')).toBeNull()
         })
@@ -237,6 +289,7 @@ describe('buildPaletteCommands', () => {
             expect(reason('action:cancel')).toBeNull()
             expect(reason('action:pause')).toBe('CommandPalette.Reasons.AlreadyPaused')
             expect(reason('action:home')).toBe('CommandPalette.Reasons.WhilePrinting')
+            expect(reason('preset:pla')).toBe('CommandPalette.Reasons.WhilePrinting')
         })
 
         it('blocks everything that needs Klipper while it is shut down, except the firmware restart', () => {
@@ -486,6 +539,17 @@ describe('searchPaletteCommands', () => {
         expect(find('macro')).toContain('macro:LOAD_FILAMENT')
     })
 
+    it('understands a group name of two words in front of the search term', () => {
+        const find = (query: string) =>
+            flattenPaletteSections(searchPaletteCommands(commands, query, { pinned: [], recent: [] })).map(
+                (result) => result.command.id
+            )
+
+        expect(find('go to console')).toEqual(['nav:/console'])
+        expect(find('go to')).toEqual(['nav:/console', 'nav:/', 'nav:https://example.com'])
+        expect(find('Go To  con')).toEqual(['nav:/console'])
+    })
+
     it('ranks a match of the title above the commands that only match by their group', () => {
         const withMacro = buildPaletteCommands(createContext({ macros: [{ name: 'START_PRINT', description: null }] }))
         const all = flattenPaletteSections(searchPaletteCommands(withMacro, 'print', { pinned: [], recent: [] }))
@@ -574,6 +638,38 @@ describe('nextSelectableIndex', () => {
     })
 })
 
+describe('keepSelection', () => {
+    const results = (entries: [string, boolean][]) =>
+        entries.map(([id, disabled]) => ({ command: { id, disabledReason: disabled ? 'reason' : null } }))
+
+    it('keeps the selected command when the list is reordered', () => {
+        const list = results([
+            ['action:home', false],
+            ['action:pause', false],
+        ])
+
+        expect(keepSelection(list, 'action:pause')).toBe('action:pause')
+    })
+
+    it('selects nothing when the selected command disappears or becomes unavailable', () => {
+        // e.g. the print ends while "Pause print" is selected: Enter must not run its neighbour
+        expect(keepSelection(results([['action:home', false]]), 'action:pause')).toBeNull()
+        expect(
+            keepSelection(
+                results([
+                    ['action:home', false],
+                    ['action:pause', true],
+                ]),
+                'action:pause'
+            )
+        ).toBeNull()
+    })
+
+    it('selects nothing when nothing was selected', () => {
+        expect(keepSelection(results([['action:home', false]]), null)).toBeNull()
+    })
+})
+
 describe('recent and pinned commands', () => {
     it('puts the latest command first and keeps the list short and unique', () => {
         expect(addRecentCommand(['a', 'b', 'c'], 'b', 3)).toEqual(['b', 'a', 'c'])
@@ -631,6 +727,36 @@ describe('shortcuts', () => {
         expect(matchesShortcut(event('π', { alt: true }, 'KeyP'), 'alt+p', true)).toBe(true)
     })
 
+    it('records Option combinations that start a dead key on macOS', () => {
+        expect(shortcutFromEvent(event('Dead', { alt: true }, 'KeyE'), true)).toBe('alt+e')
+        expect(shortcutFromEvent(event('Dead', { alt: true }, 'KeyN'), true)).toBe('alt+n')
+        expect(shortcutFromEvent(event('Dead', { alt: true }, 'Backquote'), true)).toBe('alt+`')
+        // a dead key on a physical key that is not known cannot be used
+        expect(shortcutFromEvent(event('Dead', { alt: true }, 'IntlBackslash'), true)).toBeNull()
+        expect(shortcutFromEvent(event('+', { ctrl: true }), false)).toBe('mod+plus')
+    })
+
+    it('can be triggered on every platform, whatever platform it was recorded on', () => {
+        // recorded on macOS with the Control key, which is the main modifier elsewhere
+        expect(matchesShortcut(event('j', { ctrl: true }), 'ctrl+j', true)).toBe(true)
+        expect(matchesShortcut(event('j', { ctrl: true }), 'ctrl+j', false)).toBe(true)
+        expect(matchesShortcut(event('j', { meta: true }), 'ctrl+j', true)).toBe(false)
+        // recorded on Windows with the Windows key, which is Cmd on macOS
+        expect(matchesShortcut(event('j', { meta: true }), 'meta+j', false)).toBe(true)
+        expect(matchesShortcut(event('j', { meta: true }), 'meta+j', true)).toBe(true)
+        // both modifiers of one platform fall together on the other
+        expect(matchesShortcut(event('j', { ctrl: true }), 'mod+ctrl+j', false)).toBe(true)
+        expect(matchesShortcut(event('j', { ctrl: true, meta: true }), 'mod+ctrl+j', true)).toBe(true)
+        expect(matchesShortcut(event('j', { meta: true }), 'mod+meta+j', true)).toBe(true)
+    })
+
+    it('rejects a combination that is reserved on another platform', () => {
+        // Ctrl+S is free on macOS, but it is the save shortcut of the editor everywhere else
+        expect(validateShortcut('ctrl+s')).toBe('Reserved')
+        expect(validateShortcut('meta+w')).toBe('Reserved')
+        expect(validateShortcut('ctrl+j')).toBeNull()
+    })
+
     it('ignores presses of a modifier key alone', () => {
         expect(shortcutFromEvent(event('Control', { ctrl: true }), false)).toBeNull()
         expect(shortcutFromEvent(event('Shift', { shift: true }), false)).toBeNull()
@@ -655,13 +781,25 @@ describe('shortcuts', () => {
         expect(validateShortcut('')).toBe('NeedsModifier')
     })
 
-    it('formats a shortcut for the platform', () => {
-        expect(formatShortcut('mod+k', false)).toEqual(['Ctrl', 'K'])
-        expect(formatShortcut('mod+k', true)).toEqual(['⌘', 'K'])
-        expect(formatShortcut('mod+alt+shift+p', true)).toEqual(['⌘', '⌥', '⇧', 'P'])
-        expect(formatShortcut('mod+shift+p', false)).toEqual(['Ctrl', 'Shift', 'P'])
-        expect(formatShortcut('f2', false)).toEqual(['F2'])
-        expect(formatShortcut('mod+space', false)).toEqual(['Ctrl', 'Space'])
+    it('formats a shortcut for the platform with translated key names', () => {
+        const label = (key: string) => key.replace('CommandPalette.Keys.', 'key ')
+
+        expect(formatShortcut('mod+k', false, label)).toEqual(['key Ctrl', 'K'])
+        expect(formatShortcut('mod+k', true, label)).toEqual(['⌘', 'K'])
+        expect(formatShortcut('mod+alt+shift+p', true, label)).toEqual(['⌘', '⌥', '⇧', 'P'])
+        expect(formatShortcut('mod+alt+shift+p', false, label)).toEqual(['key Ctrl', 'key Alt', 'key Shift', 'P'])
+        expect(formatShortcut('f2', false, label)).toEqual(['F2'])
+        expect(formatShortcut('mod+space', true, label)).toEqual(['⌘', 'key Space'])
+        expect(formatShortcut('meta+j', false, label)).toEqual(['key Meta', 'J'])
+    })
+
+    it('shows the keys to press on this platform for a shortcut recorded on another one', () => {
+        const label = (key: string) => key.replace('CommandPalette.Keys.', '')
+
+        expect(formatShortcut('ctrl+j', true, label)).toEqual(['⌃', 'J'])
+        expect(formatShortcut('ctrl+j', false, label)).toEqual(['Ctrl', 'J'])
+        expect(formatShortcut('meta+j', true, label)).toEqual(['⌘', 'J'])
+        expect(formatShortcut('mod+ctrl+j', false, label)).toEqual(['Ctrl', 'J'])
     })
 })
 

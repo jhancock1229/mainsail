@@ -246,11 +246,7 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
         this.scrollToTop()
     }
 
-    scrollToTop() {
-        this.settingsScroll?.osInstance()?.scroll({ y: '0%' })
-    }
-
-    // command palette: it lists the tabs of this dialog and opens them
+    // command palette: it lists the tabs of this dialog
     @Watch('tabTitles', { immediate: true })
     publishTabsToCommandPalette(tabs: { name: string; title: unknown; icon: string }[]): void {
         commandPaletteBus.settingsTabs = tabs.map((tab): PaletteSettingsTab => ({ ...tab, title: String(tab.title) }))
@@ -264,6 +260,11 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
         EventBus.$off(OPEN_SETTINGS_TAB, this.openTab)
     }
 
+    scrollToTop() {
+        this.settingsScroll?.osInstance()?.scroll({ y: '0%' })
+    }
+
+    // command palette: opens the dialog on a tab
     openTab(name: string): void {
         if (this.tabTitles.some((tab) => tab.name === name)) this.activeTab = name
         this.showSettings = true

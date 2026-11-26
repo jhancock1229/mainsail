@@ -62,7 +62,7 @@ export default class CommandPaletteRow extends Mixins(BaseMixin) {
     }
 
     get danger(): boolean {
-        return this.command.confirmText !== null && this.command.group === 'actions'
+        return this.command.danger
     }
 
     get rowClasses(): Record<string, boolean> {

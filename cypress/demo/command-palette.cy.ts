@@ -47,6 +47,13 @@ const printerStatus = (check: (status: string) => void, attempts = 20): void => 
     })
 }
 
+// changes a setting like the settings dialog does
+const dispatch = (action: string, payload: unknown) =>
+    cy.get('#app').then(($app) => {
+        const app = $app[0] as unknown as { __vue__: { $store: { dispatch: (name: string, value: unknown) => void } } }
+        app.__vue__.$store.dispatch(action, payload)
+    })
+
 const openPaletteSettings = () => {
     openPalette()
     search('settings commands{enter}')
@@ -137,15 +144,16 @@ describe('Command palette', () => {
         gcodeLog((scripts) => expect(scripts).to.include('TURN_OFF_HEATERS'))
     })
 
-    it('asks before starting a print, and offers only what is valid while printing', () => {
+    it('opens the start print dialog for a file, and offers only what is valid while printing', () => {
         openPalette()
         search('benchy{enter}')
-        cy.contains(`${paletteDialog} .command-palette__confirm`, 'Start printing benchy.gcode?')
-        noRawKeys(paletteDialog)
+        paletteIsClosed()
+        cy.contains('.v-dialog--active', 'Do you want to start benchy.gcode?')
         printerStatus((status) => expect(status).to.contain('print: standby'))
 
-        cy.focused().type('{enter}')
-        paletteIsClosed()
+        // the print button has the focus, so Enter starts the print (Cypress does not press buttons with Enter)
+        cy.focused().should('have.class', 'v-btn').and('contain', 'print').click()
+        cy.get('.v-dialog--active').should('not.exist')
         cy.contains('.panel-toolbar', 'Printing')
 
         // commands that would disturb the print are listed as unavailable, with the reason
@@ -157,7 +165,13 @@ describe('Command palette', () => {
         )
         search('demo.gcode')
         cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'demo.gcode').click()
-        cy.get(`${paletteDialog} .command-palette__confirm`).should('not.exist')
+        cy.contains('.v-dialog--active', 'Do you want to start').should('not.exist')
+        // like the preset menu of the temperature panel, which is disabled during a print
+        search('preheat pla')
+        cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'Preheat PLA').should(
+            'contain',
+            'Not available while printing'
+        )
         search('resume')
         cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'Resume print').should(
             'contain',
@@ -185,6 +199,7 @@ describe('Command palette', () => {
         openPalette()
         search('emergency{enter}')
         cy.contains(`${paletteDialog} .command-palette__confirm`, 'Klipper shuts down')
+        noRawKeys(paletteDialog)
         cy.contains(`${paletteDialog} button`, 'Cancel').click()
         input().should('be.focused')
         printerStatus((status) => expect(status).to.contain('klipper: ready'))
@@ -212,6 +227,58 @@ describe('Command palette', () => {
         cy.focused().type('{enter}')
         cy.contains('.panel-toolbar', 'Standby', { timeout: 15000 })
         printerStatus((status) => expect(status).to.contain('klipper: ready'))
+    })
+
+    it('keeps the keyboard working after a click inside the palette', () => {
+        openPalette()
+        search('purge')
+        selectedRow().find('.command-palette-row__pin').click()
+        input().should('be.focused')
+        cy.get(`${paletteDialog} .command-palette__section`).first().click()
+        input().should('be.focused')
+        cy.get(`${paletteDialog} .command-palette__footer`).click()
+        input().should('be.focused')
+        search('pause print')
+        cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'Pause print').click()
+        input().should('be.focused')
+
+        search('consol{enter}')
+        cy.location('pathname').should('equal', '/console')
+    })
+
+    it('does not run another command when the selected one disappears', () => {
+        demo('print')
+        cy.contains('.panel-toolbar', 'Printing')
+        openPalette()
+        selectedRow().should('contain', 'Pause print')
+
+        // the print ends: "Home all axes" takes the place of "Pause print"
+        demo('idle')
+        cy.get(`${paletteDialog} .command-palette-row`).first().should('contain', 'Home all axes')
+        selectedRow().should('not.exist')
+        input().type('{enter}')
+        cy.wait(300)
+        cy.get(paletteDialog).should('exist')
+        gcodeLog((scripts) => expect(scripts).not.to.include('G28'))
+
+        input().type('{downarrow}')
+        selectedRow().should('contain', 'Home all axes')
+    })
+
+    it('respects the hidden macros and the cooldown confirmation of the settings', () => {
+        dispatch('gui/macros/saveSetting', { name: 'hiddenMacros', value: ['PURGE_LINE'] })
+        dispatch('gui/saveSetting', { name: 'uiSettings.confirmOnCoolDown', value: true })
+
+        openPalette()
+        search('purge')
+        cy.contains(paletteDialog, 'No command matches "purge"')
+
+        search('cooldown{enter}')
+        cy.contains(`${paletteDialog} .command-palette__confirm`, 'All heaters are switched off')
+        cy.wait(300)
+        gcodeLog((scripts) => expect(scripts).not.to.include('TURN_OFF_HEATERS'))
+        cy.focused().type('{enter}')
+        gcodeLog((scripts) => expect(scripts).to.include('TURN_OFF_HEATERS'))
     })
 
     it('opens a tab of the settings dialog', () => {

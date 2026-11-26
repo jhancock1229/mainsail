@@ -38,6 +38,8 @@ export interface PaletteCommand {
     keywords: string[]
     // a text makes the palette ask for confirmation before running the command
     confirmText: string | null
+    // destructive commands are shown in the error colour
+    danger: boolean
     // a reason makes the command unavailable in the current printer state
     disabledReason: string | null
     run: PaletteRun
@@ -57,10 +59,14 @@ export interface PaletteContext {
     printerState: string
     naviPoints: PaletteNaviPoint[]
     macros: { name: string; description: string | null }[]
+    // macros the user hid in the macro settings (gui.macros.hiddenMacros)
+    hiddenMacros: string[]
     // filename is the path below the gcodes root
     files: { filename: string; modified?: number | Date | null }[]
     presets: GuiPresetsStatePreset[]
     cooldownGcode: string
+    // uiSettings.confirmOnCoolDown
+    confirmOnCoolDown: boolean
     settingsTabs: { name: string; title: string; icon: string }[]
     t: (key: string, values?: Record<string, unknown>) => string
 }
@@ -159,10 +165,24 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
     const whileIdle = notReady ?? (busy ? reason('WhilePrinting') : null)
 
     const commands: PaletteCommand[] = []
+    const usedIds = new Set<string>()
     const add = (
         command: Pick<PaletteCommand, 'id' | 'group' | 'title' | 'icon' | 'run'> & Partial<PaletteCommand>
     ): void => {
-        commands.push({ subtitle: '', keywords: [], confirmText: null, disabledReason: null, ...command })
+        // ids are keys of the list and of the favourites, so two commands never share one
+        let id = command.id
+        for (let count = 2; usedIds.has(id); count++) id = `${command.id}~${count}`
+        usedIds.add(id)
+
+        commands.push({
+            subtitle: '',
+            keywords: [],
+            confirmText: null,
+            danger: false,
+            disabledReason: null,
+            ...command,
+            id,
+        })
     }
 
     // printer actions
@@ -199,6 +219,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         icon: mdiCloseOctagonOutline,
         keywords: ['abort', 'stop'],
         confirmText: t('CommandPalette.Confirm.Cancel'),
+        danger: true,
         disabledReason: notReady ?? (!busy ? reason('NoPrintRunning') : null),
         run: { type: 'socket', method: 'printer.print.cancel', loading: 'statusPrintCancel' },
     })
@@ -208,6 +229,8 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         title: t('CommandPalette.Actions.Cooldown'),
         icon: mdiSnowflake,
         keywords: ['heaters off', 'temperature'],
+        confirmText: context.confirmOnCoolDown ? t('CommandPalette.Confirm.Cooldown') : null,
+        // not during a print, like the presets: the temperature panel disables its preset menu then too
         disabledReason: whileIdle,
         run: { type: 'gcode', scripts: [context.cooldownGcode] },
     })
@@ -218,6 +241,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         icon: mdiRestart,
         keywords: ['FIRMWARE_RESTART', 'reboot', 'klipper'],
         confirmText: t('CommandPalette.Confirm.FirmwareRestart'),
+        danger: true,
         disabledReason: !connected ? reason('KlipperNotConnected') : null,
         run: { type: 'socket', method: 'printer.firmware_restart', loading: 'firmwareRestart' },
     })
@@ -228,6 +252,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         icon: mdiAlertOctagonOutline,
         keywords: ['estop', 'e-stop', 'M112', 'kill', 'halt'],
         confirmText: t('CommandPalette.Confirm.EmergencyStop'),
+        danger: true,
         disabledReason: !connected
             ? reason('KlipperNotConnected')
             : context.klipperState === 'shutdown'
@@ -250,13 +275,16 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         })
     })
 
-    // pages of the sidebar
+    // pages of the sidebar; custom links can share a target (e.g. "#"), then the title tells them apart
+    const naviTarget = (point: PaletteNaviPoint): string | undefined => point.to ?? point.href
+    const sharedTarget = (target: string): boolean =>
+        context.naviPoints.filter((point) => naviTarget(point) === target).length > 1
     context.naviPoints.forEach((point) => {
-        const target = point.to ?? point.href
+        const target = naviTarget(point)
         if (!target) return
 
         add({
-            id: `nav:${target}`,
+            id: sharedTarget(target) ? `nav:${target}|${point.title}` : `nav:${target}`,
             group: 'navigation',
             title: point.title,
             icon: point.icon,
@@ -266,7 +294,10 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         })
     })
 
+    const hiddenMacros = context.hiddenMacros.map((name) => name.toLowerCase())
     context.macros.forEach((macro) => {
+        if (hiddenMacros.includes(macro.name.toLowerCase())) return
+
         const description = macro.description ?? ''
 
         add({
@@ -292,7 +323,7 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
                 title: file.filename.slice(slash + 1),
                 subtitle: file.filename.slice(0, slash + 1),
                 icon: mdiFileOutline,
-                confirmText: t('CommandPalette.Confirm.Print', { filename: file.filename }),
+                // no confirmation here: the start print dialog of Mainsail asks, with its spool and timelapse options
                 disabledReason: whileIdle,
                 run: { type: 'print', filename: file.filename },
             })
@@ -338,7 +369,7 @@ const LENGTH_PENALTY_MAX = 40
 // score below every match of a title, otherwise a short search term would list whole groups.
 const GROUP_KEYWORDS: Record<PaletteGroup, string[]> = {
     actions: ['action', 'printer'],
-    navigation: ['go to', 'open', 'page'],
+    navigation: ['go to', 'goto', 'open', 'page'],
     macros: ['macro'],
     files: ['print', 'start', 'file', 'gcode'],
     settings: ['settings', 'preferences', 'options'],
@@ -514,6 +545,18 @@ const browsePaletteCommands = (commands: PaletteCommand[], options: PaletteSearc
     return sections.filter((entry) => entry.results.length > 0)
 }
 
+// A group keyword of several words (e.g. "go to") cannot match a single search term, so it is looked for in front
+// of the whole query. Returns the rest of the query, or null when the query does not start with such a keyword.
+const stripGroupPhrase = (query: string, group: PaletteGroup): string | null => {
+    for (const keyword of GROUP_KEYWORDS[group]) {
+        if (!keyword.includes(' ')) continue
+        if (query === keyword) return ''
+        if (query.startsWith(`${keyword} `)) return query.slice(keyword.length + 1)
+    }
+
+    return null
+}
+
 const scoreCommand = (command: PaletteCommand, terms: string[]): { score: number; positions: number[] } | null => {
     let score = 0
     const positions = new Set<number>()
@@ -546,14 +589,22 @@ export const searchPaletteCommands = (
     query: string,
     options: PaletteSearchOptions
 ): PaletteSection[] => {
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+    const normalized = query.toLowerCase().trim().replace(/\s+/g, ' ')
+    const terms = normalized.split(' ').filter(Boolean)
     if (!terms.length) return browsePaletteCommands(commands, options)
+
+    const match = (command: PaletteCommand): { score: number; positions: number[] } | null => {
+        const rest = stripGroupPhrase(normalized, command.group)
+        if (rest === '') return { score: SCORE_GROUP_KEYWORD, positions: [] }
+
+        return (rest !== null ? scoreCommand(command, rest.split(' ')) : null) ?? scoreCommand(command, terms)
+    }
 
     const limit = options.searchLimit ?? DEFAULT_SEARCH_LIMIT
     const results: PaletteResult[] = []
     commands.forEach((command) => {
-        const match = scoreCommand(command, terms)
-        if (match === null) return
+        const matched = match(command)
+        if (matched === null) return
 
         const pinned = options.pinned.includes(command.id)
         const recentIndex = options.recent.indexOf(command.id)
@@ -561,9 +612,9 @@ export const searchPaletteCommands = (
 
         results.push({
             command,
-            positions: match.positions,
+            positions: matched.positions,
             pinned,
-            score: match.score + (pinned ? BOOST_PINNED : 0) + recentBoost,
+            score: matched.score + (pinned ? BOOST_PINNED : 0) + recentBoost,
         })
     })
     results.sort((a, b) => b.score - a.score || a.command.title.localeCompare(b.command.title))
@@ -603,6 +654,18 @@ export const nextSelectableIndex = (
     }
 
     return -1
+}
+
+// The selection is a command, not a position: the list changes while the palette is open (a print ends, a command
+// is pinned). When the selected command is gone or unavailable nothing is selected, so Enter cannot run the command
+// that moved into its place.
+export const keepSelection = (
+    results: { command: { id: string; disabledReason: string | null } }[],
+    selectedId: string | null
+): string | null => {
+    const selected = results.find((result) => result.command.id === selectedId)
+
+    return selected && selected.command.disabledReason === null ? selected.command.id : null
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -673,25 +736,50 @@ const RESERVED_SHORTCUTS = [
     'f12',
 ]
 const MODIFIER_ORDER = ['mod', 'ctrl', 'meta', 'alt', 'shift']
-const KEY_LABELS: Record<string, [string, string]> = {
-    // [macOS, other platforms]
-    mod: ['⌘', 'Ctrl'],
-    ctrl: ['⌃', 'Ctrl'],
-    meta: ['⌘', 'Meta'],
-    alt: ['⌥', 'Alt'],
-    shift: ['⇧', 'Shift'],
-    space: ['Space', 'Space'],
+// keys that have a symbol on macOS and a translated name (CommandPalette.Keys.*) elsewhere
+const MAC_KEY_SYMBOLS: Record<string, string> = { mod: '⌘', ctrl: '⌃', meta: '⌘', alt: '⌥', shift: '⇧' }
+const KEY_NAMES: Record<string, string> = {
+    mod: 'Ctrl',
+    ctrl: 'Ctrl',
+    meta: 'Meta',
+    alt: 'Alt',
+    shift: 'Shift',
+    space: 'Space',
+}
+// physical keys (US layout) for presses that do not report a usable character, e.g. Option+E on macOS ("Dead")
+const CODE_KEYS: Record<string, string> = {
+    Backquote: '`',
+    Minus: '-',
+    Equal: '=',
+    BracketLeft: '[',
+    BracketRight: ']',
+    Backslash: '\\',
+    Semicolon: ';',
+    Quote: "'",
+    Comma: ',',
+    Period: '.',
+    Slash: '/',
+}
+
+const keyFromCode = (code: string): string | null => {
+    if (/^(Key[A-Z]|Digit\d)$/.test(code)) return code.slice(-1).toLowerCase()
+
+    return CODE_KEYS[code] ?? null
 }
 
 // "mod" is the main modifier of the platform: Cmd on macOS, Ctrl everywhere else
 export const shortcutFromEvent = (event: ShortcutEvent, isMac: boolean): string | null => {
     let key = (event.key ?? '').toLowerCase()
-    if (MODIFIER_KEYS.includes(key)) return null
 
-    // Alt (and Shift on some layouts) changes the typed character, the physical key is what the user pressed
+    // Alt changes the typed character (Option+P is "π" on macOS, "@" is Option+L on a German keyboard) or starts a
+    // dead key (Option+E), then the physical key is what the user pressed
     const code = event.code ?? ''
-    if (!/^[a-z0-9]$/.test(key) && /^(Key[A-Z]|Digit\d)$/.test(code)) key = code.slice(-1).toLowerCase()
+    const letterOrDigit = /^(Key[A-Z]|Digit\d)$/.test(code)
+    if (event.altKey && letterOrDigit && !/^[a-z0-9]$/.test(key)) key = code.slice(-1).toLowerCase()
+    else if (!/^[!-~]$/.test(key)) key = keyFromCode(code) ?? key
+    if (MODIFIER_KEYS.includes(key)) return null
     if (key === ' ') key = 'space'
+    if (key === '+') key = 'plus'
     if (!key) return null
 
     const parts: string[] = []
@@ -704,8 +792,19 @@ export const shortcutFromEvent = (event: ShortcutEvent, isMac: boolean): string 
     return [...parts, key].join('+')
 }
 
+// The setting is shared by all browsers of a printer, but Control (macOS) and the Windows key (elsewhere) have no
+// counterpart on the other platform. There they fall together with the main modifier, so every stored shortcut
+// can be pressed everywhere.
+export const normalizeShortcut = (shortcut: string, isMac: boolean): string => {
+    const parts = shortcut.split('+')
+    const foreign = isMac ? 'meta' : 'ctrl'
+    const modifiers = parts.slice(0, -1).map((modifier) => (modifier === foreign ? 'mod' : modifier))
+
+    return [...MODIFIER_ORDER.filter((modifier) => modifiers.includes(modifier)), parts[parts.length - 1]].join('+')
+}
+
 export const matchesShortcut = (event: ShortcutEvent, shortcut: string, isMac: boolean): boolean => {
-    return shortcutFromEvent(event, isMac) === shortcut
+    return shortcutFromEvent(event, isMac) === normalizeShortcut(shortcut, isMac)
 }
 
 export const validateShortcut = (shortcut: string): ShortcutError | null => {
@@ -719,18 +818,25 @@ export const validateShortcut = (shortcut: string): ShortcutError | null => {
     const isFunctionKey = /^f\d{1,2}$/.test(key)
     const hasModifier = modifiers.some((modifier) => modifier !== 'shift')
     if (!key || (!hasModifier && !isFunctionKey)) return 'NeedsModifier'
-    if (RESERVED_SHORTCUTS.includes(shortcut)) return 'Reserved'
+
+    // also what the shortcut turns into on the other platform must be free
+    const variants = [shortcut, normalizeShortcut(shortcut, true), normalizeShortcut(shortcut, false)]
+    if (variants.some((variant) => RESERVED_SHORTCUTS.includes(variant))) return 'Reserved'
 
     return null
 }
 
-export const formatShortcut = (shortcut: string, isMac: boolean): string[] => {
-    return shortcut.split('+').map((part) => {
-        const label = KEY_LABELS[part]
-        if (label) return label[isMac ? 0 : 1]
+// labels of the keys to press on this platform; translate gets keys like "CommandPalette.Keys.Ctrl"
+export const formatShortcut = (shortcut: string, isMac: boolean, translate: (key: string) => string): string[] => {
+    return normalizeShortcut(shortcut, isMac)
+        .split('+')
+        .map((part) => {
+            if (isMac && part in MAC_KEY_SYMBOLS) return MAC_KEY_SYMBOLS[part]
+            if (part in KEY_NAMES) return translate(`CommandPalette.Keys.${KEY_NAMES[part]}`)
+            if (part === 'plus') return '+'
 
-        return part.length === 1 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)
-    })
+            return part.length === 1 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)
+        })
 }
 
 // the search and replace fields of the code editor (CodeMirror panels) keep their own keyboard handling

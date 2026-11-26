@@ -25,7 +25,7 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
     }
 
     get paletteShortcutKeys(): string[] {
-        return formatShortcut(this.paletteSettings.shortcut, this.isMac)
+        return this.paletteKeyLabels(this.paletteSettings.shortcut)
     }
 
     get paletteCommands(): PaletteCommand[] {
@@ -36,12 +36,18 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
             printerState: this.printer_state,
             naviPoints: this.naviPoints.map((point) => ({ ...point, title: point.title.toString() })),
             macros: macros.map((macro) => ({ name: macro.name, description: macro.description })),
+            hiddenMacros: this.$store.state.gui.macros?.hiddenMacros ?? [],
             files: collectGcodeFiles(this.$store.getters['files/getDirectory']('gcodes'), validGcodeExtensions),
             presets: this.$store.getters['gui/presets/getPresets'] ?? [],
             cooldownGcode: this.$store.getters['gui/presets/getCooldownGcode'],
+            confirmOnCoolDown: this.$store.state.gui.uiSettings.confirmOnCoolDown ?? false,
             settingsTabs: commandPaletteBus.settingsTabs,
             t: (key, values) => this.$t(key, values).toString(),
         })
+    }
+
+    paletteKeyLabels(shortcut: string): string[] {
+        return formatShortcut(shortcut, this.isMac, (key) => this.$t(key).toString())
     }
 
     savePaletteSetting(name: keyof PaletteSettings, value: PaletteSettings[keyof PaletteSettings]): void {
