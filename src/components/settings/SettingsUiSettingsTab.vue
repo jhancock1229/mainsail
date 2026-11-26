@@ -9,6 +9,13 @@
                 </settings-row>
                 <v-divider class="my-2" />
                 <settings-row
+                    :title="$t('Settings.UiSettingsTab.ShowModeToggle')"
+                    :sub-title="$t('Settings.UiSettingsTab.ShowModeToggleDescription')"
+                    :dynamic-slot-width="true">
+                    <v-switch v-model="showModeToggle" hide-details class="mt-0 show-mode-toggle-switch" />
+                </settings-row>
+                <v-divider class="my-2" />
+                <settings-row
                     :title="$t('Settings.UiSettingsTab.Theme')"
                     :sub-title="$t('Settings.UiSettingsTab.ThemeDescription')">
                     <v-select v-model="themeName" :items="themes" class="mt-0" hide-details outlined dense />
@@ -389,7 +396,19 @@ export default class SettingsUiSettingsTab extends Mixins(BaseMixin, ThemeMixin)
                 text: this.$t('Settings.UiSettingsTab.ThemeLight'),
                 value: 'light',
             },
+            {
+                text: this.$t('Settings.UiSettingsTab.ThemeAuto'),
+                value: 'auto',
+            },
         ]
+    }
+
+    get showModeToggle(): boolean {
+        return this.$store.state.gui.uiSettings.showModeToggle ?? true
+    }
+
+    set showModeToggle(newVal: boolean) {
+        this.$store.dispatch('gui/saveSetting', { name: 'uiSettings.showModeToggle', value: newVal })
     }
 
     get themes() {
