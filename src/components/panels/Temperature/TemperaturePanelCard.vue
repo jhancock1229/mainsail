@@ -115,8 +115,6 @@ const SECONDS_PER_MINUTE = 60
 const PERCENT = 100
 const MIN_TARGET_DIGITS = 3
 
-// The card shows the same printer object as a row of the table, so it inherits the row's getters (icon, colour,
-// limits, presets, command, edit dialog) instead of repeating them. Only the template and the card state differ.
 @Component
 export default class TemperaturePanelCard extends Mixins(TemperaturePanelListItem) {
     @Prop({ type: Number, required: true }) readonly windowSeconds!: number
@@ -155,7 +153,6 @@ export default class TemperaturePanelCard extends Mixins(TemperaturePanelListIte
             return trends[this.trend].toString()
         }
 
-        // a temperature fan below its target is not "at" it, but there is nothing to do either
         if (this.kind === 'fan' && this.cardState === 'atTarget')
             return this.$t('Panels.TemperaturePanel.Cards.InRange').toString()
 
@@ -294,7 +291,6 @@ export default class TemperaturePanelCard extends Mixins(TemperaturePanelListIte
     flex: 2 1 260px;
 }
 
-/* a strip in the colour of the state, so heating, at target and cooling can be told apart from a distance */
 .temperature-card::before {
     position: absolute;
     top: 0;
@@ -412,7 +408,6 @@ export default class TemperaturePanelCard extends Mixins(TemperaturePanelListIte
     margin-top: 6px;
 }
 
-/* sits at the old end of the time axis: the line starts this long ago; the backdrop keeps it readable on the line */
 .temperature-card__window {
     position: absolute;
     bottom: 3px;

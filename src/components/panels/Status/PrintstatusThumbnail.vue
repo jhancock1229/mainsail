@@ -92,7 +92,6 @@ import Vue from 'vue'
 
 @Component({})
 export default class StatusPanelPrintstatusThumbnail extends Mixins(BaseMixin) {
-    // only the file name and the small thumbnail (the print hero panel shows the big picture)
     @Prop({ type: Boolean, default: false }) readonly compact!: boolean
 
     mdiFileOutline = mdiFileOutline

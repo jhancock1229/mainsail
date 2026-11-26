@@ -126,7 +126,6 @@ export default class PageDashboard extends Mixins(DashboardMixin) {
     layoutChanged = false
     layoutChangedTimeout: number | null = null
 
-    // let the panels settle in softly when the printer state switches the layout
     @Watch('dashboardLayoutState')
     onDashboardLayoutStateChanged(): void {
         if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)

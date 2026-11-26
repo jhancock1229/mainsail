@@ -1,8 +1,3 @@
-// Mock Moonraker with a simulated printer, for trying UI changes without hardware.
-//
-// It answers Mainsail's startup requests from a recorded session (fixture.json) and simulates the parts that
-// change: Klipper state, print jobs, temperatures, toolhead position and a webcam picture.
-// Start it with `demo/demo.sh up`. Control it with `demo/demo.sh <print|pause|resume|finish|frame|fail|error|runout|idle>`.
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -11,7 +6,6 @@ import { WebSocketServer } from 'ws'
 
 const PORT = Number(process.env.DEMO_PORT ?? 7125)
 const DIR = import.meta.dirname
-// DEMO_DB_FILE=none keeps the settings in memory only (used by the automated tests)
 const DB_FILE = process.env.DEMO_DB_FILE ?? path.join(DIR, '.demo-db.json')
 const fixture = JSON.parse(fs.readFileSync(path.join(DIR, 'fixture.json'), 'utf8'))
 
@@ -24,11 +18,6 @@ const clone = (value) => JSON.parse(JSON.stringify(value))
 const startedAt = Date.now()
 const eventtime = () => (Date.now() - startedAt) / 1000
 
-// ---------------------------------------------------------------------------------------------------------
-// command palette demo content: more macros, gcode files and preheat presets than the recorded printer has
-// ---------------------------------------------------------------------------------------------------------
-
-// name: [description, gcode]
 const DEMO_MACROS = {
     PARK_TOOLHEAD: ['Park the toolhead at the front of the bed', 'G28\nRESPOND MSG="Toolhead parked"'],
     PURGE_LINE: ['Prime the nozzle with a purge line', 'RESPOND MSG="Purge line printed"'],
@@ -46,7 +35,6 @@ for (const [name, [description, gcode]] of Object.entries(DEMO_MACROS)) {
     fixture.responses['printer.objects.list|{}'].objects.push(`gcode_macro ${name}`)
 }
 
-// [path below the gcodes root, age in hours, size]
 const DEMO_FILES = [
     ['benchy.gcode', 2, 2843110],
     ['calibration_cube.gcode', 26, 412870],
@@ -68,10 +56,6 @@ const DEMO_FILES = [
         fixture.responses[directoryKey(dir)].files.push({ modified, size, permissions: 'rw', filename: parts.at(-1) })
     }
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// temperature objects that are not part of the recorded fixture, and the temperature history
-// ---------------------------------------------------------------------------------------------------------
 
 const CHAMBER = 'temperature_sensor chamber'
 const MCU = 'temperature_sensor mcu_temp'
@@ -125,7 +109,6 @@ const drift = (object, goal, rate, seconds, noise = 0.06) => {
     object.measured_max_temp = Math.max(object.measured_max_temp, object.temperature)
 }
 
-// the chamber follows the bed, the electronics warm up with the heater power and are cooled by their fan
 const simulateThermals = (printer, seconds) => {
     const fan = printer[ELECTRONICS_FAN]
     const printing = printer.print_stats.state === 'printing' ? 0.3 : 0
@@ -138,7 +121,6 @@ const simulateThermals = (printer, seconds) => {
     fan.speed = Math.round(Math.min(1, Math.max(0, speed)) * 100) / 100
 }
 
-// like Moonraker, one entry per second
 const recordTemperatures = (printer) => {
     for (const name of printer.heaters.available_sensors) {
         const entry = (temperatureHistory[name] ??= {})
@@ -152,8 +134,6 @@ const recordTemperatures = (printer) => {
     }
 }
 
-// The history starts with an idle printer for the length of the store. That past is simulated on a copy, so the
-// printer itself starts at its initial temperatures whatever happens to it next.
 const fillTemperatureHistory = () => {
     const idle = clone(status)
     const settle = (heater) => drift(heater, AMBIENT, 0.03, 1, 0.2)
@@ -177,15 +157,10 @@ const tickThermals = (seconds) => {
     recordTemperatures(status)
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// simulated printer
-// ---------------------------------------------------------------------------------------------------------
-
 let status = clone(fixture.status)
 let klippyState = 'ready'
 let printElapsed = 0
 let lastSent = {}
-// length of the current print job and of its warm-up (no extrusion yet), see the print and quickprint controls
 let job = { seconds: PRINT_SECONDS, warmup: 0 }
 
 const resetStatus = () => {
@@ -256,7 +231,6 @@ const resumePrint = () => {
     status.print_stats.state = 'printing'
     status.pause_resume.is_paused = false
     status.virtual_sdcard.is_active = true
-    // resuming after a runout means new filament was loaded
     status[RUNOUT_SENSOR].filament_detected = true
 }
 
@@ -289,16 +263,11 @@ const emergencyStop = () => {
     gcodeResponse('!! Shutdown due to webhooks request')
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// named errors and filament runout: demo/demo.sh error <name>, demo/demo.sh fail <name>, demo/demo.sh runout
-// ---------------------------------------------------------------------------------------------------------
-
 const FIRMWARE_RESTART_HINT =
     'Once the underlying issue is corrected, use the\n"FIRMWARE_RESTART" command to reset the firmware, reload the\nconfig, and restart the host software.\n'
 const RESTART_HINT =
     'Once the underlying issue is corrected, use the "RESTART"\ncommand to reload the config and restart the host software.\n'
 
-// messages as Klipper reports them; "error" states happen while Klipper starts, "shutdown" states while it runs
 const klipperErrors = {
     'timer-too-close': {
         state: 'shutdown',
@@ -361,11 +330,9 @@ const klipperError = (name) => {
         return
     }
 
-    // Klipper restarts and then stops with the error while it reads its config
     setKlippyState('startup', 'Printer is not ready')
     broadcast('notify_klippy_disconnected', [])
     setTimeout(() => {
-        // a reset in the meantime wins
         if (klippyState !== 'startup') return
 
         resetStatus()
@@ -374,7 +341,6 @@ const klipperError = (name) => {
     }, 1500)
 }
 
-// the sensor runs empty; like Klipper, a running print gets paused
 const filamentRunout = () => {
     status[RUNOUT_SENSOR].filament_detected = false
     if (status.print_stats.state !== 'printing') return
@@ -383,8 +349,7 @@ const filamentRunout = () => {
     pausePrint()
 }
 
-// One frame of the timelapse macro: it pauses the print, and when the frame is taken it resumes the print and
-// clears its is_paused flag right after. The print state follows a moment later (stretched here to be testable).
+// slower than the real timelapse macro, so the states in between can be tested
 const timelapseFrame = () => {
     if (status.print_stats.state !== 'printing') return
 
@@ -426,7 +391,6 @@ const approach = (heater, seconds) => {
     heater.power = heater.target > 0 ? Math.min(1, Math.max(0, (heater.target - heater.temperature) / 15 + 0.3)) : 0
 }
 
-// the toolhead traces a square that shrinks and grows, one lap per layer
 const toolheadPosition = (elapsed) => {
     const layerTime = job.seconds / TOTAL_LAYERS
     const layer = Math.min(TOTAL_LAYERS, Math.floor(elapsed / layerTime) + 1)
@@ -458,7 +422,6 @@ const tick = (seconds) => {
     if (['printing', 'paused'].includes(status.print_stats.state)) status.print_stats.total_duration += seconds
     if (status.print_stats.state !== 'printing') return
 
-    // warm-up: the job runs, but nothing is extruded yet (print_duration stays 0)
     if (status.print_stats.total_duration <= job.warmup) {
         status.display_status.message = 'Heating'
         return
@@ -563,16 +526,12 @@ const runGcode = (script) => {
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// database (Mainsail settings), kept across restarts of the mock
-// ---------------------------------------------------------------------------------------------------------
-
 const emptyDatabase = () => ({ mainsail: { initVersion: '2.19.0', presets: demoPresets() }, maintenance: {} })
 let database = emptyDatabase()
 try {
     if (DB_FILE !== 'none') database = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
 } catch {
-    // start with an empty database
+    // no stored database yet
 }
 
 const dbGet = (namespace, key) => {
@@ -593,10 +552,6 @@ const dbSet = (namespace, key, value) => {
     else target[parts.at(-1)] = value
     if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// JSON-RPC
-// ---------------------------------------------------------------------------------------------------------
 
 const rpcError = (code, message) => Object.assign(new Error(message), { code })
 
@@ -720,8 +675,6 @@ const handlers = {
     }),
 }
 
-// command palette: run the gcode of the macros (lines without templates), answer RESPOND, and remember the
-// received scripts so the browser tests can check what was sent (/demo/gcode-log)
 const gcodeLog = []
 const MAX_MACRO_DEPTH = 3
 const runScript = (script, depth = 0) => {
@@ -753,11 +706,6 @@ const handleRpc = (request) => {
     throw rpcError(-32601, 'Method not found')
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// servers
-// ---------------------------------------------------------------------------------------------------------
-
-// slicer preview of the demo file: the shape that the webcam picture shows growing
 const THUMBNAIL_SIZES = [32, 300]
 function thumbnailSvg(size) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 300 300">
@@ -790,7 +738,6 @@ const webcamSvg = () => {
 }
 
 const controls = {
-    // optional: /demo/print?seconds=<length of the print>&warmup=<seconds before the first extrusion>
     print: (_name, params) =>
         startPrint(DEMO_FILE, { seconds: Number(params.get('seconds')), warmup: Number(params.get('warmup')) }),
     quickprint: () => startPrint(DEMO_FILE, { seconds: 90, warmup: 20 }),
@@ -802,7 +749,6 @@ const controls = {
     finish: () => endPrint('complete'),
     frame: timelapseFrame,
     idle: setIdle,
-    // back to a freshly started printer with default settings
     reset: () => {
         resetStatus()
         lastSent = {}
@@ -811,12 +757,10 @@ const controls = {
         database = emptyDatabase()
         if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
     },
-    // drops the websocket connections: Mainsail reconnects and loads the printer data again
     reconnect: () => wss.clients.forEach((client) => client.close()),
     status: () => {},
 }
 
-// command palette: preheat presets for a fresh demo database
 const seedPresets = () => {
     database.mainsail ??= {}
     database.mainsail.presets ??= demoPresets()
@@ -829,7 +773,6 @@ controls.reset = () => {
     seedPresets()
 }
 
-// printer.cfg as the editor shows it, rebuilt from the recorded config
 const configFileText = () =>
     Object.entries(fixture.status.configfile.config)
         .map(([name, options]) => {
@@ -874,7 +817,6 @@ const server = http.createServer((req, res) => {
         )
     }
 
-    // command palette: the gcode scripts received so far, and file contents for the editor
     if (url.pathname === '/demo/gcode-log') {
         res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
         return res.end(JSON.stringify(gcodeLog))
@@ -884,7 +826,6 @@ const server = http.createServer((req, res) => {
         return res.end(configFileText())
     }
 
-    // /demo/<command> or /demo/<command>/<name>, e.g. /demo/error/timer-too-close
     const [command, argument] = url.pathname.replace('/demo/', '').split('/')
     const control = Object.hasOwn(controls, command) ? controls[command] : undefined
     if (url.pathname.startsWith('/demo/') && control) {
@@ -928,7 +869,6 @@ wss.on('connection', (socket) => {
     })
 })
 
-// send only the fields that changed since the last update, like Moonraker does
 const statusDiff = () => {
     const diff = {}
     for (const [name, object] of Object.entries(status)) {

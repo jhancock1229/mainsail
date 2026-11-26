@@ -16,7 +16,6 @@ export interface TemperatureCardSettings {
 export interface TemperatureCardLabel {
     objectName: string
     name: string
-    // the Klipper object type, only set when another card has the same name
     type: string | null
 }
 
@@ -26,7 +25,6 @@ export interface TemperatureSample {
 }
 
 export interface SparklinePoint {
-    // position inside the time window, 0 = oldest, 1 = now
     x: number
     value: number
 }
@@ -36,21 +34,16 @@ export interface SparklineRange {
     max: number
 }
 
-// a heater counts as "at target" within this distance (°C) on both sides
 export const AT_TARGET_TOLERANCE = 2
-// a switched off heater above this temperature (°C) is shown as cooling down instead of off
 export const COOLING_MIN_TEMPERATURE = 40
-// difference (°C) between the earlier and the recent half of the trend samples to call it rising or falling
 export const TREND_THRESHOLD = 0.3
 export const TREND_SECONDS = 60
-// smallest temperature span (°C) of a sparkline, so sensor noise does not look like a temperature swing
 export const SPARKLINE_MIN_SPAN = 10
 export const SPARKLINE_PADDING = 2
 export const SPARKLINE_MAX_POINTS = 60
 export const DEFAULT_SPARKLINE_WINDOW = 300
 export const sparklineWindows = [60, 300, 600, 1200]
 
-// the chart is open by default: users who had it enabled before the cards existed keep seeing it
 export const getDefaultTemperatureCardSettings = (): TemperatureCardSettings => ({
     viewMode: 'cards',
     order: [],
@@ -61,7 +54,6 @@ export const getDefaultTemperatureCardSettings = (): TemperatureCardSettings => 
 
 const round = (value: number): number => Math.round(value * 10) / 10
 
-// the same split as the name of a row in the table (TemperaturePanelListItem)
 const shortName = (fullName: string): string => {
     const splits = fullName.split(' ')
 
@@ -96,7 +88,6 @@ export const getTemperatureCardState = (input: {
     if (kind === 'fan') {
         if (!hasTarget) return 'off'
 
-        // a temperature fan only cools: below its target there is nothing left to do
         return temperature !== null && temperature > target + AT_TARGET_TOLERANCE ? 'cooling' : 'atTarget'
     }
 
@@ -107,7 +98,6 @@ export const getTemperatureCardState = (input: {
     return temperature < target ? 'heating' : 'cooling'
 }
 
-// signed distance to the target (negative = below), null without an active target
 export const getTemperatureDelta = (temperature: number | null, target: number | null): number | null => {
     if (temperature === null || target === null || target <= 0) return null
 
@@ -126,7 +116,6 @@ export const getTemperatureTrend = (values: number[]): TemperatureTrend => {
     return 'steady'
 }
 
-// readings of one sensor from the temperature history (oldest first) within the last windowSeconds
 export const getTemperatureSamples = (
     source: PrinterTempHistoryStateSourceEntry[],
     objectName: string,
@@ -151,7 +140,6 @@ export const getTemperatureSamples = (
     return samples.reverse()
 }
 
-// averages the samples into at most maxPoints buckets between start and end (times in ms)
 export const reduceSamples = (
     samples: TemperatureSample[],
     start: number,
@@ -206,7 +194,6 @@ export const getSparklineY = (
     return round(padding + (1 - ratio) * (height - 2 * padding))
 }
 
-// svg path data of the line and of the area below it
 export const buildSparkline = (
     points: SparklinePoint[],
     range: SparklineRange,
@@ -227,7 +214,6 @@ export const buildSparkline = (
     return { line, area: `${line} L${last.x},${height} L${first.x},${height} Z` }
 }
 
-// the objects of the temperature table in its default order: heaters, temperature fans, sensors, monitors
 export const getTemperatureCardObjects = (input: {
     heaters: string[]
     sensors: string[]
@@ -260,15 +246,12 @@ export const getTemperatureCardObjects = (input: {
     return [...heaters, ...fans, ...sensors, ...monitors]
 }
 
-// the stored order first, then every card the stored order does not know yet
 export const sortTemperatureCards = (names: string[], order: string[]): string[] => {
     const known = order.filter((name) => names.includes(name))
 
     return [...known, ...names.filter((name) => !known.includes(name))]
 }
 
-// New stored order after moving a card one place up (-1) or down (1). The card swaps places with the next card
-// that is listed, so cards that are filtered out at the moment (e.g. hidden MCU sensors) keep their stored place.
 export const moveTemperatureCard = (names: string[], order: string[], name: string, offset: -1 | 1): string[] => {
     const stored = [...order, ...names.filter((entry) => !order.includes(entry))]
     const listed = stored.filter((entry) => names.includes(entry))
@@ -283,7 +266,6 @@ export const moveTemperatureCard = (names: string[], order: string[], name: stri
     return stored
 }
 
-// true when there are cards and the user has hidden every one of them
 export const areAllTemperatureCardsHidden = (names: string[], hidden: string[]): boolean => {
     return names.length > 0 && names.every((name) => hidden.includes(name))
 }
@@ -318,7 +300,6 @@ const toNameList = (value: unknown): string[] => {
     return [...new Set(value.filter((entry): entry is string => typeof entry === 'string'))]
 }
 
-// settings loaded from the database may lack keys or hold values of an older version
 export const normalizeTemperatureCardSettings = (raw: unknown): TemperatureCardSettings => {
     const stored = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
     const defaults = getDefaultTemperatureCardSettings()

@@ -2,7 +2,6 @@ import Component from 'vue-class-component'
 import DashboardMixin from '@/components/mixins/dashboard'
 import { shouldSimplifyStatusPanel } from '@/plugins/printHero'
 
-// for the status panel: does the print hero panel show the print at the moment?
 @Component
 export default class PrintHeroStatusMixin extends DashboardMixin {
     get simplifiedByPrintHero(): boolean {

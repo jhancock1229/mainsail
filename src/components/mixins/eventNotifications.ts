@@ -13,10 +13,8 @@ import {
 import { playNotificationSound } from '@/plugins/notificationSound'
 import { PrinterEventName, PrinterEventSeverity, printerEventSeverities } from '@/plugins/printerEvents'
 
-// from the base path of the installation, so it also resolves on nested routes
 const NOTIFICATION_ICON = `${import.meta.env.BASE_URL ?? '/'}img/icons/icon-192.png`
 
-// errors stay long enough to be read, hovering a toast pauses its timer
 const TOAST_DURATIONS: Record<PrinterEventSeverity, number> = {
     info: 5000,
     success: 6000,
@@ -30,7 +28,7 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         return resolveAlertSettings(this.$store.state.gui.alerts)
     }
 
-    // a method, because the permission of the browser is not reactive
+    // not a getter: Notification.permission is not reactive
     readBrowserNotificationStatus(): BrowserNotificationStatus {
         const hasApi = 'Notification' in window
 
@@ -45,7 +43,6 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         return resolveChannels(this.alertSettings, name, this.readBrowserNotificationStatus())
     }
 
-    // a test notification comes from the settings and looks like the real one, but leads nowhere
     sendEventNotification(name: PrinterEventName, lines: string[], options: { test?: boolean } = {}): void {
         const channels = this.getEventChannels(name)
         if (channels.length === 0) return
@@ -55,7 +52,6 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         const severity = printerEventSeverities[name]
 
         let toast = channels.includes('toast')
-        // a notification the browser refuses to show becomes a toast, so the event does not get lost
         if (channels.includes('browser') && !this.showBrowserNotification(name, title, text)) toast = true
         if (toast) this.showEventToast(severity, title, text, options.test !== true)
         if (channels.includes('sound')) void playNotificationSound(severity)
@@ -69,7 +65,6 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
             type: severity,
             duration: TOAST_DURATIONS[severity],
             onClick: () => {
-                // the explanation of an error is on the dashboard
                 if (navigate && severity === 'error' && this.$route.path !== '/') this.$router.push('/')
             },
         })
@@ -79,7 +74,6 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
         const printerName = this.$store.state.gui.general.printername ?? ''
 
         try {
-            // the tag makes a new notification replace an older one of the same kind
             const notification = new Notification(printerName !== '' ? `${printerName}: ${title}` : title, {
                 body: lines.join('\n'),
                 tag: `mainsail-${name}`,
@@ -92,7 +86,7 @@ export default class EventNotificationsMixin extends Mixins(BaseMixin) {
 
             return true
         } catch {
-            // e.g. Chrome on Android only allows notifications from a service worker
+            // Chrome on Android only allows notifications from a service worker
             return false
         }
     }

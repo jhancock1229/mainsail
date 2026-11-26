@@ -1,6 +1,3 @@
-// Maps raw Klipper / print error messages to an explanation in plain language.
-// The texts live in the locale files under ErrorExplainer.Errors.<id>.
-
 export type ErrorActionId = 'firmwareRestart' | 'restart' | 'klipperLog' | 'home' | 'reheat' | 'openConfig'
 
 export const errorIds = [
@@ -16,7 +13,6 @@ export const errorIds = [
     'emergencyStop',
     'configError',
     'unknown',
-    // not matched from a message: a paused print with an empty filament sensor, see explainMissingFilament
     'filamentMissing',
 ] as const
 
@@ -26,9 +22,7 @@ export interface ErrorExplanation {
     id: ErrorId
     known: boolean
     raw: string
-    // first line of the raw message
     summary: string
-    // names found in the message, e.g. the heater or the MCU
     params: Record<string, string>
     actions: ErrorActionId[]
 }
@@ -37,11 +31,9 @@ interface ErrorRule {
     id: ErrorId
     pattern: RegExp
     actions: ErrorActionId[]
-    // used in the texts when the message does not contain the name
     defaults?: Record<string, string>
 }
 
-// the first matching rule wins
 const errorRules: ErrorRule[] = [
     {
         id: 'timerTooClose',
@@ -106,17 +98,13 @@ const errorRules: ErrorRule[] = [
 
 const unknownActions: ErrorActionId[] = ['firmwareRestart', 'klipperLog']
 
-// what the server store shows until the message of Klipper has arrived
 export const placeholderMessages = ['Shutdown...', 'Disconnected...']
 
-// restarting only helps (and is only safe to suggest) while Klipper has stopped
 const faultOnlyActions: ErrorActionId[] = ['firmwareRestart', 'restart']
-// these send G-code, which Klipper only accepts while it is ready
 const readyOnlyActions: ErrorActionId[] = ['home', 'reheat']
 
 export const isKlipperFault = (klipperState: string): boolean => ['error', 'shutdown'].includes(klipperState)
 
-// the message of Klipper, or null while it has not arrived yet
 export const settledKlipperMessage = (message: string | null | undefined): string | null => {
     const text = (message ?? '').trim()
 
@@ -125,8 +113,6 @@ export const settledKlipperMessage = (message: string | null | undefined): strin
 
 const MAX_REHEAT_TEMPERATURE = 500
 
-// Which heater the "re-heat" action heats and to which temperature: the heater named in the message, or the
-// active extruder, to the temperature the loaded G-code file starts with. Null when that is not known.
 export const resolveReheatTarget = (input: {
     heater: string | undefined
     activeExtruder: string | undefined
