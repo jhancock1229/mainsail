@@ -39,6 +39,8 @@ case "${1:-}" in
         export DEMO_UI_PORT=${DEMO_UI_PORT:-4183}
         export DEMO_DB_FILE=none
         # built into its own directory, so a production build in dist/ is left alone
+        # (the build still writes its version file to dist/, which must exist)
+        mkdir -p dist
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite build --outDir dist-demo
         npx start-server-and-test \
             'node demo/mock-moonraker.mjs' "http://localhost:${DEMO_PORT}/demo/status" \
