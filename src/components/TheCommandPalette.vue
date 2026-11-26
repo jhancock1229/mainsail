@@ -179,6 +179,8 @@ import {
 } from '@/plugins/commandPalette'
 import { commandPaletteBus, OPEN_SETTINGS_TAB } from '@/plugins/commandPaletteBus'
 import { EventBus } from '@/plugins/eventBus'
+import { startDashboardEdit } from '@/plugins/dashboardEditBus'
+import { resolveDashboardLayoutState } from '@/plugins/dashboardLayoutState'
 import { mdiClose, mdiMagnify, mdiMagnifyClose } from '@mdi/js'
 
 interface IndexedSection {
@@ -508,6 +510,20 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
                 break
             case 'print':
                 this.startPrint(run.filename)
+                break
+            case 'dashboard-layout':
+                this.$store.dispatch('gui/switchDashboardLayout', run.id)
+                if (this.$route.path !== '/') this.$router.push('/')
+                break
+            case 'dashboard-layout-edit':
+                if (this.$route.path !== '/') this.$router.push('/')
+                startDashboardEdit(
+                    resolveDashboardLayoutState({
+                        enabled: this.$store.state.gui.dashboard.stateLayouts?.enabled ?? true,
+                        klipperState: this.klipperState,
+                        printerState: this.printer_state,
+                    })
+                )
                 break
         }
     }

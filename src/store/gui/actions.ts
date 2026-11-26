@@ -1,7 +1,14 @@
 import Vue from 'vue'
 import { ActionTree } from 'vuex'
 import { GuiState, GuiStateDashboard, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
-import { DashboardLayoutState, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
+import {
+    columnLimits,
+    getActiveColumnKeys,
+    getAllColumnKeys,
+    isDashboardViewport,
+} from '@/plugins/dashboardNamedLayouts'
+import { dashboardLayoutActions } from '@/store/gui/dashboardLayoutActions'
 import { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 import { RootState } from '@/store/types'
 import { getDefaultState } from './index'
@@ -459,8 +466,8 @@ export const actions: ActionTree<GuiState, RootState> = {
 
         // a customized state layout stores all columns of the viewport, so later changes of the idle layout
         // cannot duplicate or drop panels
-        const customLayouts = state.dashboard.stateLayouts?.[payload.layoutState] ?? {}
-        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
+        const customLayouts = (state.dashboard.stateLayouts?.[payload.layoutState] ?? {}) as Record<string, unknown>
+        getActiveColumnKeys(payload.viewport, state.dashboard.columns).forEach((layoutKey) => {
             let value = payload.value
             if (layoutKey !== layoutName) {
                 if (Array.isArray(customLayouts[layoutKey])) return
@@ -478,7 +485,17 @@ export const actions: ActionTree<GuiState, RootState> = {
     resetStateLayout({ commit, dispatch, state }, payload: { layoutState: DashboardLayoutState; viewport: string }) {
         const layoutState = payload.layoutState
 
-        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
+        if (layoutState === 'idle' && isDashboardViewport(payload.viewport)) {
+            dispatch('setDashboardColumnCount', {
+                viewport: payload.viewport,
+                count: columnLimits[payload.viewport].default,
+            })
+            if (state.dashboard.columns?.[payload.viewport] !== undefined) {
+                dispatch('deleteSettingKey', `dashboard.columns.${payload.viewport}`)
+            }
+        }
+
+        ;(getAllColumnKeys(payload.viewport) as GuiStateDashboardLayoutKey[]).forEach((layoutKey) => {
             if (layoutState === 'idle') {
                 dispatch('resetLayout', layoutKey)
                 return
@@ -493,6 +510,8 @@ export const actions: ActionTree<GuiState, RootState> = {
             })
         })
     },
+
+    ...dashboardLayoutActions,
 
     updateGcodeviewerCache({ dispatch, state }, payload) {
         const klipperCache = state.gcodeViewer.klipperCache as Record<string, unknown>

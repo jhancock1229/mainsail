@@ -249,9 +249,21 @@ export interface GuiStateDashboard {
         printing: GuiStateDashboardStateLayouts
         error: GuiStateDashboardStateLayouts
     }
+    desktopLayout3?: GuiStateLayoutoption[]
+    widescreenLayout4?: GuiStateLayoutoption[]
+    columns?: Record<string, { count: number; widths: number[] }>
+    panelDensity?: Record<string, string>
+    namedLayouts?: {
+        active: string
+        items: Record<string, { name: string; order: number; snapshot?: unknown }>
+    }
+    showLayoutBar?: boolean
 }
 
-export type GuiStateDashboardLayoutKey = Exclude<keyof GuiStateDashboard, 'nonExpandPanels' | 'stateLayouts'>
+export type GuiStateDashboardLayoutKey = Exclude<
+    keyof GuiStateDashboard,
+    'nonExpandPanels' | 'stateLayouts' | 'columns' | 'panelDensity' | 'namedLayouts' | 'showLayoutBar'
+>
 
 // a missing key means not customized: the layout is derived from the idle layout
 export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[]>>

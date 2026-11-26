@@ -6,9 +6,11 @@ import {
     mdiFire,
     mdiHome,
     mdiPause,
+    mdiPencilRulerOutline,
     mdiPlay,
     mdiRestart,
     mdiSnowflake,
+    mdiViewDashboardOutline,
 } from '@mdi/js'
 import type { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 
@@ -28,6 +30,8 @@ export type PaletteRun =
     | { type: 'socket'; method: string; loading: string }
     | { type: 'print'; filename: string }
     | { type: 'settings'; tab: string }
+    | { type: 'dashboard-layout'; id: string }
+    | { type: 'dashboard-layout-edit' }
 
 export interface PaletteCommand {
     id: string
@@ -70,6 +74,7 @@ export interface PaletteContext {
     // uiSettings.confirmOnCoolDown
     confirmOnCoolDown: boolean
     settingsTabs: { name: string; title: string; icon: string }[]
+    dashboardLayouts?: { id: string; name: string; active: boolean }[]
     t: (key: string, values?: Record<string, unknown>) => string
 }
 
@@ -330,6 +335,29 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
                 run: { type: 'print', filename: file.filename },
             })
         })
+
+    const dashboardLayouts = context.dashboardLayouts ?? []
+    dashboardLayouts.forEach((layout) => {
+        add({
+            id: `dashboard-layout:${layout.id}`,
+            group: 'navigation',
+            title: t('Dashboard.Layouts.SwitchTo', { name: layout.name }),
+            subtitle: layout.active ? t('Dashboard.Layouts.Active') : '',
+            icon: mdiViewDashboardOutline,
+            keywords: ['layout', 'dashboard', 'switch'],
+            run: { type: 'dashboard-layout', id: layout.id },
+        })
+    })
+    if (dashboardLayouts.length > 0) {
+        add({
+            id: 'dashboard-layout-edit',
+            group: 'navigation',
+            title: t('Dashboard.Layouts.Edit'),
+            icon: mdiPencilRulerOutline,
+            keywords: ['dashboard', 'arrange', 'panels', 'columns', 'customize'],
+            run: { type: 'dashboard-layout-edit' },
+        })
+    }
 
     context.settingsTabs.forEach((tab) => {
         add({

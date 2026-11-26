@@ -93,6 +93,31 @@ describe('buildPaletteCommands', () => {
         })
     })
 
+    it('lists the dashboard layouts and the layout editor', () => {
+        const commands = buildPaletteCommands(
+            createContext({
+                dashboardLayouts: [
+                    { id: 'default', name: 'Everyday', active: true },
+                    { id: 'farm', name: 'Farm glance', active: false },
+                ],
+            })
+        )
+
+        expect(byId(commands, 'dashboard-layout:farm')).toMatchObject({
+            group: 'navigation',
+            run: { type: 'dashboard-layout', id: 'farm' },
+            disabledReason: null,
+        })
+        expect(byId(commands, 'dashboard-layout:default').subtitle).not.toBe('')
+        expect(byId(commands, 'dashboard-layout-edit').run).toEqual({ type: 'dashboard-layout-edit' })
+    })
+
+    it('has no layout commands when no layouts are given', () => {
+        const commands = buildPaletteCommands(createContext())
+
+        expect(commands.some((command) => command.id.startsWith('dashboard-layout'))).toBe(false)
+    })
+
     it('gives sidebar links with the same target their own ids', () => {
         const commands = buildPaletteCommands(
             createContext({

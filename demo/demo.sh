@@ -17,6 +17,8 @@
 #   demo/demo.sh frame     take a timelapse frame          -> the print pauses for a moment
 #   demo/demo.sh idle      cancel the print / recover      -> idle state
 #   demo/demo.sh reconnect  drop the connection to Mainsail, which then reconnects
+#   demo/demo.sh layouts [named|legacy|corrupt]
+#                          store example dashboard layouts (reload Mainsail afterwards)
 #   demo/demo.sh reset     fresh printer and default Mainsail settings
 #   demo/demo.sh status    show Klipper and print state
 #   demo/demo.sh test      run the browser tests in cypress/demo against the simulated printer
@@ -33,7 +35,7 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | reset | status)
+    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | layouts | reset | status)
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
@@ -51,7 +53,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

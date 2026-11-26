@@ -1,79 +1,34 @@
 <template>
-    <div :class="{ 'dashboard-layout-changed': layoutChanged }">
-        <v-row v-if="isMobile">
-            <v-col>
-                <status-panel />
-                <template v-for="component in mobileLayout">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-mobileLayout-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-        </v-row>
-        <v-row v-else-if="isTablet">
-            <v-col class="col-6">
-                <status-panel />
-                <template v-for="component in tabletLayout1">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-tabletLayout1-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-            <v-col class="col-6">
-                <template v-for="component in tabletLayout2">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-tabletLayout2-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-        </v-row>
-        <v-row v-else-if="isDesktop">
-            <v-col class="col-5">
-                <status-panel />
-                <template v-for="component in desktopLayout1">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-desktopLayout1-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-            <v-col class="col-7">
-                <template v-for="component in desktopLayout2">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-desktopLayout2-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-        </v-row>
-        <v-row v-else-if="isWidescreen">
-            <v-col class="col-3">
-                <status-panel />
-                <template v-for="component in widescreenLayout1">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-desktopLayout1-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-            <v-col class="col-5">
-                <template v-for="component in widescreenLayout2">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-desktopLayout2-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
-            </v-col>
-            <v-col class="col-4">
-                <template v-for="component in widescreenLayout3">
-                    <component
-                        :is="extractPanelName(component.name)"
-                        :key="'dashboard-desktopLayout3-' + component.name"
-                        :panel-id="extractPanelId(component.name)"></component>
-                </template>
+    <div :class="{ 'dashboard-layout-changed': layoutChanged, 'dashboard--editing': editing }">
+        <dashboard-layout-bar v-if="showDashboardLayoutBar || editing" :layout-viewport="viewport" />
+        <v-row>
+            <v-col v-for="column in columns" :key="column.key" class="dashboard-column" :style="column.style">
+                <status-panel v-if="column.index === 0" />
+                <draggable
+                    :value="column.panels"
+                    class="dashboard-column__panels"
+                    handle=".dashboard-slot__handle"
+                    ghost-class="dashboard-slot--ghost"
+                    :group="'dashboard-' + viewport"
+                    :disabled="!editing"
+                    :animation="150"
+                    :force-fallback="true"
+                    :data-empty-text="$t('Dashboard.Layouts.EmptyColumn')"
+                    @input="saveColumn(column, $event)">
+                    <dashboard-panel-slot
+                        v-for="component in column.panels"
+                        :key="'dashboard-' + column.key + '-' + component.name"
+                        :name="component.name"
+                        :visible="component.visible"
+                        :editing="editing"
+                        :density="getPanelDensity(component.name)"
+                        @cycle-density="cyclePanelDensity(component.name)"
+                        @toggle-visible="toggleVisible(column, component.name)">
+                        <component
+                            :is="extractPanelName(component.name)"
+                            :panel-id="extractPanelId(component.name)"></component>
+                    </dashboard-panel-slot>
+                </draggable>
             </v-col>
         </v-row>
     </div>
@@ -84,7 +39,14 @@ import Component from 'vue-class-component'
 import { Mixins, Watch } from 'vue-property-decorator'
 import AfcPanel from '@/components/panels/AfcPanel.vue'
 import ExtruderControlPanel from '@/components/panels/ExtruderControlPanel.vue'
-import DashboardMixin from '@/components/mixins/dashboard'
+import DashboardLayoutsMixin from '@/components/mixins/dashboardLayouts'
+import DashboardLayoutBar from '@/components/dashboard/DashboardLayoutBar.vue'
+import DashboardPanelSlot from '@/components/dashboard/DashboardPanelSlot.vue'
+import draggable from 'vuedraggable'
+import { dashboardEditBus, stopDashboardEdit } from '@/plugins/dashboardEditBus'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
+import { columnWidthPercent, getColumnKey, getColumnNumber, isDashboardViewport } from '@/plugins/dashboardNamedLayouts'
+import { GuiStateLayoutoption } from '@/store/gui/types'
 import KlippyStatePanel from '@/components/panels/KlippyStatePanel.vue'
 import LedEffectsPanel from '@/components/panels/LedEffectsPanel.vue'
 import MachineSettingsPanel from '@/components/panels/MachineSettingsPanel.vue'
@@ -101,9 +63,20 @@ import ToolheadControlPanel from '@/components/panels/ToolheadControlPanel.vue'
 import TemperaturePanel from '@/components/panels/TemperaturePanel.vue'
 import WebcamPanel from '@/components/panels/WebcamPanel.vue'
 
+interface DashboardColumn {
+    index: number
+    number: number
+    key: string
+    style: Record<string, string>
+    panels: GuiStateLayoutoption[]
+}
+
 @Component({
     components: {
         AfcPanel,
+        DashboardLayoutBar,
+        DashboardPanelSlot,
+        draggable,
         ExtruderControlPanel,
         KlippyStatePanel,
         LedEffectsPanel,
@@ -122,13 +95,49 @@ import WebcamPanel from '@/components/panels/WebcamPanel.vue'
         WebcamPanel,
     },
 })
-export default class PageDashboard extends Mixins(DashboardMixin) {
+export default class PageDashboard extends Mixins(DashboardLayoutsMixin) {
     layoutChanged = false
     layoutChangedTimeout: number | null = null
 
-    // let the panels settle in softly when the printer state switches the layout
-    @Watch('dashboardLayoutState')
-    onDashboardLayoutStateChanged(): void {
+    get editing(): boolean {
+        return dashboardEditBus.editing
+    }
+
+    get shownLayoutState(): DashboardLayoutState {
+        if (!this.editing) return this.dashboardLayoutState
+
+        const stateLayoutsEnabled = this.$store.state.gui.dashboard.stateLayouts?.enabled ?? true
+
+        return stateLayoutsEnabled ? (dashboardEditBus.layoutState ?? 'idle') : 'idle'
+    }
+
+    get columns(): DashboardColumn[] {
+        const viewport = this.viewport
+        if (!isDashboardViewport(viewport)) return []
+
+        const widths = dashboardEditBus.previewWidths ?? this.getDashboardColumns(viewport).widths
+
+        return widths.map((width, index) => {
+            const number = getColumnNumber(viewport, index)
+            const percent = `${columnWidthPercent(width)}%`
+
+            return {
+                index,
+                number,
+                key: getColumnKey(viewport, index + 1),
+                style: { flex: `0 0 ${percent}`, maxWidth: percent },
+                panels: this.$store.getters['gui/getPanels'](viewport, number, !this.editing, this.shownLayoutState),
+            }
+        })
+    }
+
+    get layoutIdentity(): string {
+        return `${this.namedLayouts.activeId}:${this.dashboardLayoutState}`
+    }
+
+    // let the panels settle in softly when the layout switches
+    @Watch('layoutIdentity')
+    onLayoutIdentityChanged(): void {
         if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)
 
         this.layoutChanged = true
@@ -138,40 +147,30 @@ export default class PageDashboard extends Mixins(DashboardMixin) {
         }, 400)
     }
 
+    @Watch('viewport')
+    onViewportChanged(): void {
+        dashboardEditBus.previewWidths = null
+    }
+
     beforeDestroy(): void {
         if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)
+        stopDashboardEdit()
     }
 
-    get mobileLayout() {
-        return this.$store.getters['gui/getPanels']('mobile', 0, true, this.dashboardLayoutState)
+    saveColumn(column: DashboardColumn, value: Array<GuiStateLayoutoption | undefined>): void {
+        this.$store.dispatch('gui/saveStateLayout', {
+            layoutState: this.shownLayoutState,
+            viewport: this.viewport,
+            column: column.number,
+            value: value.filter((panel) => panel !== undefined),
+        })
     }
 
-    get tabletLayout1() {
-        return this.$store.getters['gui/getPanels']('tablet', 1, true, this.dashboardLayoutState)
-    }
-
-    get tabletLayout2() {
-        return this.$store.getters['gui/getPanels']('tablet', 2, true, this.dashboardLayoutState)
-    }
-
-    get desktopLayout1() {
-        return this.$store.getters['gui/getPanels']('desktop', 1, true, this.dashboardLayoutState)
-    }
-
-    get desktopLayout2() {
-        return this.$store.getters['gui/getPanels']('desktop', 2, true, this.dashboardLayoutState)
-    }
-
-    get widescreenLayout1() {
-        return this.$store.getters['gui/getPanels']('widescreen', 1, true, this.dashboardLayoutState)
-    }
-
-    get widescreenLayout2() {
-        return this.$store.getters['gui/getPanels']('widescreen', 2, true, this.dashboardLayoutState)
-    }
-
-    get widescreenLayout3() {
-        return this.$store.getters['gui/getPanels']('widescreen', 3, true, this.dashboardLayoutState)
+    toggleVisible(column: DashboardColumn, name: string): void {
+        this.saveColumn(
+            column,
+            column.panels.map((panel) => (panel.name === name ? { ...panel, visible: !panel.visible } : panel))
+        )
     }
 
     extractPanelName(name: string) {
@@ -185,6 +184,29 @@ export default class PageDashboard extends Mixins(DashboardMixin) {
 </script>
 
 <style scoped>
+.dashboard--editing .dashboard-column__panels {
+    position: relative;
+    min-height: 120px;
+    padding-bottom: 48px;
+}
+
+.dashboard--editing .dashboard-column__panels:empty::before {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    content: attr(data-empty-text);
+    border: 1px dashed rgba(128, 128, 128, 0.55);
+    border-radius: 6px;
+    opacity: 0.7;
+}
+
+.dashboard-column__panels ::v-deep .dashboard-slot--ghost {
+    opacity: 0.35;
+}
+
 @keyframes dashboard-panel-settle {
     from {
         opacity: 0;

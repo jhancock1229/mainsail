@@ -829,6 +829,96 @@ controls.reset = () => {
     seedPresets()
 }
 
+// dashboard layouts: stored settings as other Mainsail versions and broken databases leave them
+const layoutPanels = (visible, hidden = []) => [
+    ...visible.map((name) => ({ name, visible: true })),
+    ...hidden.map((name) => ({ name, visible: false })),
+]
+const dashboardLayoutSeeds = {
+    legacy: () => ({
+        desktopLayout1: layoutPanels(['temperature', 'macros'], ['machine-settings', 'miscellaneous']),
+        desktopLayout2: layoutPanels(['print-hero', 'toolhead-control', 'extruder-control', 'webcam', 'miniconsole']),
+        stateLayouts: {
+            enabled: true,
+            printing: {
+                desktopLayout1: layoutPanels(['temperature'], ['macros', 'machine-settings', 'miscellaneous']),
+                desktopLayout2: layoutPanels(
+                    ['print-hero', 'miniconsole'],
+                    ['webcam', 'toolhead-control', 'extruder-control']
+                ),
+            },
+            error: {},
+        },
+    }),
+    named: () => ({
+        namedLayouts: {
+            active: 'default',
+            items: {
+                default: { name: 'Everyday', order: 0 },
+                calibration: {
+                    name: 'Calibration',
+                    order: 1,
+                    snapshot: {
+                        panels: {
+                            desktopLayout1: layoutPanels(['toolhead-control', 'extruder-control']),
+                            desktopLayout2: layoutPanels(['miniconsole', 'temperature']),
+                            desktopLayout3: layoutPanels(
+                                ['macros', 'machine-settings'],
+                                ['print-hero', 'webcam', 'miscellaneous']
+                            ),
+                        },
+                        columns: { desktop: { count: 3, widths: [7, 10, 7] } },
+                        density: { miniconsole: 'expanded', temperature: 'compact', macros: 'compact' },
+                    },
+                },
+                farm: {
+                    name: 'Farm glance',
+                    order: 2,
+                    snapshot: {
+                        panels: {
+                            desktopLayout1: layoutPanels(['print-hero', 'webcam']),
+                            desktopLayout2: layoutPanels(
+                                ['temperature'],
+                                [
+                                    'toolhead-control',
+                                    'extruder-control',
+                                    'macros',
+                                    'machine-settings',
+                                    'miscellaneous',
+                                    'miniconsole',
+                                ]
+                            ),
+                        },
+                        columns: { desktop: { count: 2, widths: [15, 9] } },
+                        density: { 'print-hero': 'expanded' },
+                    },
+                },
+            },
+        },
+    }),
+    corrupt: () => ({
+        desktopLayout1: layoutPanels(['macros']),
+        desktopLayout2: layoutPanels(['temperature']),
+        columns: { desktop: { count: 99, widths: 'wide' }, tablet: null },
+        panelDensity: 'dense',
+        namedLayouts: {
+            active: 'gone',
+            items: {
+                first: { name: 'Kept', order: 0 },
+                broken: { name: 'Broken', order: 1, snapshot: { panels: { desktopLayout1: 'nonsense' }, columns: 7 } },
+                junk: 42,
+            },
+        },
+    }),
+}
+controls.layouts = (name = 'named') => {
+    if (!Object.hasOwn(dashboardLayoutSeeds, name)) throw new Error(`unknown layout example '${name}'`)
+
+    database.mainsail ??= {}
+    database.mainsail.dashboard = dashboardLayoutSeeds[name]()
+    if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
+}
+
 // printer.cfg as the editor shows it, rebuilt from the recorded config
 const configFileText = () =>
     Object.entries(fixture.status.configfile.config)

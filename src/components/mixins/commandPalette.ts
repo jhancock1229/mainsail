@@ -10,6 +10,7 @@ import {
     sanitizePaletteSettings,
     togglePinnedCommand,
 } from '@/plugins/commandPalette'
+import { resolveNamedLayouts } from '@/plugins/dashboardNamedLayouts'
 import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 import { validGcodeExtensions } from '@/store/variables'
 import { PrinterStateMacro } from '@/store/printer/types'
@@ -43,8 +44,19 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
             cooldownGcode: this.$store.getters['gui/presets/getCooldownGcode'],
             confirmOnCoolDown: this.$store.state.gui.uiSettings.confirmOnCoolDown ?? false,
             settingsTabs: commandPaletteBus.settingsTabs,
+            dashboardLayouts: this.paletteDashboardLayouts,
             t: (key, values) => this.$t(key, values).toString(),
         })
+    }
+
+    get paletteDashboardLayouts(): { id: string; name: string; active: boolean }[] {
+        const named = resolveNamedLayouts(this.$store.state.gui.dashboard.namedLayouts)
+
+        return named.layouts.map((layout) => ({
+            id: layout.id,
+            name: layout.name || this.$t('Dashboard.Layouts.DefaultName').toString(),
+            active: layout.id === named.activeId,
+        }))
     }
 
     paletteKeyLabels(shortcut: string): string[] {

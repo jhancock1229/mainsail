@@ -90,6 +90,7 @@ import Panel from '@/components/ui/Panel.vue'
 import { mdiCog, mdiConsoleLine, mdiTrashCan } from '@mdi/js'
 import CommandHelpModal from '@/components/console/CommandHelpModal.vue'
 import ConsoleMixin from '@/components/mixins/console'
+import DashboardPanelDensityMixin from '@/components/mixins/dashboardPanelDensity'
 import ConsoleTextarea from '@/components/inputs/ConsoleTextarea.vue'
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
 
@@ -100,7 +101,7 @@ import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
         CommandHelpModal,
     },
 })
-export default class MiniconsolePanel extends Mixins(BaseMixin, ConsoleMixin) {
+export default class MiniconsolePanel extends Mixins(BaseMixin, ConsoleMixin, DashboardPanelDensityMixin) {
     mdiTrashCan = mdiTrashCan
     mdiConsoleLine = mdiConsoleLine
     mdiCog = mdiCog
@@ -115,7 +116,7 @@ export default class MiniconsolePanel extends Mixins(BaseMixin, ConsoleMixin) {
     }
 
     get overlayScrollbarStyle() {
-        return `height: ${this.consoleHeight}px`
+        return `height: ${this.densityHeight(this.consoleHeight)}px`
     }
 
     get events() {

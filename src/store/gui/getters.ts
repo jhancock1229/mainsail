@@ -3,7 +3,8 @@ import { GuiState, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/st
 import { GuiMacrosStateMacrogroup } from '@/store/gui/macros/types'
 import { allDashboardPanels, defaultTheme, themes } from '@/store/variables'
 import { RootState, Theme } from '@/store/types'
-import { DashboardLayoutState, deriveStateLayout, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
+import { DashboardLayoutState, deriveStateLayout } from '@/plugins/dashboardLayoutState'
+import { getActiveColumnKeys, getColumnNumber, isDashboardViewport } from '@/plugins/dashboardNamedLayouts'
 import { resolvePrintHeroSettings } from '@/plugins/printHero'
 
 export const getters: GetterTree<GuiState, RootState> = {
@@ -147,17 +148,21 @@ export const getters: GetterTree<GuiState, RootState> = {
         (viewport: string, layoutState: DashboardLayoutState): boolean => {
             if (layoutState === 'idle') return false
 
-            const customLayouts = state.dashboard.stateLayouts?.[layoutState] ?? {}
-            return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
+            const customLayouts = (state.dashboard.stateLayouts?.[layoutState] ?? {}) as Record<string, unknown>
+            return getActiveColumnKeys(viewport, state.dashboard.columns).some((layoutKey) =>
+                Array.isArray(customLayouts[layoutKey])
+            )
         },
 
     // the print hero is a visible panel of the layout that is shown for the viewport and printer state
     getPrintHeroInLayout:
         (state, getters) =>
         (viewport: string, layoutState: DashboardLayoutState = 'idle'): boolean => {
-            const columnCount = getViewportLayoutKeys(viewport).length
-            // a viewport with a single column has no column number (mobileLayout)
-            const columns = columnCount === 1 ? [0] : Array.from({ length: columnCount }, (_, index) => index + 1)
+            if (!isDashboardViewport(viewport)) return false
+
+            const columns = getActiveColumnKeys(viewport, state.dashboard.columns).map((_, index) =>
+                getColumnNumber(viewport, index)
+            )
 
             return columns.some((column) => {
                 const panels = getters['getPanels'](viewport, column, true, layoutState) as GuiStateLayoutoption[]
@@ -248,7 +253,7 @@ export const getters: GetterTree<GuiState, RootState> = {
         (viewport: string, layoutState: DashboardLayoutState = 'idle') => {
             let panels: GuiStateLayoutoption[] = []
 
-            getViewportLayoutKeys(viewport).forEach((layoutKey) => {
+            getActiveColumnKeys(viewport, state.dashboard.columns).forEach((layoutKey) => {
                 if (!(layoutKey in state.dashboard)) return
 
                 panels = panels.concat(getters['getDashboardLayout'](layoutKey, layoutState))

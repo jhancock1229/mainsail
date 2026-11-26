@@ -12,6 +12,15 @@
 <template>
     <v-card flat>
         <v-card-text>
+            <settings-dashboard-layouts />
+            <v-divider class="my-2" />
+            <settings-row
+                :title="$t('Dashboard.Layouts.ShowBar')"
+                :sub-title="$t('Dashboard.Layouts.ShowBarDescription')"
+                :dynamic-slot-width="true">
+                <v-checkbox v-model="showLayoutBar" hide-details class="mt-0 pt-0 dashboard-layouts__show-bar" />
+            </settings-row>
+            <v-divider class="my-2" />
             <settings-row
                 :title="$t('Settings.DashboardTab.StateLayouts')"
                 :sub-title="$t('Settings.DashboardTab.StateLayoutsDescription')"
@@ -73,6 +82,14 @@
                     </v-btn-toggle>
                 </v-col>
             </v-row>
+            <settings-row
+                v-if="currentViewport !== 'mobile'"
+                class="dashboard-columns-row"
+                :title="$t('Dashboard.Layouts.Columns')"
+                :sub-title="$t('Dashboard.Layouts.ColumnsDescription')"
+                :mobile-second-row="true">
+                <dashboard-column-controls :layout-viewport="currentViewport" />
+            </settings-row>
             <v-row>
                 <v-col class="dashboard-rows-container">
                     <component :is="currentTab" :layout-state="activeLayoutState"></component>
@@ -90,6 +107,8 @@ import SettingsDashboardTabMobile from '@/components/settings/Dashboard/Mobile.v
 import SettingsDashboardTabTablet from '@/components/settings/Dashboard/Tablet.vue'
 import SettingsDashboardTabDesktop from '@/components/settings/Dashboard/Desktop.vue'
 import SettingsDashboardTabWidescreen from '@/components/settings/Dashboard/Widescreen.vue'
+import SettingsDashboardLayouts from '@/components/settings/Dashboard/Layouts.vue'
+import DashboardColumnControls from '@/components/dashboard/DashboardColumnControls.vue'
 import SettingsRow from '@/components/settings/SettingsRow.vue'
 import {
     mdiAlertCircleOutline,
@@ -111,6 +130,8 @@ import { TranslateResult } from 'vue-i18n'
         SettingsDashboardTabTablet,
         SettingsDashboardTabDesktop,
         SettingsDashboardTabWidescreen,
+        SettingsDashboardLayouts,
+        DashboardColumnControls,
         SettingsRow,
     },
 })
@@ -139,6 +160,14 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
 
     set stateLayoutsEnabled(newVal: boolean) {
         this.$store.dispatch('gui/saveSetting', { name: 'dashboard.stateLayouts.enabled', value: newVal })
+    }
+
+    get showLayoutBar(): boolean {
+        return this.$store.state.gui.dashboard.showLayoutBar ?? true
+    }
+
+    set showLayoutBar(newVal: boolean) {
+        this.$store.dispatch('gui/saveSetting', { name: 'dashboard.showLayoutBar', value: newVal })
     }
 
     get activeLayoutState(): DashboardLayoutState {

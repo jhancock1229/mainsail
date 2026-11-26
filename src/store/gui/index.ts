@@ -133,6 +133,15 @@ export const getDefaultState = (): GuiState => {
                 printing: {},
                 error: {},
             },
+            desktopLayout3: [],
+            widescreenLayout4: [],
+            columns: {},
+            panelDensity: {},
+            namedLayouts: {
+                active: 'default',
+                items: {},
+            },
+            showLayoutBar: true,
         },
         editor: {
             escToClose: true,

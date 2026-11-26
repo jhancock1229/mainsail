@@ -23,6 +23,7 @@ import type { EChartRef } from '@/types/echarts'
 import { mdiClock } from '@mdi/js'
 import { datasetTypesInPercents } from '@/store/variables'
 import ThemeMixin from '../mixins/theme'
+import DashboardPanelDensityMixin from '@/components/mixins/dashboardPanelDensity'
 
 interface TempChartTooltipPosition {
     top: number
@@ -31,7 +32,7 @@ interface TempChartTooltipPosition {
 }
 
 @Component
-export default class TempChart extends Mixins(BaseMixin, ThemeMixin) {
+export default class TempChart extends Mixins(BaseMixin, ThemeMixin, DashboardPanelDensityMixin) {
     @Ref('tempchart') readonly tempchart!: EChartRef | undefined
 
     hoverChart = false
@@ -245,7 +246,7 @@ export default class TempChart extends Mixins(BaseMixin, ThemeMixin) {
 
     get tempchartStyle() {
         return {
-            height: this.tempchartHeight + 'px',
+            height: this.densityHeight(this.tempchartHeight) + 'px',
         }
     }
 
