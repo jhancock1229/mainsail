@@ -1,13 +1,16 @@
 <template>
     <v-app :style="cssVars">
         <template v-if="socketIsConnected && guiIsReady">
-            <the-sidebar />
-            <the-topbar />
-            <v-main id="content" :style="mainStyle">
-                <v-container id="page-container" fluid :class="containerClasses">
-                    <router-view />
-                </v-container>
-            </v-main>
+            <the-shell v-if="interfaceShell === 'new'" />
+            <template v-else>
+                <the-sidebar />
+                <the-topbar />
+                <v-main id="content" :style="mainStyle">
+                    <v-container id="page-container" fluid :class="containerClasses">
+                        <router-view />
+                    </v-container>
+                </v-main>
+            </template>
             <the-service-worker />
             <the-update-dialog />
             <the-editor />
@@ -48,6 +51,8 @@ import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
+import TheShell from '@/components/shell/TheShell.vue'
+import { classicPathFor, InterfaceShell, resolveInterfaceShell } from '@/plugins/shellNavigation'
 
 @Component({
     components: {
@@ -65,6 +70,7 @@ import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
         TheManualProbeDialog,
         TheBedScrewsDialog,
         TheScrewsTiltAdjustDialog,
+        TheShell,
     },
 })
 export default class App extends Mixins(BaseMixin, ThemeMixin) {
@@ -127,6 +133,22 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 
     get darkMode(): boolean {
         return resolveDarkMode(this.mode, this.systemPrefersDark)
+    }
+
+    get interfaceReady(): boolean {
+        return this.socketIsConnected && this.guiIsReady
+    }
+
+    get interfaceShell(): InterfaceShell {
+        if (!this.interfaceReady) return 'classic'
+
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell, this.$vuetify.breakpoint.width)
+    }
+
+    get classicRedirect(): string | null {
+        if (!this.interfaceReady || this.interfaceShell !== 'classic') return null
+
+        return classicPathFor(this.$route.path)
     }
 
     get logoColor(): string {
@@ -233,8 +255,19 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     darkModeChanged(dark: boolean): void {
         this.$vuetify.theme.dark = dark
 
-        const doc = document.documentElement
-        doc.className = dark ? 'theme--dark' : 'theme--light'
+        const classes = document.documentElement.classList
+        classes.toggle('theme--dark', dark)
+        classes.toggle('theme--light', !dark)
+    }
+
+    @Watch('interfaceShell', { immediate: true })
+    interfaceShellChanged(shell: InterfaceShell): void {
+        document.documentElement.classList.toggle('shell-new', shell === 'new')
+    }
+
+    @Watch('classicRedirect', { immediate: true })
+    classicRedirectChanged(path: string | null): void {
+        if (path !== null) this.$router.replace(path)
     }
 
     async drawFavicon(val: number): Promise<void> {
@@ -428,6 +461,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 @import './assets/styles/sidebar.css';
 @import './assets/styles/utils.css';
 @import './assets/styles/updateManager.css';
+@import './assets/styles/shell.css';
 
 :root {
     --app-height: 100%;

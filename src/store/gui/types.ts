@@ -9,6 +9,8 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { SpoolTrackerSettings } from '@/plugins/spoolTracker'
+import { InterfaceShell } from '@/plugins/shellNavigation'
 
 export interface GuiState {
     alerts: AlertSettings
@@ -125,7 +127,9 @@ export interface GuiState {
         dashboardFilesFilter: GuiStateUiSettingsDashboardFilesFilter[]
         dashboardHistoryLimit: number
         hideOtherInstances: boolean
+        interfaceShell?: InterfaceShell
     }
+    spoolTracker: SpoolTrackerSettings
     view: {
         afc: {
             hiddenExtruders: string[]
