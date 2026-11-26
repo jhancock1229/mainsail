@@ -6,6 +6,7 @@ import { ServerHistoryStateJob } from '@/store/server/history/types'
 import { GuiNotificationState } from '@/store/gui/notifications/types'
 import { FileStateFile, FileStateGcodefile } from '@/store/files/types'
 import { GuiNavigationState } from '@/store/gui/navigation/types'
+import { PaletteSettings } from '@/plugins/commandPalette'
 
 export interface GuiState {
     general: {
@@ -17,6 +18,7 @@ export interface GuiState {
         calcEstimateTime: string[] // file, filament are possible values
         calcEtaTime: string[] // file, filament, slicer are possible values
     }
+    commandPalette: PaletteSettings
     console?: GuiConsoleState
     control: {
         style: 'bars' | 'circle' | 'cross'
