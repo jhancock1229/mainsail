@@ -22,7 +22,7 @@ interface DeriveRule {
 
 const deriveRules: Record<Exclude<DashboardLayoutState, 'idle'>, DeriveRule> = {
     printing: {
-        promote: ['webcam', 'temperature'],
+        promote: ['print-hero', 'webcam', 'temperature'],
         demote: ['toolhead-control'],
         show: ['webcam'],
     },

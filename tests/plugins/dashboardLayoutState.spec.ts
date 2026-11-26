@@ -49,6 +49,7 @@ describe('deriveStateLayout', () => {
         { name: 'toolhead-control', visible: true },
         { name: 'extruder-control', visible: true },
         { name: 'macros', visible: true },
+        { name: 'print-hero', visible: true },
         { name: 'temperature', visible: true },
         { name: 'miniconsole', visible: false },
     ]
@@ -57,10 +58,11 @@ describe('deriveStateLayout', () => {
         expect(deriveStateLayout('idle', idle)).toEqual(idle)
     })
 
-    it('puts webcam and temperature first and the toolhead controls last while printing', () => {
+    it('puts the print hero, webcam and temperature first and the toolhead controls last while printing', () => {
         const result = deriveStateLayout('printing', idle)
 
         expect(result.map((panel) => panel.name)).toEqual([
+            'print-hero',
             'webcam',
             'temperature',
             'extruder-control',
@@ -80,8 +82,16 @@ describe('deriveStateLayout', () => {
             'toolhead-control',
             'extruder-control',
             'macros',
+            'print-hero',
             'temperature',
         ])
+    })
+
+    it('promotes the print hero without changing whether the user has hidden it', () => {
+        const hidden = idle.map((panel) => (panel.name === 'print-hero' ? { ...panel, visible: false } : panel))
+        const result = deriveStateLayout('printing', hidden)
+
+        expect(result[0]).toEqual({ name: 'print-hero', visible: false })
     })
 
     it('never hides a panel, because every panel has controls that are needed in some situation', () => {

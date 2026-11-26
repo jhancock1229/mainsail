@@ -6,6 +6,7 @@ import { ServerHistoryStateJob } from '@/store/server/history/types'
 import { GuiNotificationState } from '@/store/gui/notifications/types'
 import { FileStateFile, FileStateGcodefile } from '@/store/files/types'
 import { GuiNavigationState } from '@/store/gui/navigation/types'
+import { PrintHeroSettings } from '@/plugins/printHero'
 
 export interface GuiState {
     general: {
@@ -210,6 +211,7 @@ export interface GuiState {
                 page: string
             }
         }
+        printHero: PrintHeroSettings
         mmu: {
             showClogDetection: boolean
             showTtgMap: boolean

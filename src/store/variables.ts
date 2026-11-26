@@ -121,6 +121,7 @@ export const allDashboardPanels = [
     'mmu',
     'temperature',
     'webcam',
+    'print-hero',
 ]
 
 export const thumbnailSmallMin = 30

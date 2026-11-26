@@ -3,6 +3,7 @@
 #
 #   demo/demo.sh up        start the simulated printer and Mainsail, then open http://localhost:8080
 #   demo/demo.sh print     start a 10 minute demo print    -> printing state
+#   demo/demo.sh quickprint  start a 90 second print with a 20 second warm-up
 #   demo/demo.sh pause     pause the print                 -> printing state (paused)
 #   demo/demo.sh resume    resume the print
 #   demo/demo.sh fail      make the print fail             -> error state (Klipper keeps running)
@@ -24,7 +25,7 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | pause | resume | fail | error | idle | reset | status)
+    print | quickprint | pause | resume | fail | error | idle | reset | status)
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1"
         ;;
     test)
@@ -42,7 +43,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

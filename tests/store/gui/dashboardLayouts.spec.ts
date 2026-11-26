@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getters } from '@/store/gui/getters'
+import { getDefaultState } from '@/store/gui'
+import { allDashboardPanels } from '@/store/variables'
+import { getDefaultPrintHeroSettings } from '@/plugins/printHero'
 import Vue from 'vue'
 import { actions } from '@/store/gui/actions'
 import { mutations } from '@/store/gui/mutations'
@@ -38,8 +41,8 @@ const createState = (stateLayouts: Record<string, unknown> = {}) =>
 
 const allPossiblePanels = ['webcam', 'toolhead-control', 'temperature', 'miniconsole']
 
-const createGetters = (state: GuiState) => {
-    const moduleGetters: Record<string, unknown> = { getAllPossiblePanels: allPossiblePanels }
+const createGetters = (state: GuiState, possiblePanels: string[] = allPossiblePanels) => {
+    const moduleGetters: Record<string, unknown> = { getAllPossiblePanels: possiblePanels }
     const rootState = { gui: state } as unknown as RootState
     const call = (name: string) => (getters[name] as AnyFn)(state, moduleGetters, rootState, {})
 
@@ -101,6 +104,15 @@ describe('gui/getPanels with layout states', () => {
             'temperature',
             'toolhead-control',
         ])
+    })
+
+    it('puts the print hero on top while printing, also for layouts saved before the panel existed', () => {
+        const g = createGetters(createState(), [...allPossiblePanels, 'print-hero'])
+
+        // not stored: appended to the first column while idle, where it renders nothing
+        expect(names(g.getPanels('desktop', 1, true))).toEqual(['webcam', 'toolhead-control', 'print-hero'])
+        expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual(['print-hero', 'webcam', 'toolhead-control'])
+        expect(names(g.getPanels('desktop', 2, true, 'printing'))).toEqual(['temperature', 'miniconsole'])
     })
 
     it('prefers a customized state layout over the derived one', () => {
@@ -280,5 +292,24 @@ describe('gui/deleteStateLayout', () => {
         ;(mutations.deleteStateLayout as AnyFn)(state, { layoutState: 'printing', layoutKey: 'mobileLayout' })
 
         expect('mobileLayout' in state.dashboard.stateLayouts.printing).toBe(false)
+    })
+})
+
+describe('print hero defaults', () => {
+    it('is a dashboard panel that can be arranged and hidden in the layout settings', () => {
+        expect(allDashboardPanels).toContain('print-hero')
+    })
+
+    it('is the first panel of the default layouts, so it stays in place when a print ends', () => {
+        const { dashboard } = getDefaultState()
+
+        expect(dashboard.mobileLayout[0]).toEqual({ name: 'print-hero', visible: true })
+        expect(dashboard.tabletLayout1[0]).toEqual({ name: 'print-hero', visible: true })
+        expect(dashboard.desktopLayout1[0]).toEqual({ name: 'print-hero', visible: true })
+        expect(dashboard.widescreenLayout2[0]).toEqual({ name: 'print-hero', visible: true })
+    })
+
+    it('has default settings in the gui store', () => {
+        expect(getDefaultState().view.printHero).toEqual(getDefaultPrintHeroSettings())
     })
 })
