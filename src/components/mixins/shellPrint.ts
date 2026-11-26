@@ -1,7 +1,7 @@
 import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
 import ShellMixin from '@/components/mixins/shell'
-import { formatFilamentMeters, formatShellDuration } from '@/plugins/shellStatus'
+import { formatFilamentMeters } from '@/plugins/shellStatus'
 
 const MS_PER_SECOND = 1000
 
@@ -25,11 +25,11 @@ export default class ShellPrintMixin extends Mixins(ShellMixin) {
     }
 
     get printRemaining(): string {
-        return formatShellDuration(this.printRemainingSeconds)
+        return this.formatDuration(this.printRemainingSeconds)
     }
 
     get printTotalDuration(): string {
-        return formatShellDuration(Number(this.printStats.total_duration ?? 0))
+        return this.formatDuration(Number(this.printStats.total_duration ?? 0))
     }
 
     get printLayer(): string {

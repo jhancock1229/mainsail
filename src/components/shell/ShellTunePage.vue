@@ -65,23 +65,30 @@
                 <h2 class="sh-h2">{{ $t('Shell.Tune.Pid.Title') }}</h2>
                 <p class="sh-note">{{ $t('Shell.Tune.Pid.Help') }}</p>
                 <template v-if="canPid">
-                    <div v-for="heater in pidHeaters" :key="heater.name" class="sh-field-row">
-                        <div class="text-truncate">{{ heater.label }}</div>
-                        <input
-                            v-model.number="pidTargets[heater.name]"
-                            type="number"
-                            class="sh-input"
-                            min="0"
-                            :max="heater.max"
-                            :aria-label="$t('Shell.Tune.Pid.Target', { heater: heater.label })" />
-                        <button
-                            type="button"
-                            class="sh-btn sh-btn--44"
-                            :data-heater="heater.name"
-                            :disabled="printerIsPrinting"
-                            @click="pidCalibrate(heater.name)">
-                            {{ $t('Shell.Tune.Pid.Start') }}
-                        </button>
+                    <div v-for="heater in pidHeaters" :key="heater.name" class="shell-tune__pid">
+                        <div class="sh-field-row">
+                            <div class="text-truncate">{{ heater.label }}</div>
+                            <input
+                                type="number"
+                                class="sh-input"
+                                min="1"
+                                :max="heater.max"
+                                :value="heater.value"
+                                :aria-invalid="heater.target === null ? 'true' : 'false'"
+                                :aria-label="$t('Shell.Tune.Pid.Target', { heater: heater.label })"
+                                @input="setPidInput(heater.name, $event.target.value)" />
+                            <button
+                                type="button"
+                                class="sh-btn sh-btn--44"
+                                :data-heater="heater.name"
+                                :disabled="printerIsPrinting || heater.target === null"
+                                @click="pidCalibrate(heater)">
+                                {{ $t('Shell.Tune.Pid.Start') }}
+                            </button>
+                        </div>
+                        <div v-if="heater.target === null" class="shell-tune__pid-error" role="alert">
+                            {{ $t('Shell.Tune.Pid.Invalid', { max: heater.max }) }}
+                        </div>
                     </div>
                     <p class="sh-note sh-muted">{{ $t('Shell.Tune.Pid.After') }}</p>
                 </template>
@@ -174,6 +181,7 @@ import TemperaturePanel from '@/components/panels/TemperaturePanel.vue'
 import HeightmapCurrentProfilePanel from '@/components/panels/Heightmap/HeightmapCurrentProfilePanel.vue'
 import HeightmapProfilesPanel from '@/components/panels/Heightmap/HeightmapProfilesPanel.vue'
 import ToolSlider from '@/components/inputs/ToolSlider.vue'
+import { resolvePidTarget } from '@/plugins/shellStatus'
 
 interface GcodeTool {
     gcode: string
@@ -182,6 +190,15 @@ interface GcodeTool {
 
 const DEFAULT_PID_TARGETS: Record<string, number> = { heater_bed: 60 }
 const DEFAULT_PID_TARGET = 210
+const DEFAULT_MAX_TEMPERATURE = 300
+
+interface PidHeater {
+    name: string
+    label: string
+    max: number
+    value: string
+    target: number | null
+}
 
 @Component({
     components: {
@@ -206,7 +223,7 @@ export default class ShellTunePage extends Mixins(ShellMixin) {
     @Prop({ type: String, default: 'move' }) declare readonly tab: string
 
     mdiSpeedometer = mdiSpeedometer
-    pidTargets: Record<string, number> = {}
+    pidInputs: Record<string, string> = {}
 
     get tabs(): ShellTabItem[] {
         return this.availableShellTabs('tune').map((tab) => ({
@@ -262,14 +279,15 @@ export default class ShellTunePage extends Mixins(ShellMixin) {
         return 'PID_CALIBRATE' in this.commands
     }
 
-    get pidHeaters(): { name: string; label: string; max: number }[] {
+    get pidHeaters(): PidHeater[] {
         const heaters: string[] = this.$store.state.printer.heaters?.available_heaters ?? []
 
-        return heaters.map((name) => ({
-            name,
-            label: this.heaterLabel(name),
-            max: Number(this.settings[name.toLowerCase()]?.max_temp ?? 300),
-        }))
+        return heaters.map((name) => {
+            const max = Number(this.settings[name.toLowerCase()]?.max_temp ?? DEFAULT_MAX_TEMPERATURE)
+            const value = this.pidInputs[name] ?? String(DEFAULT_PID_TARGETS[name] ?? DEFAULT_PID_TARGET)
+
+            return { name, label: this.heaterLabel(name), max, value, target: resolvePidTarget(value, max) }
+        })
     }
 
     get shaper(): { axis: string; frequency: string; type: string }[] {
@@ -308,13 +326,8 @@ export default class ShellTunePage extends Mixins(ShellMixin) {
         return (this.$store.getters['printer/getMacros'] ?? []).length > 0
     }
 
-    created(): void {
-        const heaters: string[] = this.$store.state.printer.heaters?.available_heaters ?? []
-        const targets: Record<string, number> = {}
-        heaters.forEach((name) => {
-            targets[name] = DEFAULT_PID_TARGETS[name] ?? DEFAULT_PID_TARGET
-        })
-        this.pidTargets = targets
+    setPidInput(name: string, value: string): void {
+        this.pidInputs = { ...this.pidInputs, [name]: value }
     }
 
     heaterLabel(name: string): string {
@@ -326,11 +339,10 @@ export default class ShellTunePage extends Mixins(ShellMixin) {
         return words.charAt(0).toUpperCase() + words.slice(1)
     }
 
-    pidCalibrate(heater: string): void {
-        const target = Number(this.pidTargets[heater])
-        if (!Number.isFinite(target) || target <= 0) return
+    pidCalibrate(heater: PidHeater): void {
+        if (heater.target === null) return
 
-        this.sendGcode(`PID_CALIBRATE HEATER=${heater.split(' ').pop()} TARGET=${target}`)
+        this.sendGcode(`PID_CALIBRATE HEATER=${heater.name.split(' ').pop()} TARGET=${heater.target}`)
         this.$toast.info(this.$t('Shell.Tune.Pid.Started').toString())
     }
 }
@@ -342,6 +354,17 @@ export default class ShellTunePage extends Mixins(ShellMixin) {
     flex-direction: column;
     gap: 12px;
     margin-bottom: 20px;
+}
+
+.shell-tune__pid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.shell-tune__pid-error {
+    font-size: 13px;
+    color: var(--shell-danger);
 }
 
 .shell-tune__shaper {

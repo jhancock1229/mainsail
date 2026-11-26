@@ -258,7 +258,7 @@ const startPrint = (filename = DEMO_FILE, options = {}) => {
     status[RUNOUT_SENSOR].filament_detected = true
     gcodeResponse(`File opened: ${filename}`)
     historyJob = {
-        job_id: String(historyJobs.length + 1).padStart(6, '0'),
+        job_id: (historyJobs.length + 1).toString(16).toUpperCase().padStart(6, '0'),
         user: '_TRUSTED_USER_',
         filename,
         status: 'in_progress',
@@ -864,6 +864,8 @@ const controls = {
             material: 'PLA',
             sizeGrams: 1000,
             loadedAt: Date.now() / 1000 - SPOOL_LOADED_DAYS_AGO * DAY_SECONDS,
+            usedLength: 0,
+            lastJobId: historyJobs.find((entry) => entry.filename === 'tool_tray.gcode')?.job_id ?? null,
             baselineLength: 0,
         }),
     status: () => {},

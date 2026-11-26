@@ -98,6 +98,26 @@ describe('Redesigned shell: navigation', () => {
         cy.get('.machine-configfiles-panel').should('be.visible')
     })
 
+    it('opens an available tab when the address names one the printer does not offer', () => {
+        cy.visit('/machine/updates')
+        headline().should('have.text', 'Machine and files')
+        cy.get('.sh-page__tabs [data-tab="updates"]').should('not.exist')
+        tab('config').should('have.attr', 'aria-selected', 'true')
+        cy.get('.machine-configfiles-panel').should('be.visible')
+
+        cy.visit('/settings/timelapse')
+        tab('general').should('have.attr', 'aria-selected', 'true')
+    })
+
+    it('keeps the shell and the page when the window is resized below the phone width', () => {
+        rail('tune').click()
+        tab('limits').click()
+        cy.viewport(800, 700)
+        cy.get('.shell .shell-rail').should('be.visible')
+        cy.get('.v-app-bar').should('not.exist')
+        cy.location('pathname').should('eq', '/tune/limits')
+    })
+
     it('opens the command palette from the rail and runs a command', () => {
         cy.get('.shell-rail__search').should('contain', 'Search or run').click()
         cy.get(`${paletteDialog} .command-palette__input`).type('console')
@@ -205,6 +225,21 @@ describe('Redesigned shell: three clicks to any feature', () => {
         })
     })
 
+    it('says when a heater tuning temperature cannot be used', () => {
+        cy.visit('/tune/heater-tuning')
+        cy.get('.shell-tune [data-heater="extruder"]').should('not.be.disabled')
+        cy.get('.shell-tune__pid').first().find('input').clear()
+        cy.get('.shell-tune__pid-error').should('contain', 'Enter a temperature between 1 and')
+        cy.get('.shell-tune__pid').first().find('button').should('be.disabled')
+
+        cy.get('.shell-tune__pid').first().find('input').type('65')
+        cy.get('.shell-tune__pid-error').should('not.exist')
+        cy.get('.shell-tune__pid').first().find('button').click()
+        gcodeLog((log) =>
+            expect(log.some((script) => /^PID_CALIBRATE HEATER=\w+ TARGET=65$/.test(script))).to.equal(true)
+        )
+    })
+
     it('runs a macro on the third click', () => {
         rail('tune').click()
         tab('macros').click()
@@ -226,7 +261,7 @@ describe('Redesigned shell: three clicks to any feature', () => {
         gcodeLog((log) => expect(log.some((script) => script.includes('G1 Z1 F1500'))).to.equal(true))
 
         cy.get('.shell-goto [data-place="centre"]').click()
-        gcodeLog((log) => expect(log.some((script) => script.includes('G1 X117.5 Y117.5'))).to.equal(true))
+        gcodeLog((log) => expect(log.some((script) => script.includes('G1 X110 Y110'))).to.equal(true))
 
         cy.get('.shell-offset [data-offset="+0.01"]').click()
         gcodeLog((log) =>
@@ -290,6 +325,35 @@ describe('Redesigned shell: Home', () => {
         cy.get('.shell-header__status').should('contain', 'phone_stand.gcode')
     })
 
+    it('still offers to print an upload after leaving Home', () => {
+        openShell()
+        cy.get('.shell-start__input').selectFile(
+            { contents: Cypress.Buffer.from('G28\n'), fileName: 'left_home.gcode' },
+            { force: true }
+        )
+        rail('tune').click({ force: true })
+        cy.get('.v-dialog--active').should('contain', 'left_home.gcode')
+        cy.contains('.v-dialog--active .v-btn', /print/i).click()
+        headline()
+            .invoke('text')
+            .should('match', /^(Warming up for your print|Your print is \d+% done)$/)
+    })
+
+    it('shows how the time of the print was spent and fills the middle column with the camera', () => {
+        openShell('/', ['print?seconds=120&warmup=4'])
+        cy.get('.shell-phases__bar .shell-phases__segment--printing', { timeout: 15000 }).should('exist')
+        cy.get('.shell-phases__legend').should('contain', 'To go')
+        cy.get('.shell-view .shell-camera').should(($box) => {
+            const column = $box.closest('.sh-col')[0].getBoundingClientRect()
+            const box = $box[0].getBoundingClientRect()
+            const image = $box.find('img')[0].getBoundingClientRect()
+
+            expect(column.bottom - box.bottom, 'gap below the camera').to.be.at.most(24)
+            expect(image.height, 'picture height').to.be.closeTo(box.height, 2)
+            expect(image.width, 'picture width').to.be.closeTo(box.width, 2)
+        })
+    })
+
     it('asks before cancelling a running print', () => {
         openShell('/', ['print'])
         cy.get('.shell-job__cancel').click()
@@ -317,10 +381,11 @@ describe('Redesigned shell: Home', () => {
     it('preheats with a preset and homes from the get ready column', () => {
         openShell()
         cy.contains('.shell-ready__preset', 'PLA').should('contain', '210 / 60').click()
-        gcodeLog((log) => {
-            expect(log).to.include('SET_HEATER_TEMPERATURE HEATER=extruder TARGET=210')
-            expect(log).to.include('SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=60')
-        })
+        gcodeLog((log) =>
+            expect(log).to.include(
+                'SET_HEATER_TEMPERATURE HEATER=extruder TARGET=210\nSET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=60'
+            )
+        )
         cy.get('.shell-ready [data-action="home"]').click()
         gcodeLog((log) => expect(log).to.include('G28'))
         cy.get('.shell-ready [data-action="move"]').click()
@@ -367,6 +432,31 @@ describe('Redesigned shell: spool tracker', () => {
 
             expect(share).to.be.closeTo(0.32, 0.01)
         })
+    })
+
+    it('stores what was used, so the estimate does not depend on how much history is loaded', () => {
+        openShell('/', ['spool'])
+        cy.get('.shell-spool').should('contain', 'about 317 g left')
+        cy.request(
+            `${Cypress.env('demoUrl').replace('/demo', '')}/server/database/item?namespace=mainsail&key=spoolTracker`
+        )
+            .its('body.result.value')
+            .should((stored) => {
+                expect(stored.usedLength).to.equal(228920)
+                expect(stored.lastJobId).to.equal('000009')
+            })
+
+        demo('print?seconds=60')
+        cy.get('.shell-home').should('have.attr', 'data-state', 'printing')
+        demo('finish')
+        headline().should('have.text', 'Your print is finished')
+        cy.reload()
+        cy.get('.shell-spool', { timeout: 15000 }).should('contain', 'g used since loading')
+        cy.request(
+            `${Cypress.env('demoUrl').replace('/demo', '')}/server/database/item?namespace=mainsail&key=spoolTracker`
+        )
+            .its('body.result.value.lastJobId')
+            .should('equal', '00000A')
     })
 
     it('says whether the spool is enough for the running print and counts it down', () => {
@@ -435,6 +525,14 @@ describe('Redesigned shell: interface switch', () => {
         cy.reload()
         cy.get('.v-app-bar', { timeout: 15000 }).should('be.visible')
         cy.get('.shell').should('not.exist')
+    })
+
+    it('does not offer the new interface where the screen forces the classic one', () => {
+        cy.viewport(400, 850)
+        openDashboard()
+        cy.get('.command-palette-trigger-icon').click()
+        cy.get(`${paletteDialog} .command-palette__input`).type('interface')
+        cy.get(paletteDialog).should('not.contain', 'Switch to the')
     })
 
     it('sends an address of the new shell to the matching classic page', () => {

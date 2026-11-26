@@ -14,16 +14,19 @@
 <script lang="ts">
 import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
-import BaseMixin from '@/components/mixins/base'
+import ShellMixin from '@/components/mixins/shell'
 import { recordedPrintTimeline } from '@/plugins/printTimeline'
 import { describePrintEvents } from '@/plugins/shellStatus'
 
 @Component
-export default class ShellEvents extends Mixins(BaseMixin) {
+export default class ShellEvents extends Mixins(ShellMixin) {
     get lines(): { time: string; text: string }[] {
         return describePrintEvents(recordedPrintTimeline.timeline).map((line) => ({
             time: line.at === null ? '' : this.formatTime(line.at),
-            text: this.$t(`Shell.Events.${line.key}`, line.params).toString(),
+            text: this.$t(`Shell.Events.${line.key}`, {
+                ...line.params,
+                duration: line.duration === null ? '' : this.formatDuration(line.duration),
+            }).toString(),
         }))
     }
 }

@@ -98,9 +98,9 @@
         </section>
 
         <section :aria-label="$t('Shell.Move.GoToLabel')" class="sh-col sh-col--gap-12 shell-goto">
-            <h2 class="sh-h2">{{ $t('Shell.Move.GoTo') }}</h2>
+            <h2 v-if="targets" class="sh-h2">{{ $t('Shell.Move.GoTo') }}</h2>
             <button
-                v-for="place in places"
+                v-for="place in availablePlaces"
                 :key="place"
                 type="button"
                 class="sh-btn sh-btn--left"
@@ -109,7 +109,7 @@
                 @click="goToPlace(place)">
                 {{ $t(`Shell.Move.Places.${place}`) }}
             </button>
-            <div class="sh-rule shell-goto__rule" />
+            <div v-if="targets" class="sh-rule shell-goto__rule" />
             <h2 class="sh-h2">{{ $t('Shell.Move.Motors') }}</h2>
             <button
                 type="button"
@@ -223,7 +223,18 @@ export default class ShellTuneMove extends Mixins(BaseMixin, ControlMixin, Zoffs
     get targets(): Record<string, GoToTarget> | null {
         const toolhead = this.$store.state.printer.toolhead ?? {}
 
-        return resolveGoToTargets(toolhead.axis_minimum ?? [], toolhead.axis_maximum ?? [])
+        const printer = this.$store.state.printer.configfile?.settings?.printer ?? {}
+
+        return resolveGoToTargets({
+            axisMinimum: toolhead.axis_minimum ?? [],
+            axisMaximum: toolhead.axis_maximum ?? [],
+            kinematics: String(printer.kinematics ?? ''),
+            printRadius: typeof printer.print_radius === 'number' ? printer.print_radius : null,
+        })
+    }
+
+    get availablePlaces(): string[] {
+        return this.targets === null ? [] : this.places
     }
 
     get canGoTo(): boolean {

@@ -76,7 +76,7 @@ export const MAX_RECENT_COMMANDS = 8
 
 const DEFAULT_MACRO_DESCRIPTION = 'G-Code macro'
 
-const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
+export const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
     const scripts: string[] = []
 
     for (const [name, attributes] of Object.entries(preset.values ?? {})) {

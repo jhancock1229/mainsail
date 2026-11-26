@@ -1,6 +1,6 @@
 <template>
-    <div v-if="source !== 'none'" class="shell-spool" :class="'shell-spool--' + source">
-        <template v-if="source === 'spoolman'">
+    <div v-if="spoolSource !== 'none'" class="shell-spool" :class="'shell-spool--' + spoolSource">
+        <template v-if="spoolSource === 'spoolman'">
             <div class="sh-row">
                 <h2 class="sh-h2">{{ $t('Shell.Spool.Title') }}</h2>
                 <div class="sh-small sh-muted text-truncate">{{ spoolmanSubtitle }}</div>
@@ -19,7 +19,7 @@
                 {{ $t('Shell.Spool.SpoolmanChange') }}
             </button>
         </template>
-        <template v-else-if="settings.loadedAt === null">
+        <template v-else-if="spoolSettings.loadedAt === null">
             <h2 class="sh-h2">{{ $t('Shell.Spool.Title') }}</h2>
             <div class="sh-muted shell-spool__none">{{ $t('Shell.Spool.NotTracked') }}</div>
             <button type="button" class="sh-btn sh-btn--44 shell-spool__new" @click="showDialog = true">
@@ -65,101 +65,38 @@
 <script lang="ts">
 import Component from 'vue-class-component'
 import { Mixins, Prop } from 'vue-property-decorator'
-import BaseMixin from '@/components/mixins/base'
+import SpoolTrackerMixin from '@/components/mixins/spoolTracker'
 import ShellSpoolDialog from '@/components/shell/ShellSpoolDialog.vue'
-import { ServerHistoryStateJob } from '@/store/server/history/types'
 import { ServerSpoolmanStateSpool } from '@/store/server/spoolman/types'
-import {
-    DEFAULT_FILAMENT_DIAMETER,
-    enoughForPrint,
-    estimateSpool,
-    formatSpoolWeight,
-    materialDensity,
-    resolveSpoolSource,
-    resolveSpoolTrackerSettings,
-    SpoolActivePrint,
-    SpoolEstimate,
-    SpoolSource,
-    SpoolTrackerSettings,
-    usedLengthSinceLoad,
-} from '@/plugins/spoolTracker'
+import { enoughForPrint, formatSpoolWeight } from '@/plugins/spoolTracker'
 
 const MS_PER_SECOND = 1000
 
 @Component({ components: { ShellSpoolDialog } })
-export default class ShellSpool extends Mixins(BaseMixin) {
+export default class ShellSpool extends Mixins(SpoolTrackerMixin) {
     @Prop({ type: Boolean, default: false }) declare readonly printing: boolean
 
     showDialog = false
 
-    get settings(): SpoolTrackerSettings {
-        return resolveSpoolTrackerSettings(this.$store.state.gui.spoolTracker)
-    }
-
-    get source(): SpoolSource {
-        return resolveSpoolSource({ components: this.moonrakerComponents, trackerEnabled: this.settings.enabled })
-    }
-
-    get diameter(): number {
-        return this.$store.state.printer.configfile?.settings?.extruder?.filament_diameter ?? DEFAULT_FILAMENT_DIAMETER
-    }
-
-    get density(): number {
-        return materialDensity(this.settings.material)
-    }
-
-    get activePrint(): SpoolActivePrint | null {
-        if (!this.printerIsPrinting) return null
-
-        const stats = this.$store.state.printer.print_stats ?? {}
-
-        return {
-            startTime: Date.now() / MS_PER_SECOND - (stats.total_duration ?? 0),
-            filamentUsed: stats.filament_used ?? 0,
-        }
-    }
-
-    get estimate(): SpoolEstimate {
-        const jobs: ServerHistoryStateJob[] = this.$store.state.server.history?.jobs ?? []
-        const usedLength = usedLengthSinceLoad({
-            loadedAt: this.settings.loadedAt,
-            baselineLength: this.settings.baselineLength,
-            jobs: jobs.map((job) => ({
-                startTime: job.start_time,
-                endTime: job.end_time,
-                filamentUsed: job.filament_used,
-                status: job.status,
-            })),
-            active: this.activePrint,
-        })
-
-        return estimateSpool({
-            usedLength,
-            sizeGrams: this.settings.sizeGrams,
-            diameter: this.diameter,
-            density: this.density,
-        })
-    }
-
     get remaining(): string {
-        return formatSpoolWeight(this.estimate.remainingGrams)
+        return formatSpoolWeight(this.spoolEstimate.remainingGrams)
     }
 
     get used(): string {
-        return formatSpoolWeight(this.estimate.usedGrams)
+        return formatSpoolWeight(this.spoolEstimate.usedGrams)
     }
 
     get size(): string {
-        return formatSpoolWeight(this.settings.sizeGrams)
+        return formatSpoolWeight(this.spoolSettings.sizeGrams)
     }
 
     get remainingPercent(): number {
-        return Math.round(this.estimate.remainingFraction * 100)
+        return Math.round(this.spoolEstimate.remainingFraction * 100)
     }
 
     get subtitle(): string {
-        const name = this.settings.name.trim() || this.settings.material
-        const date = new Date((this.settings.loadedAt ?? 0) * MS_PER_SECOND)
+        const name = this.spoolSettings.name.trim() || this.spoolSettings.material
+        const date = new Date((this.spoolSettings.loadedAt ?? 0) * MS_PER_SECOND)
         const loaded = date.toLocaleDateString(this.browserLocale, { day: 'numeric', month: 'short' })
 
         return this.$t('Shell.Spool.Loaded', { name, date: loaded }).toString()
@@ -171,9 +108,9 @@ export default class ShellSpool extends Mixins(BaseMixin) {
         return enoughForPrint({
             fileFilamentTotal: this.$store.state.printer.current_file?.filament_total,
             printFilamentUsed: this.$store.state.printer.print_stats?.filament_used ?? 0,
-            remainingGrams: this.estimate.remainingGrams,
-            diameter: this.diameter,
-            density: this.density,
+            remainingGrams: this.spoolEstimate.remainingGrams,
+            diameter: this.spoolDiameter,
+            density: this.spoolDensity,
         })
     }
 
@@ -191,7 +128,7 @@ export default class ShellSpool extends Mixins(BaseMixin) {
 
     get spoolmanSubtitle(): string {
         const filament = this.spoolmanSpool?.filament
-        if (!filament) return 'Spoolman'
+        if (!filament) return this.$t('Panels.SpoolmanPanel.Headline').toString()
 
         return [filament.vendor?.name, filament.name].filter((part) => !!part).join(' ')
     }

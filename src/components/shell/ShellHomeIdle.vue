@@ -7,9 +7,8 @@
                     v-if="existGcodesRootDirectory"
                     type="button"
                     class="sh-btn sh-btn--strong sh-btn--44 shell-start__upload"
-                    :disabled="uploading"
                     @click="chooseFile">
-                    {{ uploading ? $t('Shell.Idle.Uploading', { percent: uploadPercent }) : $t('Shell.Idle.Upload') }}
+                    {{ uploadLabel }}
                 </button>
                 <input
                     ref="fileInput"
@@ -118,7 +117,6 @@
 <script lang="ts">
 import Component from 'vue-class-component'
 import { Mixins, Ref } from 'vue-property-decorator'
-import axios, { AxiosProgressEvent } from 'axios'
 import { mdiSnowflake } from '@mdi/js'
 import ShellMixin from '@/components/mixins/shell'
 import ShellCamera from '@/components/shell/ShellCamera.vue'
@@ -129,7 +127,8 @@ import { FileStateGcodefile } from '@/store/files/types'
 import { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 import { ServerHistoryStateJob } from '@/store/server/history/types'
 import { validGcodeExtensions } from '@/store/variables'
-import { formatShellDuration } from '@/plugins/shellStatus'
+import { presetScripts } from '@/plugins/commandPalette'
+import { cancelShellUpload, shellUpload, startShellUpload } from '@/plugins/shellUpload'
 import {
     DEFAULT_FILAMENT_DIAMETER,
     filamentLengthToWeight,
@@ -148,10 +147,14 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
     showStartDialog = false
     startFile: Partial<FileStateGcodefile> | null = null
     showCoolDownDialog = false
-    uploading = false
-    uploadPercent = 0
 
     @Ref() readonly fileInput!: HTMLInputElement
+
+    get uploadLabel(): string {
+        if (!shellUpload.uploading) return this.$t('Shell.Idle.Upload').toString()
+
+        return this.$t('Shell.Idle.Uploading', { percent: shellUpload.percent }).toString()
+    }
 
     get acceptedExtensions(): string {
         return this.isIOS ? '' : validGcodeExtensions.join(', ')
@@ -200,7 +203,7 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
         const sameDay = new Date(end).toDateString() === new Date().toDateString()
         const time = sameDay ? this.formatTime(end) : `${this.formatDate(end)} ${this.formatTime(end)}`
 
-        return [this.$t(key, { time }).toString(), formatShellDuration(job.total_duration)].join(' · ')
+        return [this.$t(key, { time }).toString(), this.formatDuration(job.total_duration)].join(' · ')
     }
 
     shortName(filename: string): string {
@@ -209,7 +212,7 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
 
     fileMeta(file: FileStateGcodefile): string {
         const parts: string[] = []
-        if (file.estimated_time > 0) parts.push(formatShellDuration(file.estimated_time))
+        if (file.estimated_time > 0) parts.push(this.formatDuration(file.estimated_time))
 
         const diameter =
             this.$store.state.printer.configfile?.settings?.extruder?.filament_diameter ?? DEFAULT_FILAMENT_DIAMETER
@@ -235,16 +238,8 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
     }
 
     preheat(preset: GuiPresetsStatePreset): void {
-        for (const [name, attributes] of Object.entries(preset.values ?? {})) {
-            if (!attributes.bool) continue
-
-            const [printerObject, printerObjectName = printerObject] = name.split(' ')
-            const isFan = printerObject === 'temperature_fan'
-            const command = isFan ? 'SET_TEMPERATURE_FAN_TARGET TEMPERATURE_FAN' : 'SET_HEATER_TEMPERATURE HEATER'
-            this.sendGcode(`${command}=${printerObjectName} TARGET=${attributes.value}`)
-        }
-
-        if (preset.gcode) this.sendGcode(preset.gcode)
+        const scripts = presetScripts(preset)
+        if (scripts.length) this.sendGcode(scripts.join('\n'))
     }
 
     btnCoolDown(): void {
@@ -265,34 +260,15 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
     }
 
     chooseFile(): void {
+        if (shellUpload.uploading) return cancelShellUpload()
+
         this.fileInput.click()
     }
 
-    async uploadFile(): Promise<void> {
+    uploadFile(): void {
         const file = this.fileInput.files?.[0]
-        if (!file) return
-
-        const formData = new FormData()
-        formData.append('file', file, file.name)
-        this.uploading = true
-        this.uploadPercent = 0
-
-        try {
-            const result = await axios.post(this.apiUrl + '/server/files/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-                onUploadProgress: (event: AxiosProgressEvent) => {
-                    this.uploadPercent = Math.round((event.progress ?? 0) * 100)
-                },
-            })
-            const filename: string = result.data?.result?.item?.path ?? result.data?.item?.path ?? file.name
-            this.$toast.success(this.$t('App.TopBar.UploadOfFileSuccessful', { file: filename }).toString())
-            this.askStart({ filename })
-        } catch {
-            this.$toast.error(this.$t('App.TopBar.CannotUploadTheFile').toString())
-        } finally {
-            this.uploading = false
-            this.fileInput.value = ''
-        }
+        this.fileInput.value = ''
+        if (file) startShellUpload(file, String(this.apiUrl))
     }
 }
 </script>

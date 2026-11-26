@@ -7,6 +7,7 @@ import {
     featurePath,
     findShellFeature,
     getShellPage,
+    isClassicForced,
     isShellTabAvailable,
     MAX_FEATURE_CLICKS,
     resolveInterfaceShell,
@@ -171,6 +172,28 @@ describe('resolveShellLocation', () => {
             .forEach((entry) => expect(resolveShellLocation(entry).page, entry).not.toBe('home'))
     })
 
+    describe('with what the printer offers', () => {
+        const bare = { moonrakerComponents: [], klipperObjects: [], registeredDirectories: [], farm: false }
+        const usual = { ...bare, moonrakerComponents: ['history', 'job_queue'], registeredDirectories: ['gcodes'] }
+
+        it('keeps a tab whose requirements are met', () => {
+            expect(resolveShellLocation('/print/queue', usual)).toEqual({ page: 'print', tab: 'queue' })
+            expect(resolveShellLocation('/machine/history', usual)).toEqual({ page: 'machine', tab: 'history' })
+        })
+
+        it('opens the first available tab instead of one whose component is missing', () => {
+            expect(resolveShellLocation('/print/queue', bare)).toEqual({ page: 'print', tab: 'preview' })
+            expect(resolveShellLocation('/machine/updates', usual)).toEqual({ page: 'machine', tab: 'config' })
+            expect(resolveShellLocation('/settings/timelapse', usual)).toEqual({ page: 'settings', tab: 'general' })
+            expect(resolveShellLocation('/timelapse', usual)).toEqual({ page: 'machine', tab: 'config' })
+        })
+
+        it('does not open the files tab without a gcodes directory', () => {
+            expect(resolveShellLocation('/print', bare)).toEqual({ page: 'print', tab: 'preview' })
+            expect(resolveShellLocation('/files', bare)).toEqual({ page: 'print', tab: 'preview' })
+        })
+    })
+
     it('falls back to home for unknown paths', () => {
         expect(resolveShellLocation('/nowhere')).toEqual({ page: 'home', tab: null })
     })
@@ -212,6 +235,14 @@ describe('isShellTabAvailable', () => {
         expect(isShellTabAvailable({ registeredDirectory: 'gcodes' }, available)).toBe(true)
         expect(isShellTabAvailable({ farm: true }, available)).toBe(false)
         expect(isShellTabAvailable({}, available)).toBe(true)
+    })
+})
+
+describe('isClassicForced', () => {
+    it('is true below the width the new shell needs', () => {
+        expect(isClassicForced(400)).toBe(true)
+        expect(isClassicForced(959)).toBe(true)
+        expect(isClassicForced(960)).toBe(false)
     })
 })
 

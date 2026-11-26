@@ -9,6 +9,7 @@ export interface PaletteSettingsTab {
 export const commandPaletteBus = Vue.observable({
     settingsTabs: [] as PaletteSettingsTab[],
     recordingShortcut: false,
+    switchableShell: null as 'new' | 'classic' | null,
 })
 
 export const OPEN_SETTINGS_TAB = 'command-palette:open-settings-tab'

@@ -51,8 +51,10 @@
 import Component from 'vue-class-component'
 import { Mixins, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
+import { ServerHistoryStateJob } from '@/store/server/history/types'
 import {
     DEFAULT_SPOOL_SIZE_GRAMS,
+    latestFinishedJobId,
     resolveSpoolTrackerSettings,
     spoolMaterials,
     SpoolTrackerSettings,
@@ -87,12 +89,17 @@ export default class ShellSpoolDialog extends Mixins(BaseMixin) {
         if (!this.valid) return
 
         const printStats = this.$store.state.printer.print_stats ?? {}
+        const jobs: ServerHistoryStateJob[] = this.$store.state.server.history?.jobs ?? []
         const value: SpoolTrackerSettings = {
             enabled: true,
             name: this.name.trim(),
             material: this.material,
             sizeGrams: this.sizeGrams,
             loadedAt: Date.now() / MS_PER_SECOND,
+            usedLength: 0,
+            lastJobId: latestFinishedJobId(
+                jobs.map((job) => ({ id: job.job_id, filamentUsed: job.filament_used, status: job.status }))
+            ),
             baselineLength: this.printerIsPrinting ? (printStats.filament_used ?? 0) : 0,
         }
 

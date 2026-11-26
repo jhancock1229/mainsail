@@ -28,36 +28,27 @@ export default class ShellCamera extends Mixins(BaseMixin) {
 
 <style scoped>
 .shell-camera {
+    position: relative;
     min-height: 80px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
+    background: var(--shell-raised);
 }
 
 .shell-camera > div,
 .shell-camera ::v-deep .webcamBackground {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
-    max-height: 100%;
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
+    max-height: none;
     background: transparent !important;
 }
 
 .shell-camera ::v-deep .webcamImage,
 .shell-camera ::v-deep video,
-.shell-camera ::v-deep canvas {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
-    border-radius: 8px;
-}
-
+.shell-camera ::v-deep canvas,
 .shell-camera ::v-deep iframe {
     width: 100%;
     height: 100%;
-    border-radius: 8px;
+    object-fit: contain;
 }
 </style>

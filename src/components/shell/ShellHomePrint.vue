@@ -16,6 +16,26 @@
                         {{ fact.value }}
                     </div>
                 </div>
+                <div v-if="phaseSegments.length" class="shell-phases">
+                    <div class="sh-row">
+                        <h2 class="sh-h2">{{ $t('Shell.Print.Phases.Title') }}</h2>
+                        <div v-if="startedAt" class="sh-small sh-muted">{{ startedAt }}</div>
+                    </div>
+                    <div class="shell-phases__bar" role="img" :aria-label="phaseSummary">
+                        <div
+                            v-for="(segment, index) in phaseSegments"
+                            :key="index"
+                            :class="'shell-phases__segment shell-phases__segment--' + segment.type"
+                            :style="{ width: segment.percent + '%' }" />
+                    </div>
+                    <div class="shell-phases__legend">
+                        <span v-for="entry in phaseLegend" :key="entry.type" :data-phase="entry.type">
+                            <i :class="'shell-phases__dot shell-phases__segment--' + entry.type" />
+                            {{ entry.label }}
+                            <b>{{ entry.duration }}</b>
+                        </span>
+                    </div>
+                </div>
                 <div class="sh-spacer" />
                 <div v-if="active && (canExclude || canPauseAtLayer)" class="shell-job__more">
                     <button v-if="canExclude" type="button" class="sh-link" @click="showExclude = true">
@@ -128,6 +148,8 @@ import StatusPanelExcludeObject from '@/components/panels/Status/ExcludeObject.v
 import StatusPanelPauseAtLayerDialog from '@/components/panels/Status/PauseAtLayerDialog.vue'
 import { PrinterStateMacro } from '@/store/printer/types'
 import { resolveSpoolSource, resolveSpoolTrackerSettings } from '@/plugins/spoolTracker'
+import { getPrintTimelinePhases, recordedPrintTimeline } from '@/plugins/printTimeline'
+import { buildPhaseSegments, PhaseSegment } from '@/plugins/shellStatus'
 
 interface JobFact {
     name: string
@@ -186,6 +208,39 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
             this.active ? fact('speed', this.printSpeed) : fact('result', this.resultText),
             fact('filament', this.printFilamentUsed),
         ]
+    }
+
+    get phaseSegments(): PhaseSegment[] {
+        const phases = getPrintTimelinePhases(recordedPrintTimeline.timeline)
+
+        return buildPhaseSegments(phases, this.active ? this.printRemainingSeconds : 0)
+    }
+
+    get phaseLegend(): { type: string; label: string; duration: string }[] {
+        return ['warmup', 'printing', 'paused', 'remaining']
+            .map((type) => ({
+                type,
+                seconds: this.phaseSegments
+                    .filter((segment) => segment.type === type)
+                    .reduce((sum, segment) => sum + segment.seconds, 0),
+            }))
+            .filter((entry) => entry.seconds > 0)
+            .map((entry) => ({
+                type: entry.type,
+                label: this.$t(`Shell.Print.Phases.${entry.type}`).toString(),
+                duration: this.formatDuration(entry.seconds),
+            }))
+    }
+
+    get phaseSummary(): string {
+        return this.phaseLegend.map((entry) => `${entry.label} ${entry.duration}`).join(', ')
+    }
+
+    get startedAt(): string {
+        const started = recordedPrintTimeline.timeline?.startedAt ?? null
+        if (started === null) return ''
+
+        return this.$t('Shell.Print.Phases.Started', { time: this.formatTime(started) }).toString()
     }
 
     get resultText(): string {
@@ -249,13 +304,13 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
 .shell-job__percent {
     display: flex;
     align-items: baseline;
-    font-size: 76px;
+    font-size: clamp(76px, 13vh, 148px);
     line-height: 1;
     font-weight: 500;
 }
 
 .shell-job__percent-sign {
-    font-size: 28px;
+    font-size: 0.37em;
     color: var(--shell-muted);
 }
 
@@ -278,6 +333,64 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
 .shell-job__fact-label {
     font-size: 13px;
     color: var(--shell-muted);
+}
+
+.shell-phases {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.shell-phases__bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.shell-phases__segment {
+    min-width: 2px;
+    transition: width 0.4s ease;
+}
+
+.shell-phases__segment--warmup {
+    background: var(--shell-warn);
+}
+
+.shell-phases__segment--printing {
+    background: var(--shell-accent);
+}
+
+.shell-phases__segment--paused {
+    background: var(--shell-border);
+}
+
+.shell-phases__segment--remaining {
+    background: var(--shell-track);
+}
+
+.shell-phases__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--shell-muted);
+}
+
+.shell-phases__legend b {
+    font-weight: 500;
+    color: var(--shell-text);
+}
+
+.shell-phases__dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
 }
 
 .shell-job__more {

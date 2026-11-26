@@ -130,21 +130,28 @@ const normalizePath = (path: string): string => {
     return clean === '' ? '/' : clean
 }
 
-export const resolveShellLocation = (path: string): ShellLocation => {
+export const resolveShellLocation = (path: string, available?: ShellAvailability): ShellLocation => {
     const clean = normalizePath(path)
+    const offered = (page: ShellPage): ShellTab[] => {
+        return available === undefined ? page.tabs : page.tabs.filter((tab) => isShellTabAvailable(tab, available))
+    }
+    const open = (page: ShellPage, wanted: string): ShellLocation => {
+        const tabs = offered(page)
+        const tab = tabs.find((entry) => entry.id === wanted) ?? tabs[0]
+
+        return { page: page.id, tab: tab?.id ?? null }
+    }
 
     for (const page of shellPages) {
         const legacy = page.tabs.find((tab) => tab.legacyPaths?.includes(clean))
-        if (legacy) return { page: page.id, tab: legacy.id }
+        if (legacy) return open(page, legacy.id)
     }
 
     const [, first = '', second = ''] = clean.split('/')
     const page = shellPages.find((entry) => entry.path === `/${first}` && entry.id !== 'home')
     if (!page) return { page: 'home', tab: null }
 
-    const tab = page.tabs.find((entry) => entry.id === second) ?? page.tabs[0]
-
-    return { page: page.id, tab: tab?.id ?? null }
+    return open(page, second)
 }
 
 export const classicPathFor = (path: string): string | null => {
@@ -159,8 +166,10 @@ export const classicPathFor = (path: string): string | null => {
     return legacy ?? '/'
 }
 
+export const isClassicForced = (viewportWidth: number): boolean => viewportWidth < SHELL_MIN_WIDTH
+
 export const resolveInterfaceShell = (setting: unknown, viewportWidth: number): InterfaceShell => {
-    if (viewportWidth < SHELL_MIN_WIDTH) return 'classic'
+    if (isClassicForced(viewportWidth)) return 'classic'
 
     return setting === 'classic' ? 'classic' : DEFAULT_INTERFACE_SHELL
 }

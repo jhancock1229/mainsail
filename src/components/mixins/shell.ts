@@ -12,6 +12,7 @@ import {
     ShellTab,
 } from '@/plugins/shellNavigation'
 import {
+    formatShellDuration,
     formatShellTemperature,
     resolveShellHeadline,
     resolveShellHomeState,
@@ -21,7 +22,7 @@ import {
 @Component
 export default class ShellMixin extends Mixins(BaseMixin) {
     get shellLocation(): ShellLocation {
-        return resolveShellLocation(this.$route.path)
+        return resolveShellLocation(this.$route.path, this.shellAvailability)
     }
 
     get shellAvailability(): ShellAvailability {
@@ -112,6 +113,10 @@ export default class ShellMixin extends Mixins(BaseMixin) {
     goTo(page: ShellPageId, tab: string | null = null): void {
         const path = shellPath(page, tab)
         if (this.$route.path !== path) this.$router.push(path)
+    }
+
+    formatDuration(seconds: number): string {
+        return formatShellDuration(seconds, (key, values) => this.$t(key, values).toString())
     }
 
     sendGcode(script: string, loading?: string): void {

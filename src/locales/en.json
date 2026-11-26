@@ -1933,6 +1933,11 @@
             "Add": "Add a camera",
             "None": "No camera is set up"
         },
+        "Duration": {
+            "Hours": "{hours} h {minutes} min",
+            "LessThanMinute": "< 1 min",
+            "Minutes": "{minutes} min"
+        },
         "Error": {
             "More": "More ways to fix a problem",
             "NoDetails": "The print stopped, but the printer did not say why. The console may show more.",
@@ -2006,7 +2011,7 @@
             "Start": "Start a print",
             "Stopped": "Stopped {time}",
             "Upload": "Upload a file",
-            "Uploading": "Uploading {percent}%"
+            "Uploading": "Cancel upload ({percent}%)"
         },
         "Move": {
             "Back": "Move back",
@@ -2069,6 +2074,14 @@
             "Nudge": "Nudge first layer",
             "Pause": "Pause",
             "PauseAtLayer": "Pause at a layer",
+            "Phases": {
+                "paused": "Paused",
+                "printing": "Printing",
+                "remaining": "To go",
+                "Started": "started {time}",
+                "Title": "Time so far",
+                "warmup": "Warming up"
+            },
             "PrintAgain": "Print it again",
             "QueueNext": "Queue next print",
             "Results": {
@@ -2185,6 +2198,7 @@
             "Pid": {
                 "After": "When it has finished, save the config to keep the result.",
                 "Help": "Tuning heats to the temperature you choose and measures how the heater reacts, so it holds a steady temperature afterwards. It takes a few minutes.",
+                "Invalid": "Enter a temperature between 1 and {max}°.",
                 "Start": "Tune",
                 "Started": "Heater tuning started. Watch the console for the result.",
                 "Target": "Tuning temperature for {heater}",

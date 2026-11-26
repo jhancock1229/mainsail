@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
     buildGoToScript,
+    buildPhaseSegments,
     describePrintEvents,
     formatFilamentMeters,
     formatShellDuration,
     formatShellTemperature,
     resolveGoToTargets,
     resolveHeatStatus,
+    resolvePidTarget,
     resolveSensorTrend,
     resolveShellHeadline,
     resolveShellHomeState,
@@ -105,17 +107,18 @@ describe('resolveSensorTrend', () => {
 })
 
 describe('formatShellDuration', () => {
-    it('writes minutes and hours in words', () => {
-        expect(formatShellDuration(51 * 60)).toBe('51 min')
-        expect(formatShellDuration(72 * 60)).toBe('1 h 12 min')
-        expect(formatShellDuration(3 * 3600 + 5 * 60)).toBe('3 h 05 min')
-        expect(formatShellDuration(2 * 3600)).toBe('2 h 00 min')
+    const t = (key: string, values?: Record<string, unknown>) => `${key}${values ? JSON.stringify(values) : ''}`
+
+    it('hands minutes and hours to the translation', () => {
+        expect(formatShellDuration(51 * 60, t)).toBe('Shell.Duration.Minutes{"minutes":51}')
+        expect(formatShellDuration(72 * 60, t)).toBe('Shell.Duration.Hours{"hours":1,"minutes":"12"}')
+        expect(formatShellDuration(3 * 3600 + 5 * 60, t)).toBe('Shell.Duration.Hours{"hours":3,"minutes":"05"}')
     })
 
     it('handles short and missing durations', () => {
-        expect(formatShellDuration(40)).toBe('< 1 min')
-        expect(formatShellDuration(0)).toBe('--')
-        expect(formatShellDuration(Number.NaN)).toBe('--')
+        expect(formatShellDuration(40, t)).toBe('Shell.Duration.LessThanMinute')
+        expect(formatShellDuration(0, t)).toBe('--')
+        expect(formatShellDuration(Number.NaN, t)).toBe('--')
     })
 })
 
@@ -154,13 +157,14 @@ describe('describePrintEvents', () => {
         })
 
         expect(lines.map((line) => line.key)).toEqual(['Paused', 'Resumed', 'PausedFor'])
-        expect(lines[2].params).toEqual({ duration: '2 min' })
+        expect(lines[2].duration).toBe(120)
+        expect(lines[0].duration).toBeNull()
     })
 
     it('carries the percent of a milestone and leaves unobserved times empty', () => {
         const lines = describePrintEvents({ startedAt, events: [{ type: 'milestone', elapsed: null, percent: 50 }] })
 
-        expect(lines).toEqual([{ at: null, key: 'Milestone', params: { percent: 50 } }])
+        expect(lines).toEqual([{ at: null, key: 'Milestone', params: { percent: 50 }, duration: null }])
     })
 
     it('has nothing to say without a print', () => {
@@ -176,17 +180,93 @@ describe('formatFilamentMeters', () => {
 })
 
 describe('resolveGoToTargets', () => {
-    it('finds the centre, front and back of the bed', () => {
-        expect(resolveGoToTargets([-15, -15, -2, 0], [235, 235, 250, 0])).toEqual({
+    const cartesian = { kinematics: 'cartesian', printRadius: null }
+
+    it('finds the centre, front and back of the travel of a cartesian printer', () => {
+        const targets = resolveGoToTargets({ ...cartesian, axisMinimum: [0, 0, 0, 0], axisMaximum: [235, 235, 250, 0] })
+
+        expect(targets).toEqual({
             centre: { x: 117.5, y: 117.5 },
             front: { x: 117.5, y: 5 },
             back: { x: 117.5, y: 230 },
         })
     })
 
+    it('uses the real limits when the origin is in the middle of the bed', () => {
+        const targets = resolveGoToTargets({
+            kinematics: 'corexy',
+            printRadius: null,
+            axisMinimum: [-100, -100, 0, 0],
+            axisMaximum: [100, 100, 200, 0],
+        })
+
+        expect(targets).toEqual({ centre: { x: 0, y: 0 }, front: { x: 0, y: -95 }, back: { x: 0, y: 95 } })
+    })
+
+    it('stays inside the printable circle of a delta', () => {
+        const limits = { axisMinimum: [-140, -140, 0, 0], axisMaximum: [140, 140, 300, 0] }
+
+        expect(resolveGoToTargets({ ...limits, kinematics: 'delta', printRadius: 120 })).toEqual({
+            centre: { x: 0, y: 0 },
+            front: { x: 0, y: -115 },
+            back: { x: 0, y: 115 },
+        })
+        expect(resolveGoToTargets({ ...limits, kinematics: 'delta', printRadius: null })?.back).toEqual({
+            x: 0,
+            y: 135,
+        })
+    })
+
+    it('offers nothing for kinematics whose reachable area it cannot work out', () => {
+        const limits = { axisMinimum: [0, 0, 0, 0], axisMaximum: [200, 200, 200, 0], printRadius: null }
+
+        expect(resolveGoToTargets({ ...limits, kinematics: 'polar' })).toBeNull()
+        expect(resolveGoToTargets({ ...limits, kinematics: 'rotary_delta' })).toBeNull()
+        expect(resolveGoToTargets({ ...limits, kinematics: 'winch' })).toBeNull()
+    })
+
     it('has no targets without usable axis limits', () => {
-        expect(resolveGoToTargets([], [])).toBeNull()
-        expect(resolveGoToTargets([0, 0], [0, 0])).toBeNull()
+        expect(resolveGoToTargets({ ...cartesian, axisMinimum: [], axisMaximum: [] })).toBeNull()
+        expect(resolveGoToTargets({ ...cartesian, axisMinimum: [0, 0], axisMaximum: [0, 0] })).toBeNull()
+    })
+})
+
+describe('resolvePidTarget', () => {
+    it('accepts a temperature the heater can reach', () => {
+        expect(resolvePidTarget(210, 250)).toBe(210)
+        expect(resolvePidTarget('60', 120)).toBe(60)
+    })
+
+    it('rejects empty, zero and too hot targets', () => {
+        expect(resolvePidTarget('', 250)).toBeNull()
+        expect(resolvePidTarget(0, 250)).toBeNull()
+        expect(resolvePidTarget(300, 250)).toBeNull()
+        expect(resolvePidTarget('warm', 250)).toBeNull()
+    })
+})
+
+describe('buildPhaseSegments', () => {
+    it('shares the bar between the phases so far and the time still to go', () => {
+        const phases = [
+            { type: 'warmup', from: 0, to: 60 },
+            { type: 'printing', from: 60, to: 300 },
+        ] as const
+
+        expect(buildPhaseSegments([...phases], 300)).toEqual([
+            { type: 'warmup', percent: 10, seconds: 60 },
+            { type: 'printing', percent: 40, seconds: 240 },
+            { type: 'remaining', percent: 50, seconds: 300 },
+        ])
+    })
+
+    it('fills the bar when nothing is left', () => {
+        const segments = buildPhaseSegments([{ type: 'printing', from: 0, to: 100 }], 0)
+
+        expect(segments).toEqual([{ type: 'printing', percent: 100, seconds: 100 }])
+    })
+
+    it('is empty before anything happened', () => {
+        expect(buildPhaseSegments([], 0)).toEqual([])
     })
 })
 

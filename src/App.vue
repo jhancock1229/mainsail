@@ -52,7 +52,8 @@ import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 import TheShell from '@/components/shell/TheShell.vue'
-import { classicPathFor, InterfaceShell, resolveInterfaceShell } from '@/plugins/shellNavigation'
+import { classicPathFor, InterfaceShell, isClassicForced, resolveInterfaceShell } from '@/plugins/shellNavigation'
+import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 
 @Component({
     components: {
@@ -135,6 +136,8 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return resolveDarkMode(this.mode, this.systemPrefersDark)
     }
 
+    widthAtLoad = window.innerWidth
+
     get interfaceReady(): boolean {
         return this.socketIsConnected && this.guiIsReady
     }
@@ -142,7 +145,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     get interfaceShell(): InterfaceShell {
         if (!this.interfaceReady) return 'classic'
 
-        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell, this.$vuetify.breakpoint.width)
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell, this.widthAtLoad)
     }
 
     get classicRedirect(): string | null {
@@ -263,6 +266,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     @Watch('interfaceShell', { immediate: true })
     interfaceShellChanged(shell: InterfaceShell): void {
         document.documentElement.classList.toggle('shell-new', shell === 'new')
+        commandPaletteBus.switchableShell = isClassicForced(this.widthAtLoad) ? null : shell
     }
 
     @Watch('classicRedirect', { immediate: true })

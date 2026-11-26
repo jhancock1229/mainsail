@@ -6,20 +6,18 @@ export interface SpoolTrackerSettings {
     material: string
     sizeGrams: number
     loadedAt: number | null
+    usedLength: number
+    lastJobId: string | null
     baselineLength: number
 }
 
 export interface SpoolJob {
-    startTime: number
-    endTime: number
+    id: string
     filamentUsed: number
     status: string
 }
 
-export interface SpoolActivePrint {
-    startTime: number
-    filamentUsed: number
-}
+export type SpoolUsage = Pick<SpoolTrackerSettings, 'usedLength' | 'lastJobId' | 'baselineLength'>
 
 export interface SpoolEstimate {
     usedGrams: number
@@ -59,8 +57,15 @@ export const getDefaultSpoolTrackerSettings = (): SpoolTrackerSettings => ({
     material: DEFAULT_SPOOL_MATERIAL,
     sizeGrams: DEFAULT_SPOOL_SIZE_GRAMS,
     loadedAt: null,
+    usedLength: 0,
+    lastJobId: null,
     baselineLength: 0,
 })
+
+const JOB_ID_RADIX = 16
+const isJobId = (id: string): boolean => /^[0-9a-f]+$/i.test(id)
+const jobNumber = (id: string | null): number => (id !== null && isJobId(id) ? parseInt(id, JOB_ID_RADIX) : -1)
+const isFinished = (job: SpoolJob): boolean => job.status !== 'in_progress' && isJobId(job.id)
 
 const positiveNumber = (value: unknown): number | null => {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
@@ -75,6 +80,8 @@ export const resolveSpoolTrackerSettings = (stored: unknown): SpoolTrackerSettin
     if (typeof stored.material === 'string' && stored.material !== '') settings.material = stored.material
     settings.sizeGrams = positiveNumber(stored.sizeGrams) ?? DEFAULT_SPOOL_SIZE_GRAMS
     settings.loadedAt = positiveNumber(stored.loadedAt)
+    settings.usedLength = positiveNumber(stored.usedLength) ?? 0
+    if (typeof stored.lastJobId === 'string' && isJobId(stored.lastJobId)) settings.lastJobId = stored.lastJobId
     settings.baselineLength = positiveNumber(stored.baselineLength) ?? 0
 
     return settings
@@ -100,27 +107,40 @@ export const filamentLengthToWeight = (lengthMm: number, diameterMm: number, den
     return (volume / CUBIC_MM_PER_CUBIC_CM) * density
 }
 
-export const usedLengthSinceLoad = (input: {
-    loadedAt: number | null
-    baselineLength: number
-    jobs: SpoolJob[]
-    active: SpoolActivePrint | null
-}): number => {
-    const loadedAt = input.loadedAt
-    if (loadedAt === null) return 0
+export const latestFinishedJobId = (jobs: SpoolJob[]): string | null => {
+    const finished = jobs.filter(isFinished)
+    if (finished.length === 0) return null
 
-    const sinceLoad = (startTime: number, filamentUsed: number): number => {
-        const baseline = startTime < loadedAt ? input.baselineLength : 0
+    return finished.reduce((latest, job) => (jobNumber(job.id) > jobNumber(latest.id) ? job : latest)).id
+}
 
-        return Math.max(0, filamentUsed - baseline)
+export const settleSpoolUsage = (usage: SpoolUsage, jobs: SpoolJob[], historyLoaded: boolean): SpoolUsage => {
+    const last = jobNumber(usage.lastJobId)
+    const reachesBack = jobs.some((job) => isJobId(job.id) && jobNumber(job.id) <= last)
+    if (!historyLoaded && !reachesBack) return usage
+
+    const newJobs = jobs
+        .filter((job) => isJobId(job.id) && jobNumber(job.id) > last)
+        .sort((a, b) => jobNumber(a.id) - jobNumber(b.id))
+    const baselineJob = newJobs[0]
+    const settled = { ...usage }
+
+    for (const job of newJobs) {
+        if (!isFinished(job)) break
+
+        const baseline = job === baselineJob ? settled.baselineLength : 0
+        settled.usedLength += Math.max(0, job.filamentUsed - baseline)
+        settled.lastJobId = job.id
+        settled.baselineLength = 0
     }
 
-    const finished = input.jobs
-        .filter((job) => job.status !== 'in_progress' && job.endTime >= loadedAt)
-        .reduce((sum, job) => sum + sinceLoad(job.startTime, job.filamentUsed), 0)
-    const running = input.active === null ? 0 : sinceLoad(input.active.startTime, input.active.filamentUsed)
+    return settled
+}
 
-    return finished + running
+export const spoolUsedLength = (usage: SpoolUsage, activeFilamentUsed: number | null): number => {
+    if (activeFilamentUsed === null) return usage.usedLength
+
+    return usage.usedLength + Math.max(0, activeFilamentUsed - usage.baselineLength)
 }
 
 export const estimateSpool = (input: {
@@ -165,6 +185,7 @@ export const formatSpoolWeight = (grams: number): string => {
 
 export const resolveSpoolSource = (input: { components: string[]; trackerEnabled: boolean }): SpoolSource => {
     if (input.components.includes('spoolman')) return 'spoolman'
+    if (!input.components.includes('history')) return 'none'
 
     return input.trackerEnabled ? 'builtin' : 'none'
 }

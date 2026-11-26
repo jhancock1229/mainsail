@@ -71,16 +71,18 @@ export const resolveSensorTrend = (current: number, earlier: number | null): Sen
     return 'steady'
 }
 
-export const formatShellDuration = (seconds: number): string => {
+export type ShellTranslate = (key: string, values?: Record<string, unknown>) => string
+
+export const formatShellDuration = (seconds: number, t: ShellTranslate): string => {
     if (!Number.isFinite(seconds) || seconds <= 0) return '--'
-    if (seconds < SECONDS_PER_MINUTE) return '< 1 min'
+    if (seconds < SECONDS_PER_MINUTE) return t('Shell.Duration.LessThanMinute')
 
     const totalMinutes = Math.floor(seconds / SECONDS_PER_MINUTE)
     const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR)
     const minutes = totalMinutes % MINUTES_PER_HOUR
-    if (hours === 0) return `${minutes} min`
+    if (hours === 0) return t('Shell.Duration.Minutes', { minutes })
 
-    return `${hours} h ${String(minutes).padStart(2, '0')} min`
+    return t('Shell.Duration.Hours', { hours, minutes: String(minutes).padStart(2, '0') })
 }
 
 export const formatShellTemperature = (temperature: number | null | undefined): string => {
@@ -93,6 +95,7 @@ export interface ShellEventLine {
     at: number | null
     key: string
     params: Record<string, number | string>
+    duration: number | null
 }
 
 interface TimelineLike {
@@ -118,13 +121,13 @@ export const describePrintEvents = (timeline: TimelineLike | null): ShellEventLi
     const lines = timeline.events.map((event, index): ShellEventLine => {
         const at =
             timeline.startedAt === null || event.elapsed === null ? null : timeline.startedAt + event.elapsed * 1000
-        const line: ShellEventLine = { at, key: eventKeys[event.type] ?? 'Started', params: {} }
+        const line: ShellEventLine = { at, key: eventKeys[event.type] ?? 'Started', params: {}, duration: null }
         if (event.type === 'milestone') line.params.percent = event.percent ?? 0
 
         const resumed = timeline.events.slice(index + 1).find((later) => later.type === 'resumed')
         if (event.type === 'paused' && resumed && resumed.elapsed !== null && event.elapsed !== null) {
             line.key = 'PausedFor'
-            line.params.duration = formatShellDuration(resumed.elapsed - event.elapsed)
+            line.duration = resumed.elapsed - event.elapsed
         }
 
         return line
@@ -147,20 +150,40 @@ export interface GoToTarget {
 const GO_TO_EDGE_MARGIN = 5
 const GO_TO_SAFE_Z = 10
 
-export const resolveGoToTargets = (axisMinimum: number[], axisMaximum: number[]): Record<string, GoToTarget> | null => {
-    if (axisMinimum.length < 2 || axisMaximum.length < 2) return null
+const rectangularKinematics = /^(limited_)?(generic_)?(hybrid_)?(cartesian|corexy|corexz)$/
 
-    const [minX, minY] = axisMinimum.map((value) => Math.max(0, value))
-    const [maxX, maxY] = axisMaximum
+export const resolveGoToTargets = (input: {
+    axisMinimum: number[]
+    axisMaximum: number[]
+    kinematics: string
+    printRadius: number | null
+}): Record<string, GoToTarget> | null => {
+    if (input.axisMinimum.length < 2 || input.axisMaximum.length < 2) return null
+
+    const [minX, minY] = input.axisMinimum
+    const [maxX, maxY] = input.axisMaximum
     if (!(maxX > minX) || !(maxY > minY)) return null
 
     const round = (value: number): number => Math.round(value * 10) / 10
-    const centreX = round((minX + maxX) / 2)
+    const centre = { x: round((minX + maxX) / 2), y: round((minY + maxY) / 2) }
+
+    if (input.kinematics === 'delta') {
+        const limit = Math.min(maxX - centre.x, maxY - centre.y)
+        const radius = input.printRadius !== null && input.printRadius > 0 ? Math.min(input.printRadius, limit) : limit
+        if (!(radius > GO_TO_EDGE_MARGIN)) return null
+
+        return {
+            centre,
+            front: { x: centre.x, y: round(centre.y - radius + GO_TO_EDGE_MARGIN) },
+            back: { x: centre.x, y: round(centre.y + radius - GO_TO_EDGE_MARGIN) },
+        }
+    }
+    if (!rectangularKinematics.test(input.kinematics)) return null
 
     return {
-        centre: { x: centreX, y: round((minY + maxY) / 2) },
-        front: { x: centreX, y: round(minY + GO_TO_EDGE_MARGIN) },
-        back: { x: centreX, y: round(maxY - GO_TO_EDGE_MARGIN) },
+        centre,
+        front: { x: centre.x, y: round(minY + GO_TO_EDGE_MARGIN) },
+        back: { x: centre.x, y: round(maxY - GO_TO_EDGE_MARGIN) },
     }
 }
 
@@ -176,4 +199,38 @@ export const buildGoToScript = (input: {
     lines.push('RESTORE_GCODE_STATE NAME=_ui_movement')
 
     return lines.join('\n')
+}
+
+export const resolvePidTarget = (value: unknown, maxTemperature: number): number | null => {
+    if (value === '' || value === null || value === undefined) return null
+
+    const target = Number(value)
+    if (!Number.isFinite(target) || target <= 0 || target > maxTemperature) return null
+
+    return target
+}
+
+export interface PhaseSegment {
+    type: string
+    percent: number
+    seconds: number
+}
+
+export const buildPhaseSegments = (
+    phases: { type: string; from: number; to: number }[],
+    remainingSeconds: number
+): PhaseSegment[] => {
+    const remaining = Math.max(0, remainingSeconds)
+    const elapsed = phases.reduce((sum, phase) => sum + (phase.to - phase.from), 0)
+    const total = elapsed + remaining
+    if (total <= 0) return []
+
+    const segments = phases.map((phase) => ({
+        type: phase.type,
+        percent: ((phase.to - phase.from) / total) * 100,
+        seconds: phase.to - phase.from,
+    }))
+    if (remaining > 0) segments.push({ type: 'remaining', percent: (remaining / total) * 100, seconds: remaining })
+
+    return segments
 }

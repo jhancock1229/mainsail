@@ -7,12 +7,11 @@ import {
     formatSpoolWeight,
     materialDensity,
     resolveSpoolSource,
+    latestFinishedJobId,
     resolveSpoolTrackerSettings,
-    usedLengthSinceLoad,
+    settleSpoolUsage,
+    spoolUsedLength,
 } from '@/plugins/spoolTracker'
-
-const DAY = 86400
-const loadedAt = 1_700_000_000
 
 describe('materialDensity', () => {
     it('knows common materials whatever the letter case', () => {
@@ -49,53 +48,109 @@ describe('filamentLengthToWeight', () => {
     })
 })
 
-describe('usedLengthSinceLoad', () => {
-    const job = (start: number, end: number, used: number, status = 'completed') => ({
-        startTime: loadedAt + start,
-        endTime: loadedAt + end,
-        filamentUsed: used,
-        status,
-    })
+describe('settleSpoolUsage', () => {
+    const job = (id: string, filamentUsed: number, status = 'completed') => ({ id, filamentUsed, status })
+    const fresh = { usedLength: 0, lastJobId: '000005', baselineLength: 0 }
 
-    it('adds up the jobs that finished after the spool was loaded', () => {
-        const jobs = [job(-3 * DAY, -3 * DAY + 600, 9000), job(DAY, DAY + 600, 4000), job(2 * DAY, 2 * DAY + 60, 500)]
+    it('adds the finished jobs that came after the last counted one', () => {
+        const jobs = [job('000007', 500), job('000006', 4000), job('000005', 9000), job('000004', 100)]
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 0, jobs, active: null })).toBe(4500)
+        expect(settleSpoolUsage(fresh, jobs, true)).toEqual({
+            usedLength: 4500,
+            lastJobId: '000007',
+            baselineLength: 0,
+        })
     })
 
     it('counts cancelled and failed jobs, which also used filament', () => {
-        const jobs = [job(DAY, DAY + 60, 700, 'cancelled'), job(2 * DAY, 2 * DAY + 60, 300, 'error')]
+        const jobs = [job('000006', 700, 'cancelled'), job('000007', 300, 'error')]
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 0, jobs, active: null })).toBe(1000)
+        expect(settleSpoolUsage(fresh, jobs, true).usedLength).toBe(1000)
     })
 
-    it('adds the running print instead of its unfinished history entry', () => {
-        const jobs = [job(DAY, DAY + 600, 4000), job(2 * DAY, 0, 0, 'in_progress')]
-        const active = { startTime: loadedAt + 2 * DAY, filamentUsed: 1200 }
+    it('leaves the running print for later', () => {
+        const jobs = [job('000006', 4000), job('000007', 0, 'in_progress')]
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 0, jobs, active })).toBe(5200)
+        expect(settleSpoolUsage(fresh, jobs, true)).toEqual({
+            usedLength: 4000,
+            lastJobId: '000006',
+            baselineLength: 0,
+        })
     })
 
-    it('only counts what a print used after a spool change in the middle of it', () => {
-        const active = { startTime: loadedAt - 600, filamentUsed: 5000 }
+    it('does not count a job twice', () => {
+        const jobs = [job('000006', 4000)]
+        const once = settleSpoolUsage(fresh, jobs, true)
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 3000, jobs: [], active })).toBe(2000)
+        expect(settleSpoolUsage(once, jobs, true)).toEqual(once)
     })
 
-    it('applies the same baseline once that print has finished', () => {
-        const jobs = [job(-600, 900, 8000)]
+    it('compares job ids as the hexadecimal numbers Moonraker uses', () => {
+        const usage = { usedLength: 0, lastJobId: '000009', baselineLength: 0 }
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 3000, jobs, active: null })).toBe(5000)
+        expect(settleSpoolUsage(usage, [job('00000A', 100), job('000010', 200)], true)).toEqual({
+            usedLength: 300,
+            lastJobId: '000010',
+            baselineLength: 0,
+        })
     })
 
-    it('never goes below zero', () => {
-        const jobs = [job(-600, 900, 1000)]
+    it('subtracts what a print had used before the spool was changed in the middle of it', () => {
+        const usage = { usedLength: 0, lastJobId: '000005', baselineLength: 3000 }
+        const jobs = [job('000006', 8000), job('000007', 1000)]
 
-        expect(usedLengthSinceLoad({ loadedAt, baselineLength: 3000, jobs, active: null })).toBe(0)
+        expect(settleSpoolUsage(usage, jobs, true)).toEqual({
+            usedLength: 6000,
+            lastJobId: '000007',
+            baselineLength: 0,
+        })
     })
 
-    it('is zero when no spool was loaded', () => {
-        expect(usedLengthSinceLoad({ loadedAt: null, baselineLength: 0, jobs: [job(1, 2, 500)], active: null })).toBe(0)
+    it('waits while the history is still loading and does not reach back to the last counted job', () => {
+        const newestPage = [job('000030', 100), job('000029', 100)]
+
+        expect(settleSpoolUsage(fresh, newestPage, false)).toEqual(fresh)
+        expect(settleSpoolUsage(fresh, [...newestPage, job('000005', 1)], false).lastJobId).toBe('000030')
+        expect(settleSpoolUsage(fresh, newestPage, true).lastJobId).toBe('000030')
+    })
+
+    it('counts every job when none was counted before', () => {
+        const usage = { usedLength: 0, lastJobId: null, baselineLength: 0 }
+
+        expect(settleSpoolUsage(usage, [job('000001', 250)], true)).toEqual({
+            usedLength: 250,
+            lastJobId: '000001',
+            baselineLength: 0,
+        })
+    })
+})
+
+describe('latestFinishedJobId', () => {
+    it('finds the newest finished job whatever the order', () => {
+        const jobs = [
+            { id: '000002', filamentUsed: 1, status: 'completed' },
+            { id: '00000B', filamentUsed: 1, status: 'in_progress' },
+            { id: '00000A', filamentUsed: 1, status: 'cancelled' },
+        ]
+
+        expect(latestFinishedJobId(jobs)).toBe('00000A')
+        expect(latestFinishedJobId([])).toBeNull()
+    })
+})
+
+describe('spoolUsedLength', () => {
+    it('adds the running print to what finished prints used', () => {
+        const usage = { usedLength: 4000, lastJobId: '000006', baselineLength: 0 }
+
+        expect(spoolUsedLength(usage, 1200)).toBe(5200)
+        expect(spoolUsedLength(usage, null)).toBe(4000)
+    })
+
+    it('only counts what the running print used after a spool change', () => {
+        const usage = { usedLength: 0, lastJobId: '000006', baselineLength: 3000 }
+
+        expect(spoolUsedLength(usage, 5000)).toBe(2000)
+        expect(spoolUsedLength(usage, 1000)).toBe(0)
     })
 })
 
@@ -164,6 +219,8 @@ describe('resolveSpoolTrackerSettings', () => {
             material: 'PLA',
             sizeGrams: DEFAULT_SPOOL_SIZE_GRAMS,
             loadedAt: null,
+            usedLength: 0,
+            lastJobId: null,
             baselineLength: 0,
         })
         expect(DEFAULT_SPOOL_SIZE_GRAMS).toBe(1000)
@@ -176,6 +233,8 @@ describe('resolveSpoolTrackerSettings', () => {
             material: 'PETG',
             sizeGrams: -4,
             loadedAt: 'yesterday',
+            usedLength: 5200,
+            lastJobId: '00001F',
             baselineLength: 120,
         })
 
@@ -185,8 +244,14 @@ describe('resolveSpoolTrackerSettings', () => {
             material: 'PETG',
             sizeGrams: DEFAULT_SPOOL_SIZE_GRAMS,
             loadedAt: null,
+            usedLength: 5200,
+            lastJobId: '00001F',
             baselineLength: 120,
         })
+    })
+
+    it('drops a job id that is not one', () => {
+        expect(resolveSpoolTrackerSettings({ lastJobId: 'latest' }).lastJobId).toBeNull()
     })
 })
 
@@ -198,5 +263,9 @@ describe('resolveSpoolSource', () => {
     it('uses the built-in tracker otherwise, unless it is switched off', () => {
         expect(resolveSpoolSource({ components: ['history'], trackerEnabled: true })).toBe('builtin')
         expect(resolveSpoolSource({ components: ['history'], trackerEnabled: false })).toBe('none')
+    })
+
+    it('has nothing to count from without the print history', () => {
+        expect(resolveSpoolSource({ components: [], trackerEnabled: true })).toBe('none')
     })
 })
