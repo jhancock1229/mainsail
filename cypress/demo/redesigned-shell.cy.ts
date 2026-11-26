@@ -269,6 +269,27 @@ describe('Redesigned shell: Home', () => {
         noRawKeys()
     })
 
+    it('uploads a file and offers to print it', () => {
+        openShell()
+        cy.get('.shell-start__input').selectFile(
+            { contents: Cypress.Buffer.from('G28\n'), fileName: 'uploaded_part.gcode' },
+            { force: true }
+        )
+        cy.get('.v-dialog--active').should('contain', 'uploaded_part.gcode')
+        cy.contains('.shell-start__file', 'uploaded_part.gcode').should('exist')
+        cy.contains('.v-dialog--active .v-btn', /print/i).click()
+        cy.get('.shell-header__status').should('contain', 'uploaded_part.gcode')
+    })
+
+    it('prints the last print again', () => {
+        openShell()
+        cy.get('.shell-last__name').should('have.text', 'phone_stand.gcode')
+        cy.get('.shell-last__meta').should('contain', '1 h 52 min')
+        cy.get('.shell-last__again').click()
+        cy.contains('.v-dialog--active .v-btn', /print/i).click()
+        cy.get('.shell-header__status').should('contain', 'phone_stand.gcode')
+    })
+
     it('asks before cancelling a running print', () => {
         openShell('/', ['print'])
         cy.get('.shell-job__cancel').click()

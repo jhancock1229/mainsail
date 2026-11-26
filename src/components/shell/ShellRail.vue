@@ -95,7 +95,9 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
     get printerName(): string {
         const name: string = this.$store.state.gui.general.printername ?? ''
 
-        return name.length ? name : (this.$store.state.printer.hostname ?? '')
+        if (name.length) return name
+
+        return this.$store.state.printer.hostname ?? this.$store.state.socket.hostname ?? ''
     }
 
     get showModeToggle(): boolean {
@@ -148,6 +150,7 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
     font-weight: 600;
     font-size: 15px;
     line-height: 1.5;
+    min-height: 43px;
     padding: 4px 12px 16px;
 }
 

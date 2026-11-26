@@ -757,6 +757,14 @@ const handlers = {
     }),
 }
 
+const uploadedFiles = new Set()
+const gcodesDirectory = () => fixture.responses[`server.files.get_directory|${JSON.stringify({ path: 'gcodes' })}`]
+const removeUploads = () => {
+    const directory = gcodesDirectory()
+    directory.files = directory.files.filter((file) => !uploadedFiles.has(file.filename))
+    uploadedFiles.clear()
+}
+
 const FILAMENT_MM_PER_GRAM = 1000 / (Math.PI * 0.875 ** 2 * 1.24)
 function demoFileFacts(filename) {
     const facts = DEMO_FILE_FACTS[filename]
@@ -872,6 +880,7 @@ controls.reset = () => {
     gcodeLog.length = 0
     seedPresets()
     seedHistory()
+    removeUploads()
 }
 
 const configFileText = () =>
@@ -940,8 +949,9 @@ const server = http.createServer((req, res) => {
                 size: body.length,
                 permissions: 'rw',
             }
-            const directory = fixture.responses[`server.files.get_directory|${JSON.stringify({ path: 'gcodes' })}`]
+            const directory = gcodesDirectory()
             directory.files = directory.files.filter((file) => file.filename !== filename)
+            uploadedFiles.add(filename)
             directory.files.push({ modified: item.modified, size: item.size, permissions: 'rw', filename })
             broadcast('notify_filelist_changed', [{ action: 'create_file', item }])
             res.writeHead(201, { ...headers, 'Content-Type': 'application/json' })

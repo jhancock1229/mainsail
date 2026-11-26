@@ -640,3 +640,61 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 .shell-new .theme--dark.v-text-field--solo-inverted > .v-input__control > .v-input__slot {
     background: var(--shell-raised);
 }
+
+.shell .v-alert.v-alert--text {
+    background: transparent !important;
+    border: 1px solid var(--shell-line) !important;
+    padding: 16px 18px;
+}
+
+.shell .v-alert.v-alert--text::before,
+.shell .v-alert .v-alert__border {
+    display: none;
+}
+
+.shell .v-alert.warning--text,
+.shell .v-alert .warning--text,
+.shell .v-alert.error--text,
+.shell .v-alert .error--text,
+.shell .error-explainer .error--text {
+    color: var(--shell-danger) !important;
+    caret-color: var(--shell-danger) !important;
+}
+
+.shell .v-alert .v-btn.v-btn--has-bg.warning,
+.shell .v-alert .v-btn.v-btn--has-bg.error,
+.shell .error-explainer .v-btn.v-btn--has-bg.warning,
+.shell .error-explainer .v-btn.v-btn--has-bg.error {
+    background-color: var(--shell-strong-bg) !important;
+    color: var(--shell-strong-text) !important;
+}
+
+.shell .v-alert .v-btn.v-btn--outlined {
+    color: var(--shell-text-2) !important;
+    border-color: var(--shell-border);
+}
+
+@media (max-width: 1199px) {
+    .sh-col,
+    .sh-host {
+        padding: 20px;
+    }
+
+    .shell .shell-heat__value,
+    .shell .shell-spool__left {
+        font-size: 21px;
+    }
+
+    .shell .shell-heat__label {
+        font-size: 15px;
+        overflow: visible;
+    }
+
+    .shell .shell-heat__status {
+        min-width: 0;
+    }
+
+    .shell .shell-job__percent {
+        font-size: 64px;
+    }
+}

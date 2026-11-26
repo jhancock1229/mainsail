@@ -39,7 +39,7 @@
             <v-card-actions class="px-6 pb-5">
                 <v-spacer />
                 <v-btn text @click="showDialog = false">{{ $t('Buttons.Cancel') }}</v-btn>
-                <v-btn color="primary" depressed class="shell-spool-dialog__save" :disabled="!valid" @click="save">
+                <v-btn depressed class="shell-spool-dialog__save" :disabled="!valid" @click="save">
                     {{ $t('Shell.Spool.Dialog.Save') }}
                 </v-btn>
             </v-card-actions>
@@ -107,5 +107,10 @@ export default class ShellSpoolDialog extends Mixins(BaseMixin) {
     font-size: 20px;
     font-weight: 600;
     padding: 22px 24px 8px;
+}
+
+.shell-spool-dialog__save:not(.v-btn--disabled) {
+    background-color: var(--shell-strong-bg) !important;
+    color: var(--shell-strong-text) !important;
 }
 </style>
