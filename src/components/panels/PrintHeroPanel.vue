@@ -44,38 +44,41 @@
                         <print-hero-settings />
                     </div>
                 </div>
+                <!-- one glass bar for all numbers, so no text lies on the picture itself -->
                 <div class="print-hero__bottom">
-                    <div class="print-hero__headline">
-                        <div v-if="shows('progress')" class="print-hero__percent">
-                            {{ percent }}
-                            <span class="print-hero__percent-sign">%</span>
-                        </div>
-                        <div class="print-hero__times">
-                            <template v-if="isEnded">
-                                <div class="print-hero__time-primary">{{ endedLabel }}</div>
-                                <div v-if="message" class="print-hero__message">{{ message }}</div>
-                            </template>
-                            <template v-else>
-                                <div v-if="shows('remaining')" class="print-hero__time-primary">
-                                    {{ $t('Panels.PrintHeroPanel.Remaining', { duration: remainingOutput }) }}
-                                </div>
-                                <div v-if="shows('eta')" class="print-hero__time-secondary">
-                                    {{ $t('Panels.PrintHeroPanel.DoneAt', { time: eta }) }}
-                                </div>
-                            </template>
-                        </div>
-                    </div>
                     <div v-if="shows('progress')" class="print-hero__progress">
                         <div class="print-hero__progress-value" :style="{ width: percent + '%' }" />
                     </div>
-                    <div v-if="tiles.length" class="print-hero__metrics">
-                        <div
-                            v-for="tile in tiles"
-                            :key="tile.name"
-                            class="print-hero__metric"
-                            :class="'print-hero__metric--' + tile.name">
-                            <div class="print-hero__metric-label">{{ tile.label }}</div>
-                            <div class="print-hero__metric-value">{{ tile.value }}</div>
+                    <div v-if="showHeadline || tiles.length" class="print-hero__bar">
+                        <div v-if="showHeadline" class="print-hero__headline">
+                            <div v-if="shows('progress')" class="print-hero__percent">
+                                {{ percent }}
+                                <span class="print-hero__percent-sign">%</span>
+                            </div>
+                            <div class="print-hero__times">
+                                <template v-if="isEnded">
+                                    <div class="print-hero__time-primary">{{ endedLabel }}</div>
+                                    <div v-if="message" class="print-hero__message">{{ message }}</div>
+                                </template>
+                                <template v-else>
+                                    <div v-if="shows('remaining')" class="print-hero__time-primary">
+                                        {{ $t('Panels.PrintHeroPanel.Remaining', { duration: remainingOutput }) }}
+                                    </div>
+                                    <div v-if="shows('eta')" class="print-hero__time-secondary">
+                                        {{ $t('Panels.PrintHeroPanel.DoneAt', { time: eta }) }}
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        <div v-if="tiles.length" class="print-hero__metrics">
+                            <div
+                                v-for="tile in tiles"
+                                :key="tile.name"
+                                class="print-hero__metric"
+                                :class="'print-hero__metric--' + tile.name">
+                                <div class="print-hero__metric-label">{{ tile.label }}</div>
+                                <div class="print-hero__metric-value">{{ tile.value }}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -273,6 +276,11 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         }
     }
 
+    // progress, time left and finish time; after the print how it ended
+    get showHeadline(): boolean {
+        return this.isEnded || headlineMetrics.some((metric) => this.shows(metric))
+    }
+
     get tiles(): PrintHeroTile[] {
         return this.visibleMetrics
             .filter((metric) => !headlineMetrics.includes(metric))
@@ -441,7 +449,7 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 }
 
 .print-hero__stage--webcam {
-    min-height: clamp(300px, 75cqw, 480px);
+    min-height: clamp(340px, 75cqw, 480px);
 }
 
 .print-hero__stage--none {
@@ -502,15 +510,8 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 .print-hero__scrim {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(70% 55% at 0% 100%, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 100%),
-        linear-gradient(
-            180deg,
-            rgba(0, 0, 0, 0.55) 0%,
-            rgba(0, 0, 0, 0) 26%,
-            rgba(0, 0, 0, 0) 45%,
-            rgba(0, 0, 0, 0.7) 100%
-        );
+    /* only for the state and the buttons at the top; the numbers have their own bar */
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 28%);
     pointer-events: none;
 }
 
@@ -593,18 +594,29 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     backdrop-filter: blur(6px);
 }
 
+.print-hero__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    padding: 10px 16px 12px;
+    background: rgba(10, 13, 17, 0.62);
+    backdrop-filter: blur(14px);
+}
+
 .print-hero__headline {
     display: flex;
-    align-items: flex-end;
-    gap: 16px;
-    padding: 0 16px 10px;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .print-hero__percent {
     display: flex;
     align-items: baseline;
-    font-size: 4rem;
+    font-size: 3.25rem;
     font-weight: 300;
     line-height: 1;
     letter-spacing: -0.03em;
@@ -614,26 +626,25 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 
 .print-hero__percent-sign {
     margin-left: 0.1em;
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 400;
     opacity: 0.75;
 }
 
 .print-hero__times {
     min-width: 0;
-    padding-bottom: 6px;
     line-height: 1.35;
 }
 
 .print-hero__time-primary {
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
     font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
 
 .print-hero__time-secondary,
 .print-hero__message {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     opacity: 0.8;
     font-variant-numeric: tabular-nums;
 }
@@ -657,13 +668,12 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     transition: width 0.5s linear;
 }
 
+/* next to the headline where there is room (two columns at least), below it otherwise */
 .print-hero__metrics {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-    gap: 2px 8px;
-    padding: 10px 16px 12px;
-    background: rgba(10, 13, 17, 0.55);
-    backdrop-filter: blur(12px);
+    flex: 1 1 172px;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 4px 12px;
 }
 
 .print-hero__metric {
@@ -687,7 +697,13 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 
 @container (max-width: 420px) {
     .print-hero__percent {
-        font-size: 3.25rem;
+        font-size: 2.75rem;
+    }
+
+    /* a row of its own with room for four numbers */
+    .print-hero__metrics {
+        flex-basis: 100%;
+        grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
     }
 }
 

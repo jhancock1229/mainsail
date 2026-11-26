@@ -81,7 +81,7 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins, Ref, Watch } from 'vue-property-decorator'
+import { Mixins, Prop, Ref, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import { defaultBigThumbnailBackground, thumbnailBigMin, thumbnailSmallMax, thumbnailSmallMin } from '@/store/variables'
 import { mdiFileOutline, mdiFile } from '@mdi/js'
@@ -92,6 +92,9 @@ import Vue from 'vue'
 
 @Component({})
 export default class StatusPanelPrintstatusThumbnail extends Mixins(BaseMixin) {
+    // only the file name and the small thumbnail (the print hero panel shows the big picture)
+    @Prop({ type: Boolean, default: false }) readonly compact!: boolean
+
     mdiFileOutline = mdiFileOutline
     mdiFile = mdiFile
 
@@ -191,7 +194,7 @@ export default class StatusPanelPrintstatusThumbnail extends Mixins(BaseMixin) {
     get boolBigThumbnail() {
         const setting = this.$store.state.gui.uiSettings.boolBigThumbnail ?? true
 
-        return this.current_filename && setting && this.thumbnailBig
+        return this.current_filename && setting && this.thumbnailBig && !this.compact
     }
 
     get bigThumbnailBackground() {

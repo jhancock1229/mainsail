@@ -21,6 +21,8 @@ export interface PrintHeroSettings {
     metrics: PrintHeroMetric[]
     backdrop: PrintHeroBackdrop
     showTimeline: boolean
+    // hide what the hero already shows in the status panel above it
+    simplifyStatusPanel: boolean
 }
 
 const activePrintStates = ['printing', 'paused']
@@ -36,6 +38,7 @@ export const getDefaultPrintHeroSettings = (): PrintHeroSettings => ({
     metrics: ['progress', 'remaining', 'eta', 'layer', 'speed', 'flow', 'filament'],
     backdrop: 'webcam',
     showTimeline: true,
+    simplifyStatusPanel: true,
 })
 
 // settings loaded from the database can be missing, incomplete or from another version
@@ -51,6 +54,7 @@ export const resolvePrintHeroSettings = (stored: unknown): PrintHeroSettings => 
         settings.backdrop = stored.backdrop as PrintHeroBackdrop
     }
     if (typeof stored.showTimeline === 'boolean') settings.showTimeline = stored.showTimeline
+    if (typeof stored.simplifyStatusPanel === 'boolean') settings.simplifyStatusPanel = stored.simplifyStatusPanel
 
     return settings
 }
@@ -83,6 +87,22 @@ export const isPrintHeroVisible = (input: {
     if (!input.klipperReady || input.filename === '') return false
 
     return activePrintStates.includes(input.printerState) || isPrintEnded(input.printerState)
+}
+
+// The status panel only gives up its thumbnail and numbers while the hero really shows them: the option is on,
+// the hero is a visible panel of the current layout and it is rendering.
+export const shouldSimplifyStatusPanel = (input: {
+    // stored settings of the print hero (gui.view.printHero)
+    settings: unknown
+    heroInLayout: boolean
+    klipperReady: boolean
+    printerState: string
+    filename: string
+}): boolean => {
+    if (!resolvePrintHeroSettings(input.settings).simplifyStatusPanel) return false
+    if (!input.heroInLayout) return false
+
+    return isPrintHeroVisible(input)
 }
 
 export const resolvePrintHeroBackdrop = (

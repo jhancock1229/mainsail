@@ -343,6 +343,68 @@ describe('Print hero panel', () => {
         cy.get(`${hero} .print-hero__stage--webcam`).should('exist')
     })
 
+    it('simplifies the status panel while it shows the print, and leaves it alone otherwise', () => {
+        const statusPanel = '.status-panel'
+        const isSimplified = () => {
+            cy.get(`${statusPanel} .statusPanel-big-thumbnail`).should('not.exist')
+            cy.get(`${statusPanel} .v-tab[href="#status"]`).should('not.exist')
+            // not left with an empty tab: the files are shown
+            cy.get(`${statusPanel} .v-tab--active`).should('have.attr', 'href', '#files')
+            cy.contains(`${statusPanel} .v-window-item--active`, 'demo.gcode').should('be.visible')
+        }
+        const isStock = () => {
+            cy.get(`${statusPanel} .statusPanel-big-thumbnail`).should('be.visible')
+            cy.get(`${statusPanel} .v-tab--active`).should('have.attr', 'href', '#status')
+            cy.contains(`${statusPanel} .v-window-item--active`, 'Estimate').should('be.visible')
+            cy.contains(`${statusPanel} .v-window-item--active`, '60 mm/s').should('be.visible')
+        }
+
+        startPrint()
+        cy.contains(`${hero} .print-hero__metric--speed`, '60 mm/s')
+        isSimplified()
+        // what the hero does not replace stays: progress in the title, file name, message, buttons, other tabs
+        cy.get(`${statusPanel} .panel-toolbar`)
+            .invoke('text')
+            .should('match', /\d+% Printing/)
+        cy.contains(`${statusPanel} .statusPanel-printstatus-thumbnail`, 'demo.gcode').should('be.visible')
+        cy.contains(statusPanel, /Layer \d+\/120/)
+        cy.get(`${statusPanel} .v-tab[href="#history"]`).should('exist')
+        cy.get(`${statusPanel} .v-tab[href="#jobqueue"]`).should('exist')
+        cy.get(`${statusPanel} .panel-toolbar .v-btn.warning--text`).click()
+        cy.contains(`${hero} .print-hero__state`, 'Paused')
+        cy.get(`${statusPanel} .panel-toolbar .v-btn.success--text`).click()
+        cy.contains(`${hero} .print-hero__state`, 'Printing')
+
+        // switched off in the settings of the hero
+        openHeroSettings()
+        toggleHeroSetting('Simplify the status panel')
+        isStock()
+        toggleHeroSetting('Simplify the status panel')
+        isSimplified()
+        closeHeroSettings()
+
+        // hero hidden by the user
+        openDashboardSettings()
+        cy.contains('.v-dialog--active .v-list-item', 'Print Progress').find('.v-icon').last().click()
+        cy.get('body').type('{esc}')
+        cy.get(hero).should('not.exist')
+        isStock()
+    })
+
+    it('leaves the status panel alone while there is no print', () => {
+        cy.get('.status-panel .v-tab--active').should('have.attr', 'href', '#files')
+
+        // after the print the hero stays and the status panel stays simple, until the print stats are cleared
+        startPrint('seconds=5&warmup=1')
+        cy.contains(`${hero} .print-hero__state`, 'Finished', { timeout: 15000 })
+        cy.get('.status-panel .v-tab[href="#status"]').should('not.exist')
+        cy.get('.status-panel .statusPanel-big-thumbnail').should('not.exist')
+
+        cy.get(`${hero} .print-hero__action--clear`).click()
+        cy.contains('.status-panel .panel-toolbar', 'Standby')
+        cy.get('.status-panel .v-tab--active').should('have.attr', 'href', '#files')
+    })
+
     it('can be hidden in the dashboard settings like any other panel', () => {
         openDashboardSettings()
         cy.contains('.v-dialog--active .v-list-item', 'Print Progress').find('.v-icon').last().click()

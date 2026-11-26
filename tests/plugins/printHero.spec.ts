@@ -10,6 +10,7 @@ import {
     printHeroMetrics,
     resolvePrintHeroBackdrop,
     resolvePrintHeroSettings,
+    shouldSimplifyStatusPanel,
     togglePrintHeroMetric,
 } from '@/plugins/printHero'
 
@@ -56,6 +57,7 @@ describe('resolvePrintHeroSettings', () => {
 
         expect(defaults.backdrop).toBe('webcam')
         expect(defaults.showTimeline).toBe(true)
+        expect(defaults.simplifyStatusPanel).toBe(true)
         expect(defaults.metrics).toEqual(['progress', 'remaining', 'eta', 'layer', 'speed', 'flow', 'filament'])
     })
 
@@ -65,6 +67,9 @@ describe('resolvePrintHeroSettings', () => {
             backdrop: 'none',
         })
         expect(resolvePrintHeroSettings({ showTimeline: false }).showTimeline).toBe(false)
+        // stored before the option existed
+        expect(resolvePrintHeroSettings({ showTimeline: false }).simplifyStatusPanel).toBe(true)
+        expect(resolvePrintHeroSettings({ simplifyStatusPanel: false }).simplifyStatusPanel).toBe(false)
     })
 
     it('keeps the stored metrics in the canonical order and drops unknown ones', () => {
@@ -78,7 +83,12 @@ describe('resolvePrintHeroSettings', () => {
     })
 
     it('falls back to the defaults for invalid values', () => {
-        const settings = resolvePrintHeroSettings({ backdrop: 'hologram', showTimeline: 'yes', metrics: 'all' })
+        const settings = resolvePrintHeroSettings({
+            backdrop: 'hologram',
+            showTimeline: 'yes',
+            metrics: 'all',
+            simplifyStatusPanel: 0,
+        })
 
         expect(settings).toEqual(getDefaultPrintHeroSettings())
     })
@@ -204,5 +214,46 @@ describe('getPrintHeroThumbnailPath', () => {
         expect(getPrintHeroThumbnailPath({ filename: 'part.gcode', thumbnails: [] })).toBeNull()
         expect(getPrintHeroThumbnailPath({})).toBeNull()
         expect(getPrintHeroThumbnailPath(null)).toBeNull()
+    })
+})
+
+describe('shouldSimplifyStatusPanel', () => {
+    const simplify = (overrides: Partial<Parameters<typeof shouldSimplifyStatusPanel>[0]> = {}) =>
+        shouldSimplifyStatusPanel({
+            settings: undefined,
+            heroInLayout: true,
+            klipperReady: true,
+            printerState: 'printing',
+            filename: 'demo.gcode',
+            ...overrides,
+        })
+
+    it('simplifies the status panel while the print hero shows the same numbers', () => {
+        expect(simplify()).toBe(true)
+        expect(simplify({ printerState: 'paused' })).toBe(true)
+        expect(simplify({ printerState: 'complete' })).toBe(true)
+        expect(simplify({ printerState: 'error' })).toBe(true)
+        expect(simplify({ printerState: 'cancelled' })).toBe(true)
+    })
+
+    it('is on for settings saved before the option existed', () => {
+        expect(simplify({ settings: {} })).toBe(true)
+        expect(simplify({ settings: { backdrop: 'none' } })).toBe(true)
+        expect(simplify({ settings: 'broken' })).toBe(true)
+    })
+
+    it('leaves the status panel alone when the option is switched off', () => {
+        expect(simplify({ settings: { simplifyStatusPanel: false } })).toBe(false)
+    })
+
+    it('leaves the status panel alone when the hero is hidden or not part of the layout', () => {
+        expect(simplify({ heroInLayout: false })).toBe(false)
+    })
+
+    it('leaves the status panel alone while the hero renders nothing', () => {
+        expect(simplify({ printerState: 'standby' })).toBe(false)
+        expect(simplify({ printerState: '' })).toBe(false)
+        expect(simplify({ filename: '' })).toBe(false)
+        expect(simplify({ klipperReady: false })).toBe(false)
     })
 })

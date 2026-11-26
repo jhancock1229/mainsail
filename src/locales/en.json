@@ -975,6 +975,7 @@
             "Remaining": "{duration} left",
             "Settings": "Print progress settings",
             "ShowTimeline": "Timeline",
+            "SimplifyStatusPanel": "Simplify the status panel",
             "States": {
                 "Cancelled": "Cancelled",
                 "Complete": "Finished",

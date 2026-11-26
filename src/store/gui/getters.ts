@@ -151,6 +151,21 @@ export const getters: GetterTree<GuiState, RootState> = {
             return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
         },
 
+    // the print hero is a visible panel of the layout that is shown for the viewport and printer state
+    getPrintHeroInLayout:
+        (state, getters) =>
+        (viewport: string, layoutState: DashboardLayoutState = 'idle'): boolean => {
+            const columnCount = getViewportLayoutKeys(viewport).length
+            // a viewport with a single column has no column number (mobileLayout)
+            const columns = columnCount === 1 ? [0] : Array.from({ length: columnCount }, (_, index) => index + 1)
+
+            return columns.some((column) => {
+                const panels = getters['getPanels'](viewport, column, true, layoutState) as GuiStateLayoutoption[]
+
+                return panels.some((panel) => panel.name === 'print-hero')
+            })
+        },
+
     getPanels:
         (state, getters, rootState) =>
         (

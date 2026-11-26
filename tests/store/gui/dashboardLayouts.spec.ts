@@ -54,8 +54,11 @@ const createGetters = (state: GuiState, possiblePanels: string[] = allPossiblePa
     moduleGetters.getPrintHeroShowsWebcam = call('getPrintHeroShowsWebcam')
     moduleGetters.getPanels = call('getPanels')
 
+    moduleGetters.getPrintHeroInLayout = call('getPrintHeroInLayout')
+
     return moduleGetters as {
         getPrintHeroShowsWebcam: (viewport: string) => boolean
+        getPrintHeroInLayout: (viewport: string, layoutState?: string) => boolean
         getDashboardLayout: (layoutName: string, layoutState?: string) => GuiStateLayoutoption[]
         getAllPanelsFromViewport: (viewport: string, layoutState?: string) => GuiStateLayoutoption[]
         getPanels: (
@@ -455,5 +458,50 @@ describe('webcam panel while the print hero shows the webcam', () => {
                 { name: 'toolhead-control', visible: true },
             ],
         })
+    })
+})
+
+describe('gui/getPrintHeroInLayout', () => {
+    const withHero = [...allPossiblePanels, 'print-hero']
+
+    it('is true when the hero is a visible panel of the viewport, in any column', () => {
+        const state = createState()
+        state.dashboard.desktopLayout2 = [{ name: 'print-hero', visible: true }, ...state.dashboard.desktopLayout2]
+        const g = createGetters(state, withHero)
+
+        expect(g.getPrintHeroInLayout('desktop')).toBe(true)
+        expect(g.getPrintHeroInLayout('desktop', 'printing')).toBe(true)
+        expect(g.getPrintHeroInLayout('desktop', 'error')).toBe(true)
+    })
+
+    it('is true for layouts saved before the panel existed, where it gets added', () => {
+        expect(createGetters(createState(), withHero).getPrintHeroInLayout('mobile', 'printing')).toBe(true)
+    })
+
+    it('is false when the user has hidden the hero', () => {
+        const state = createState()
+        state.dashboard.mobileLayout = [{ name: 'print-hero', visible: false }, ...state.dashboard.mobileLayout]
+        const g = createGetters(state, withHero)
+
+        expect(g.getPrintHeroInLayout('mobile')).toBe(false)
+        expect(g.getPrintHeroInLayout('mobile', 'printing')).toBe(false)
+        // each viewport has its own layout
+        expect(g.getPrintHeroInLayout('desktop', 'printing')).toBe(true)
+    })
+
+    it('follows the layout of the printer state', () => {
+        const custom = [
+            { name: 'print-hero', visible: false },
+            { name: 'toolhead-control', visible: true },
+        ]
+        const g = createGetters(createState({ printing: { mobileLayout: custom } }), withHero)
+
+        expect(g.getPrintHeroInLayout('mobile', 'printing')).toBe(false)
+        expect(g.getPrintHeroInLayout('mobile', 'error')).toBe(true)
+        expect(g.getPrintHeroInLayout('mobile')).toBe(true)
+    })
+
+    it('is false when the panel does not exist', () => {
+        expect(createGetters(createState()).getPrintHeroInLayout('desktop', 'printing')).toBe(false)
     })
 })

@@ -39,6 +39,13 @@
                     hide-details
                     :label="$t('Panels.PrintHeroPanel.ShowTimeline')" />
             </v-list-item>
+            <v-list-item class="minHeight36">
+                <v-checkbox
+                    v-model="simplifyStatusPanel"
+                    class="mt-0"
+                    hide-details
+                    :label="$t('Panels.PrintHeroPanel.SimplifyStatusPanel')" />
+            </v-list-item>
         </v-list>
     </v-menu>
 </template>
@@ -81,6 +88,14 @@ export default class PrintHeroSettings extends Mixins(BaseMixin) {
 
     set showTimeline(newVal: boolean) {
         this.$store.dispatch('gui/saveSetting', { name: 'view.printHero.showTimeline', value: newVal })
+    }
+
+    get simplifyStatusPanel(): boolean {
+        return this.settings.simplifyStatusPanel
+    }
+
+    set simplifyStatusPanel(newVal: boolean) {
+        this.$store.dispatch('gui/saveSetting', { name: 'view.printHero.simplifyStatusPanel', value: newVal })
     }
 
     get backdropOptions(): { value: PrintHeroBackdrop; text: string }[] {
