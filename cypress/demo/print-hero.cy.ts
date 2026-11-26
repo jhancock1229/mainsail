@@ -1,4 +1,4 @@
-import { demo, openDashboard, openDashboardSettings } from './support'
+import { columnPanels, demo, openDashboard, openDashboardSettings } from './support'
 
 const hero = '.print-hero-panel'
 const settingsMenu = '.print-hero-settings'
@@ -160,6 +160,119 @@ describe('Print hero panel', () => {
         cy.get(`${hero} .print-hero__action--clear`).click()
         cy.get(hero).should('not.exist')
         cy.contains('.status-panel .panel-toolbar', 'Standby')
+    })
+
+    it('records the timeline while another page is open', () => {
+        // the dashboard, and with it the print hero panel, is not created before the print is running
+        cy.visit('/console')
+        cy.contains('.v-main', 'Send code', { timeout: 15000 })
+        demo('print?seconds=60&warmup=2')
+        cy.contains('.v-main', 'File opened: demo.gcode')
+        cy.wait(4000)
+        demo('pause')
+        cy.wait(1500)
+        demo('resume')
+
+        cy.contains('.v-navigation-drawer a', 'Dashboard').click()
+        cy.get(hero).should('be.visible')
+        timelineEvents((labels) => {
+            expect(labels[0]).to.match(/^\d+:\d+.*Warm-up$/)
+            // observed, not rebuilt: exact times
+            expect(labels[1]).to.match(/^\d+:\d+.*Print started$/)
+            expect(labels[2]).to.match(/^\d+:\d+.*First layer done$/)
+            expect(labels.join(' | ')).to.match(/\d+:\d+[^|]*Paused \| \d+:\d+[^|]*Resumed/)
+        })
+    })
+
+    it('keeps the timeline when the connection to the printer is lost for a moment', () => {
+        startPrint()
+        timelineEvents((labels) => expect(labels.join(' | ')).to.contain('First layer done'))
+        demo('pause')
+        timelineEvents((labels) => expect(labels[labels.length - 1]).to.match(/Paused$/))
+
+        demo('reconnect')
+        cy.contains('Connecting to')
+        cy.contains('Connecting to', { timeout: 15000 }).should('not.exist')
+        cy.get(hero, { timeout: 15000 }).should('be.visible')
+        cy.contains(`${hero} .print-hero__state`, 'Paused')
+
+        // still the recorded events with their times, not a rebuilt timeline
+        timelineEvents((labels) => {
+            expect(labels[1]).to.match(/^\d+:\d+.*Print started$/)
+            expect(labels[2]).to.match(/^\d+:\d+.*First layer done$/)
+            expect(labels[labels.length - 1]).to.match(/^\d+:\d+.*Paused$/)
+        })
+    })
+
+    it('replaces the webcam panel while it shows the webcam picture, so the camera is not streamed twice', () => {
+        startPrint()
+        cy.get(`${hero} .print-hero__stage--webcam .print-hero__backdrop img`).should('be.visible')
+        columnPanels(1, (titles) => expect(titles).not.to.include('Webcam'))
+        columnPanels(1, (titles) => expect(titles[titles.length - 1]).to.equal('Toolhead'))
+
+        // with another backdrop the webcam panel is back, right below the hero
+        openHeroSettings()
+        cy.contains(`${settingsMenu} .v-btn-toggle button`, 'Thumbnail').click()
+        columnPanels(1, (titles) => expect(titles[1]).to.equal('Webcam'))
+        cy.contains(`${settingsMenu} .v-btn-toggle button`, 'Webcam').click()
+        columnPanels(1, (titles) => expect(titles).not.to.include('Webcam'))
+        closeHeroSettings()
+
+        // and it is not touched while the printer is idle
+        demo('idle')
+        cy.contains('.status-panel .panel-toolbar', 'Standby')
+        columnPanels(1, (titles) => expect(titles[1]).to.equal('Webcam'))
+    })
+
+    it('keeps showing the webcam picture when the webcam panel is collapsed', () => {
+        cy.contains('.webcam-panel .panel-toolbar', 'Webcam').find('.btn-collapsible').click()
+        cy.get('.webcam-panel .webcamImage').should('not.be.visible')
+
+        startPrint()
+        cy.contains(`${hero} .print-hero__metric--speed`, '60 mm/s')
+        cy.get(`${hero} .print-hero__backdrop .webcamImage`)
+            .should('be.visible')
+            .and(($image) => expect(($image[0] as HTMLImageElement).naturalWidth).to.be.greaterThan(0))
+    })
+
+    it('stays on top when the print ends, also with a layout saved before the panel existed', () => {
+        // a layout of the first column without the print hero, like one saved by an older version
+        cy.window().then((win) => {
+            const app = win.document.querySelector('#app') as unknown as {
+                __vue__: { $store: { dispatch: (action: string, payload: unknown) => void } }
+            }
+            app.__vue__.$store.dispatch('gui/saveSetting', {
+                name: 'dashboard.desktopLayout1',
+                value: [
+                    { name: 'toolhead-control', visible: true },
+                    { name: 'extruder-control', visible: true },
+                    { name: 'webcam', visible: true },
+                ],
+            })
+        })
+        columnPanels(1, (titles) => expect(titles.slice(1, 3)).to.deep.equal(['Toolhead', 'Extruder']))
+
+        const heroIsFirst = () =>
+            cy
+                .get('.v-main .row')
+                .first()
+                .children()
+                .first()
+                .find('.panel')
+                .should(($panels) => expect($panels.eq(1)).to.have.class('print-hero-panel'))
+
+        startPrint('seconds=5&warmup=1')
+        heroIsFirst()
+        cy.contains(`${hero} .print-hero__state`, 'Finished', { timeout: 15000 })
+        // the idle layout is shown again
+        columnPanels(1, (titles) => expect(titles.slice(1, 3)).to.deep.equal(['Toolhead', 'Extruder']))
+        heroIsFirst()
+
+        demo('print?seconds=60&warmup=1')
+        cy.contains(`${hero} .print-hero__state`, 'Printing')
+        demo('fail')
+        cy.contains(`${hero} .print-hero__state`, 'Failed')
+        heroIsFirst()
     })
 
     it('disappears when Klipper shuts down, because the print data is stale then', () => {

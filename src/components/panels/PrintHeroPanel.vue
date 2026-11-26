@@ -2,13 +2,14 @@
     <v-card v-if="isVisible" class="panel print-hero-panel mb-3 mb-md-6" :class="'print-hero-panel--' + stateName">
         <div class="print-hero__stage" :class="'print-hero__stage--' + backdrop">
             <div class="print-hero__backdrop">
+                <!-- not page="dashboard": that ties the stream to the expand state of the webcam panel -->
                 <webcam-wrapper-item
                     v-if="backdrop === 'webcam' && webcam"
                     :webcam="webcam"
                     :show-fps="false"
-                    page="dashboard" />
+                    page="print-hero" />
                 <template v-else-if="backdrop === 'thumbnail'">
-                    <div class="print-hero__thumbnail-glow" :style="{ backgroundImage: `url('${thumbnailUrl}')` }" />
+                    <img class="print-hero__thumbnail-glow" :src="thumbnailUrl" alt="" aria-hidden="true" />
                     <img class="print-hero__thumbnail" :src="thumbnailUrl" :alt="filename" draggable="false" />
                 </template>
             </div>
@@ -117,7 +118,7 @@ import {
     type PrintHeroMetric,
     type PrintHeroSettings as Settings,
 } from '@/plugins/printHero'
-import { recordPrintTimeline, type PrintTimeline } from '@/plugins/printTimeline'
+import { recordedPrintTimeline, type PrintTimeline } from '@/plugins/printTimeline'
 
 const MS_PER_SECOND = 1000
 const DEFAULT_FILAMENT_DIAMETER = 1.75
@@ -146,7 +147,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     mdiStopCircleOutline = mdiStopCircleOutline
 
     showCancelJobDialog = false
-    recorded: { timeline: PrintTimeline | null } = { timeline: null }
 
     get settings(): Settings {
         return resolvePrintHeroSettings(this.$store.state.gui.view.printHero)
@@ -306,7 +306,7 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     }
 
     get timeline(): PrintTimeline | null {
-        return this.recorded.timeline
+        return recordedPrintTimeline.timeline
     }
 
     get canCancel(): boolean {
@@ -368,10 +368,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 
     get buttons(): PrintHeroButton[] {
         return this.allButtons.filter((button) => button.visible)
-    }
-
-    created(): void {
-        this.recorded = recordPrintTimeline(this.$store)
     }
 
     shows(metric: PrintHeroMetric): boolean {
@@ -484,9 +480,11 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 
 .print-hero__thumbnail-glow {
     position: absolute;
-    inset: -40px;
-    background-position: center;
-    background-size: cover;
+    top: -40px;
+    left: -40px;
+    width: calc(100% + 80px);
+    height: calc(100% + 80px);
+    object-fit: cover;
     filter: blur(36px) saturate(1.4);
     opacity: 0.55;
 }

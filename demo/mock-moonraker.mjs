@@ -513,6 +513,8 @@ const controls = {
         database = emptyDatabase()
         if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
     },
+    // drops the websocket connections: Mainsail reconnects and loads the printer data again
+    reconnect: () => wss.clients.forEach((client) => client.close()),
     status: () => {},
 }
 

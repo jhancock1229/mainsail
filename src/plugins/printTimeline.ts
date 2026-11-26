@@ -29,6 +29,8 @@ export interface PrintTimelineSnapshot {
     progress: number
     currentLayer: number
     message: string
+    // the metadata of the printed file is loaded; before that, progress and layer are only rough fallbacks
+    metadataLoaded: boolean
     // epoch in milliseconds
     now: number
 }
@@ -105,15 +107,24 @@ const progressEvents = (previous: PrintTimeline, snapshot: PrintTimelineSnapshot
     const events: PrintTimelineEvent[] = []
     const has = (type: PrintTimelineEventType, percent?: number) =>
         previous.events.some((event) => event.type === type && event.percent === percent)
-    const observed = { elapsed: snapshot.totalDuration, approximate: false }
+    // The metadata arrives a moment after the print stats and corrects layer and progress. What shows up with
+    // it happened at some earlier time, not now (page opened in the middle of a print).
+    const revealed = !previous.last.metadataLoaded && snapshot.metadataLoaded
+    const moment = revealed
+        ? { elapsed: null, approximate: true }
+        : { elapsed: snapshot.totalDuration, approximate: false }
 
     if (snapshot.printDuration > 0 && !has('started')) {
         const elapsed = Math.max(0, snapshot.totalDuration - snapshot.printDuration)
         events.push({ type: 'started', elapsed, approximate: false })
     }
-    if (snapshot.currentLayer >= SECOND_LAYER && !has('first-layer')) events.push({ type: 'first-layer', ...observed })
+    if (snapshot.currentLayer >= SECOND_LAYER && !has('first-layer')) events.push({ type: 'first-layer', ...moment })
     MILESTONE_PERCENTS.filter((percent) => percentOf(snapshot) >= percent && !has('milestone', percent)).forEach(
-        (percent) => events.push({ type: 'milestone', ...observed, percent, layer: snapshot.currentLayer })
+        (percent) => {
+            const event: PrintTimelineEvent = { type: 'milestone', ...moment, percent }
+            if (!revealed) event.layer = snapshot.currentLayer
+            events.push(event)
+        }
     )
 
     return events
@@ -136,7 +147,10 @@ export const advancePrintTimeline = (
     previous: PrintTimeline | null,
     snapshot: PrintTimelineSnapshot
 ): PrintTimeline | null => {
-    if (snapshot.filename === '' || (!isActive(snapshot.state) && !isEnded(snapshot.state))) return null
+    // only cleared print stats end a timeline
+    if (snapshot.state === 'standby' && snapshot.filename === '') return null
+    // anything else that is not a print job tells nothing, e.g. a selected file or incomplete data
+    if (snapshot.filename === '' || (!isActive(snapshot.state) && !isEnded(snapshot.state))) return previous
     if (previous === null || isNewJob(previous, snapshot)) return createTimeline(snapshot)
 
     const changes = stateEvents(previous, snapshot)
@@ -195,44 +209,84 @@ export const formatPrintTimelineOffset = (elapsed: number): string => {
 // recording
 // ---------------------------------------------------------------------------------------------------------
 
-const recorded = Vue.observable<{ timeline: PrintTimeline | null }>({ timeline: null })
-let recordedStore: Store<RootState> | null = null
+interface PrintTimelineSnapshotInput {
+    // socket connected and Klipper ready
+    ready: boolean
+    printStats?: {
+        state?: string
+        filename?: string
+        total_duration?: number
+        print_duration?: number
+        message?: string
+    }
+    // filename of the loaded metadata (printer.current_file)
+    metadataFilename?: string
+    timelapsePause: boolean
+    progress: () => number
+    currentLayer: () => number
+    now: number
+}
 
-const createSnapshot = (store: Store<RootState>): PrintTimelineSnapshot | null => {
-    const state = store.state
-    const ready = state.socket?.isConnected && state.server?.klippy_connected && state.server?.klippy_state === 'ready'
+// null if the printer data tells nothing about a print job at the moment
+export const createPrintTimelineSnapshot = (input: PrintTimelineSnapshotInput): PrintTimelineSnapshot | null => {
     // print_stats can be stale while Klipper is not ready
-    if (!ready) return null
+    if (!input.ready) return null
+    // The printer data is emptied and loaded again when the websocket reconnects or Klipper reports ready.
+    // That gap must not end the timeline of a running print.
+    if (input.printStats === undefined) return null
 
-    const printStats = state.printer?.print_stats ?? {}
+    const printStats = input.printStats
+    const filename = printStats.filename ?? ''
     // a pause for a timelapse frame is not a pause of the print (see printer_state in the base mixin)
-    const timelapsePause = state.printer?.['gcode_macro TIMELAPSE_TAKE_FRAME']?.is_paused ?? false
+    const state = printStats.state === 'paused' && input.timelapsePause ? 'printing' : (printStats.state ?? '')
 
     return {
-        state: printStats.state === 'paused' && timelapsePause ? 'printing' : (printStats.state ?? ''),
-        filename: printStats.filename ?? '',
+        state,
+        filename,
         totalDuration: printStats.total_duration ?? 0,
         printDuration: printStats.print_duration ?? 0,
-        progress: store.getters['printer/getPrintPercent'] ?? 0,
-        currentLayer: store.getters['printer/getPrintCurrentLayer'] ?? 0,
+        progress: input.progress(),
+        currentLayer: input.currentLayer(),
         message: printStats.message ?? '',
-        now: Date.now(),
+        metadataLoaded: filename !== '' && input.metadataFilename === filename,
+        now: input.now,
     }
 }
 
-// Starts recording on first use and keeps recording for the lifetime of the store, so that no event is lost
-// while the dashboard is not shown. Returns a reactive object with the current timeline.
-export const recordPrintTimeline = (store: Store<RootState>): { timeline: PrintTimeline | null } => {
-    if (recordedStore === store) return recorded
+// reactive, for the print hero panel
+export const recordedPrintTimeline = Vue.observable<{ timeline: PrintTimeline | null }>({ timeline: null })
+let recordedStore: Store<RootState> | null = null
+
+const readSnapshot = (store: Store<RootState>): PrintTimelineSnapshot | null => {
+    const state = store.state
+
+    return createPrintTimelineSnapshot({
+        ready:
+            (state.socket?.isConnected ?? false) &&
+            (state.server?.klippy_connected ?? false) &&
+            state.server?.klippy_state === 'ready',
+        printStats: state.printer?.print_stats,
+        metadataFilename: state.printer?.current_file?.filename,
+        timelapsePause: state.printer?.['gcode_macro TIMELAPSE_TAKE_FRAME']?.is_paused ?? false,
+        progress: () => store.getters['printer/getPrintPercent'] ?? 0,
+        currentLayer: () => store.getters['printer/getPrintCurrentLayer'] ?? 0,
+        now: Date.now(),
+    })
+}
+
+// Called once when the app starts (src/main.ts) and records for the lifetime of the store, so that no event is
+// lost while the dashboard is not open or the print hero panel is hidden.
+export const startPrintTimelineRecording = (store: Store<RootState>): void => {
+    if (recordedStore === store) return
 
     recordedStore = store
     store.watch(
-        () => createSnapshot(store),
+        () => readSnapshot(store),
         (snapshot) => {
-            if (snapshot !== null) recorded.timeline = advancePrintTimeline(recorded.timeline, snapshot)
+            if (snapshot === null) return
+
+            recordedPrintTimeline.timeline = advancePrintTimeline(recordedPrintTimeline.timeline, snapshot)
         },
         { immediate: true }
     )
-
-    return recorded
 }

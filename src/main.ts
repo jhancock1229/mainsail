@@ -31,6 +31,7 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { DatasetComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 
 import { defaultMode } from './store/variables'
+import { startPrintTimelineRecording } from '@/plugins/printTimeline'
 
 Vue.config.productionTip = false
 
@@ -54,6 +55,9 @@ Vue.use(OverlayScrollbarsPlugin, {
 
 use([SVGRenderer, LineChart, BarChart, LegendComponent, PieChart, DatasetComponent, GridComponent, TooltipComponent])
 Vue.component('EChart', ECharts)
+
+// timeline of the print job for the print hero panel
+startPrintTimelineRecording(store)
 
 const initLoad = async () => {
     try {

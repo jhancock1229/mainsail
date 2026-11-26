@@ -78,13 +78,52 @@ describe('deriveStateLayout', () => {
 
         expect(result[0]).toEqual({ name: 'miniconsole', visible: true })
         expect(result.slice(1).map((panel) => panel.name)).toEqual([
+            'print-hero',
             'webcam',
             'toolhead-control',
             'extruder-control',
             'macros',
-            'print-hero',
             'temperature',
         ])
+    })
+
+    describe('when the print hero shows the webcam picture', () => {
+        const withWebcam = idle.map((panel) => (panel.name === 'webcam' ? { ...panel, visible: true } : panel))
+
+        it('does not show the webcam panel as well while printing, so the camera is not streamed twice', () => {
+            const result = deriveStateLayout('printing', withWebcam, { heroShowsWebcam: true })
+
+            expect(result.map((panel) => panel.name)).toEqual([
+                'print-hero',
+                'temperature',
+                'webcam',
+                'extruder-control',
+                'macros',
+                'miniconsole',
+                'toolhead-control',
+            ])
+            expect(result.find((panel) => panel.name === 'webcam')?.visible).toBe(false)
+        })
+
+        it('changes nothing else', () => {
+            const result = deriveStateLayout('printing', withWebcam, { heroShowsWebcam: true })
+            const others = (panels: GuiStateLayoutoption[]) => panels.filter((panel) => panel.name !== 'webcam')
+
+            expect(others(result)).toEqual(others(deriveStateLayout('printing', withWebcam)))
+        })
+
+        it('keeps the webcam panel when the hero does not show the webcam', () => {
+            const result = deriveStateLayout('printing', withWebcam, { heroShowsWebcam: false })
+
+            expect(result[1]).toEqual({ name: 'webcam', visible: true })
+            expect(result).toEqual(deriveStateLayout('printing', withWebcam))
+        })
+
+        it('keeps the webcam panel after a failed print, where the hero may be scrolled away', () => {
+            const result = deriveStateLayout('error', withWebcam, { heroShowsWebcam: true })
+
+            expect(result.find((panel) => panel.name === 'webcam')?.visible).toBe(true)
+        })
     })
 
     it('promotes the print hero without changing whether the user has hidden it', () => {

@@ -30,7 +30,11 @@
             :cam-settings="webcam"
             :printer-url="printerUrl"
             :page="page" />
-        <webrtc-go2rtc-async v-else-if="service === 'webrtc-go2rtc'" :cam-settings="webcam" :printer-url="printerUrl" />
+        <webrtc-go2rtc-async
+            v-else-if="service === 'webrtc-go2rtc'"
+            :cam-settings="webcam"
+            :printer-url="printerUrl"
+            :page="page" />
         <p v-else class="text-center py-3 font-italic">{{ $t('Panels.WebcamPanel.UnknownWebcamService') }}</p>
     </div>
 </template>

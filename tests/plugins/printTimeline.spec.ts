@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     advancePrintTimeline,
+    createPrintTimelineSnapshot,
     formatPrintTimelineOffset,
     getPrintTimelinePhases,
     type PrintTimeline,
@@ -17,6 +18,7 @@ const snapshot = (overrides: Partial<PrintTimelineSnapshot> = {}): PrintTimeline
     progress: 0,
     currentLayer: 0,
     message: '',
+    metadataLoaded: true,
     now: START,
     ...overrides,
 })
@@ -132,6 +134,17 @@ describe('advancePrintTimeline', () => {
         expect(advancePrintTimeline(timeline, snapshot({ state: 'standby', filename: '' }))).toBeNull()
     })
 
+    it('keeps the timeline when a status update tells nothing about the print', () => {
+        const timeline = run([{ totalDuration: 0 }, { totalDuration: 10, printDuration: 5, state: 'paused' }])
+
+        // print_stats is empty for a moment while the printer data is loaded again after a reconnect
+        expect(advancePrintTimeline(timeline, snapshot({ state: '', filename: '' }))).toBe(timeline)
+        expect(advancePrintTimeline(timeline, snapshot({ state: 'printing', filename: '' }))).toBe(timeline)
+        // a file that is selected but not started
+        expect(advancePrintTimeline(timeline, snapshot({ state: 'standby', filename: 'other.gcode' }))).toBe(timeline)
+        expect(advancePrintTimeline(null, snapshot({ state: 'standby', filename: 'other.gcode' }))).toBeNull()
+    })
+
     it('starts a new timeline for another file and for a reprint of the same file', () => {
         const finished = run([{ totalDuration: 0 }, { totalDuration: 90, printDuration: 80, state: 'complete' }])
 
@@ -178,6 +191,51 @@ describe('advancePrintTimeline', () => {
                 percent: 75,
                 layer: 91,
             })
+        })
+
+        // layer and progress are only right once the metadata of the file is loaded, which takes a moment
+        it('does not stamp what the metadata of the file reveals with the time the page was opened', () => {
+            const timeline = run([
+                { totalDuration: 300, printDuration: 260, currentLayer: 0, progress: 0.24, metadataLoaded: false },
+                { totalDuration: 300.5, printDuration: 260.5, currentLayer: 70, progress: 0.58 },
+            ])
+
+            expect(timeline?.events).toEqual([
+                { type: 'warmup', elapsed: 0, approximate: false },
+                { type: 'started', elapsed: 40, approximate: true },
+                { type: 'first-layer', elapsed: null, approximate: true },
+                { type: 'milestone', elapsed: null, approximate: true, percent: 25 },
+                { type: 'milestone', elapsed: null, approximate: true, percent: 50 },
+            ])
+        })
+
+        it('records exact events again after the metadata is loaded', () => {
+            const timeline = run([
+                { totalDuration: 300, printDuration: 260, currentLayer: 0, progress: 0.24, metadataLoaded: false },
+                { totalDuration: 300.5, printDuration: 260.5, currentLayer: 70, progress: 0.58 },
+                { totalDuration: 400, printDuration: 360, currentLayer: 91, progress: 0.76 },
+            ])
+
+            expect(timeline?.events.at(-1)).toEqual({
+                type: 'milestone',
+                elapsed: 400,
+                approximate: false,
+                percent: 75,
+                layer: 91,
+            })
+        })
+
+        it('still records the start of the print exactly when it comes with the metadata', () => {
+            const timeline = run([
+                { totalDuration: 0, metadataLoaded: false },
+                { totalDuration: 0.5, printDuration: 0.5, currentLayer: 2, progress: 0.01 },
+            ])
+
+            expect(timeline?.events).toEqual([
+                { type: 'warmup', elapsed: 0, approximate: false },
+                { type: 'started', elapsed: 0, approximate: false },
+                { type: 'first-layer', elapsed: null, approximate: true },
+            ])
         })
 
         it('knows that the print is paused, but not since when', () => {
@@ -252,5 +310,77 @@ describe('formatPrintTimelineOffset', () => {
         expect(formatPrintTimelineOffset(38.6)).toBe('0:38')
         expect(formatPrintTimelineOffset(605)).toBe('10:05')
         expect(formatPrintTimelineOffset(3725)).toBe('1:02:05')
+    })
+})
+
+describe('createPrintTimelineSnapshot', () => {
+    const input = (overrides: Partial<Parameters<typeof createPrintTimelineSnapshot>[0]> = {}) => ({
+        ready: true,
+        printStats: {
+            state: 'printing',
+            filename: 'demo.gcode',
+            total_duration: 120,
+            print_duration: 80,
+            message: '',
+        },
+        metadataFilename: 'demo.gcode',
+        timelapsePause: false,
+        progress: () => 0.4,
+        currentLayer: () => 12,
+        now: START,
+        ...overrides,
+    })
+
+    it('reads the print stats', () => {
+        expect(createPrintTimelineSnapshot(input())).toEqual({
+            state: 'printing',
+            filename: 'demo.gcode',
+            totalDuration: 120,
+            printDuration: 80,
+            progress: 0.4,
+            currentLayer: 12,
+            message: '',
+            metadataLoaded: true,
+            now: START,
+        })
+    })
+
+    it('tells nothing while Klipper is not ready, because the print stats can be stale', () => {
+        expect(createPrintTimelineSnapshot(input({ ready: false }))).toBeNull()
+    })
+
+    it('tells nothing while the print stats are missing, like after a reconnect of the websocket', () => {
+        expect(createPrintTimelineSnapshot(input({ printStats: undefined }))).toBeNull()
+    })
+
+    it('does not read progress and layer while there are no print stats', () => {
+        const progress = () => {
+            throw new Error('not available')
+        }
+
+        expect(createPrintTimelineSnapshot(input({ printStats: undefined, progress }))).toBeNull()
+    })
+
+    it('knows whether the metadata belongs to the file that is printed', () => {
+        expect(createPrintTimelineSnapshot(input({ metadataFilename: undefined }))?.metadataLoaded).toBe(false)
+        expect(createPrintTimelineSnapshot(input({ metadataFilename: 'last.gcode' }))?.metadataLoaded).toBe(false)
+    })
+
+    it('does not take the pause for a timelapse frame for a pause of the print', () => {
+        const printStats = { ...input().printStats, state: 'paused' }
+
+        expect(createPrintTimelineSnapshot(input({ printStats, timelapsePause: true }))?.state).toBe('printing')
+        expect(createPrintTimelineSnapshot(input({ printStats }))?.state).toBe('paused')
+    })
+
+    it('falls back to empty values for missing fields', () => {
+        expect(createPrintTimelineSnapshot(input({ printStats: {} }))).toMatchObject({
+            state: '',
+            filename: '',
+            totalDuration: 0,
+            printDuration: 0,
+            message: '',
+            metadataLoaded: false,
+        })
     })
 })
