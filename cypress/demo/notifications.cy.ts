@@ -13,8 +13,6 @@ interface StubbedWindow {
 
 type Permission = 'granted' | 'denied' | 'default'
 
-// Replaces the browser notifications and the audio output of the page, so the tests can see what was sent.
-// A permission request is answered with "granted", unless the permission is "denied" already.
 const stubBrowser = (win: Cypress.AUTWindow, permission: Permission) => {
     const stubbed = win as unknown as StubbedWindow
     stubbed.shownNotifications = []
@@ -63,11 +61,10 @@ const stubBrowser = (win: Cypress.AUTWindow, permission: Permission) => {
     Object.defineProperty(win, 'AudioContext', { value: FakeAudioContext, configurable: true, writable: true })
 }
 
-// checks what the page sent to the stubs (retried until it passes)
 const expectStubs = (check: (stubs: StubbedWindow) => void) =>
     cy.window().should((win) => check(win as unknown as StubbedWindow))
 
-// The service worker of Mainsail serves the page from its cache, past Cypress and so without the stubs.
+// the service worker serves the page from its cache, past Cypress and so without the stubs
 const withoutServiceWorker = (win: Cypress.AUTWindow) => {
     delete (Object.getPrototypeOf(win.navigator) as { serviceWorker?: unknown }).serviceWorker
 }
@@ -88,7 +85,6 @@ Cypress.on('window:before:load', (win) => {
 const visit = (permission: Permission = 'default') => {
     initialPermission = permission
     cy.visit('/')
-    // a page that was served by a service worker of an earlier test has no stubs: remove the worker and load again
     cy.window().then((win) => {
         if ('shownNotifications' in win) return
 
@@ -123,7 +119,6 @@ const closeSettings = () => {
 const channel = (event: string, name: string) => cy.get(`[data-event=${event}] [data-channel=${name}] input`)
 const toggleChannel = (event: string, name: string) => channel(event, name).click({ force: true })
 const toast = (text: string) => cy.contains('.v-toast__item', text, { timeout: 10000 })
-// gives a notification that should not come the time to show up
 const expectNoToast = (text: string) => {
     cy.wait(2500)
     cy.contains('.v-toast__item', text).should('not.exist')
@@ -175,7 +170,6 @@ describe('Error explainer', () => {
         cy.get('.error-explainer [data-action=klipperLog]')
             .should('have.attr', 'href')
             .and('match', /\/server\/files\/klippy\.log$/)
-        // the recovery buttons that are not part of the suggestion stay where they were
         cy.contains('.v-alert .v-btn', /^\s*Restart\s*$/)
         cy.contains('.v-alert a.v-btn', 'Moonraker Log')
         cy.get('.v-alert').find('.v-btn:contains("Firmware Restart")').should('have.length', 1)
@@ -205,7 +199,6 @@ describe('Error explainer', () => {
         cy.contains('.status-panel .error-explainer__title', 'The printer has to be homed first')
         cy.contains('.error-explainer__raw', 'Must home axis first').should('not.be.visible')
         cy.get('.status-panel').invoke('text').should('not.match', untranslated)
-        // the buttons of the status panel are still there: clear and reprint
         cy.get('.status-panel .panel-toolbar button').should('have.length.at.least', 3)
 
         cy.get('.error-explainer [data-action=home]').click()
@@ -219,7 +212,6 @@ describe('Error explainer', () => {
         cy.contains('.status-panel .error-explainer__title', 'A heater is not heating up as expected')
         cy.contains('.error-explainer [data-action=reheat]', /Heat extruder to 210\s*°C/).click()
         cy.contains('.consoleTable', 'SET_HEATER_TEMPERATURE HEATER=extruder TARGET=210')
-        // restarting Klipper is only suggested while Klipper has stopped
         cy.get('.error-explainer [data-action=firmwareRestart]').should('not.exist')
     })
 
@@ -270,7 +262,6 @@ describe('Printer event notifications', () => {
         toast('Print failed').should('contain', 'A heater is not heating up as expected')
 
         cy.get('.v-toast').invoke('text').should('not.match', untranslated)
-        // quiet defaults: no sound and no browser notification
         expectStubs((win) => {
             expect(win.playedTones).to.have.length(0)
             expect(win.shownNotifications).to.have.length(0)
@@ -297,7 +288,6 @@ describe('Printer event notifications', () => {
         cy.contains('.panel-toolbar', 'Paused')
         expectNoToast('Print paused')
 
-        // the paused print says what it is waiting for, until filament is loaded and the print resumed
         cy.contains('.status-panel .error-explainer__title', 'No filament at the sensor')
         cy.contains('.status-panel .error-explainer__cause', 'runout_sensor')
         cy.get('.status-panel').invoke('text').should('not.match', untranslated)
@@ -322,12 +312,10 @@ describe('Printer event notifications', () => {
         startPrint()
         demo('frame')
 
-        // the frame takes about two seconds, a pause is told after a delay of 1.5 seconds
         cy.wait(4500)
         cy.contains('.panel-toolbar', 'Printing')
         cy.contains('.v-toast__item', 'Print paused').should('not.exist')
 
-        // a pause that lasts is still told
         demo('pause')
         toast('Print paused')
     })
@@ -335,7 +323,6 @@ describe('Printer event notifications', () => {
     it('tells a pause once when the print pauses, resumes and pauses again right away', () => {
         open()
         startPrint()
-        // each state lasts longer than an update of the printer, and all three fit into the delay of a pause
         demo('pause')
         cy.wait(600)
         demo('resume')
@@ -390,7 +377,6 @@ describe('Printer event notifications', () => {
         channel('printFinished', 'sound').should('not.be.checked')
         channel('printFinished', 'browser').should('not.be.checked')
 
-        // the permission is requested when the option is enabled, not before
         expectStubs((win) => expect(win.permissionRequests).to.equal(0))
         toggleChannel('printFinished', 'browser')
         expectStubs((win) => expect(win.permissionRequests).to.equal(1))
@@ -421,7 +407,6 @@ describe('Printer event notifications', () => {
         startPrint()
         expectNoToast('Print started')
 
-        // the other events still come
         demo('pause')
         toast('Print paused')
     })

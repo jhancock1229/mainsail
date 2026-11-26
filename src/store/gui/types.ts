@@ -11,7 +11,6 @@ import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
 
 export interface GuiState {
-    // error explainer and printer event notifications
     alerts: AlertSettings
     general: {
         printername: string
@@ -253,7 +252,6 @@ export interface GuiStateDashboard {
 
 export type GuiStateDashboardLayoutKey = Exclude<keyof GuiStateDashboard, 'nonExpandPanels' | 'stateLayouts'>
 
-// a missing key means not customized: the layout is derived from the idle layout
 export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[]>>
 
 export interface GuiStateLayoutoption {

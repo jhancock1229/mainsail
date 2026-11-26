@@ -11,7 +11,6 @@
                 {{ $t('Panels.TemperaturePanel.Cards.AllHidden') }}
             </div>
         </div>
-        <!-- these objects have several readings and no history, so they keep their table rows -->
         <v-simple-table v-if="nevermoreObjects.length" class="temperature-cards__table">
             <tbody>
                 <temperature-panel-list-item-nevermore
@@ -33,7 +32,6 @@ import { areAllTemperatureCardsHidden } from '@/plugins/temperatureCards'
 
 @Component
 export default class TemperaturePanelCards extends Mixins(BaseMixin, TemperatureCardsMixin) {
-    // not the same as "no cards": a printer without sensors or with all of them filtered out has nothing to unhide
     get allCardsHidden(): boolean {
         return areAllTemperatureCardsHidden(this.temperatureCardObjects, this.temperatureCardSettings.hidden)
     }

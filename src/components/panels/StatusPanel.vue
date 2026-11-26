@@ -358,14 +358,12 @@ export default class StatusPanel extends Mixins(BaseMixin, PrintHeroStatusMixin)
         return this.$store.state.printer.print_stats?.message ?? null
     }
 
-    // plain-language explanation of the message of a failed print
     get printErrorExplanation(): ErrorExplanation | null {
         if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
 
         return explainError(this.print_stats_message, { klipperState: this.klipperState })
     }
 
-    // tells why a paused print waits, when a filament sensor is empty (a runout or a filament change)
     get missingFilamentExplanation(): ErrorExplanation | null {
         if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
 
@@ -435,12 +433,10 @@ export default class StatusPanel extends Mixins(BaseMixin, PrintHeroStatusMixin)
         return count > 0
     }
 
-    // the print hero panel shows the numbers of the print already
     get showStatusTab(): boolean {
         return this.current_filename !== '' && !this.simplifiedByPrintHero
     }
 
-    // activeTab stays "status" while that tab is hidden, so it is back as soon as the tab is shown again
     get visibleTab(): string {
         if (this.activeTab !== 'status' || this.showStatusTab) return this.activeTab
         if (this.displayFilesTab) return 'files'

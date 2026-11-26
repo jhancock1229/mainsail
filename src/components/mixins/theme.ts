@@ -20,7 +20,6 @@ export default class ThemeMixin extends Vue {
         return this.$store.getters['gui/getTheme']
     }
 
-    // the mode that is shown (the stored mode can also be auto)
     get themeMode(): 'dark' | 'light' {
         return this.$vuetify.theme.dark ? 'dark' : 'light'
     }

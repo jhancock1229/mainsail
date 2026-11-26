@@ -75,7 +75,6 @@ interface ErrorExplainerAction {
     click: () => void
 }
 
-// Shows an error of Klipper or of a print in plain language, with the suggested actions as buttons.
 @Component
 export default class ErrorExplainer extends Mixins(BaseMixin) {
     @Prop({ type: Object, required: true }) declare readonly explanation: ErrorExplanation

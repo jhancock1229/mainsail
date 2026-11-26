@@ -37,12 +37,10 @@ case "${1:-}" in
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
-        # separate ports and in-memory settings, so a running demo is not disturbed
         export DEMO_PORT=${DEMO_PORT:-7135}
         export DEMO_UI_PORT=${DEMO_UI_PORT:-4183}
         export DEMO_DB_FILE=none
-        # built into its own directory, so a production build in dist/ is left alone
-        # (the build still writes its version file to dist/, which must exist)
+        # the build writes its version file to dist/ even with another outDir
         mkdir -p dist
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite build --outDir dist-demo
         npx start-server-and-test \

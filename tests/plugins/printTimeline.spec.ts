@@ -23,7 +23,6 @@ const snapshot = (overrides: Partial<PrintTimelineSnapshot> = {}): PrintTimeline
     ...overrides,
 })
 
-// feeds the snapshots one after another, like the status updates of a running print
 const run = (snapshots: Partial<PrintTimelineSnapshot>[], initial: PrintTimeline | null = null) =>
     snapshots.reduce<PrintTimeline | null>(
         (timeline, entry) =>
@@ -137,10 +136,8 @@ describe('advancePrintTimeline', () => {
     it('keeps the timeline when a status update tells nothing about the print', () => {
         const timeline = run([{ totalDuration: 0 }, { totalDuration: 10, printDuration: 5, state: 'paused' }])
 
-        // print_stats is empty for a moment while the printer data is loaded again after a reconnect
         expect(advancePrintTimeline(timeline, snapshot({ state: '', filename: '' }))).toBe(timeline)
         expect(advancePrintTimeline(timeline, snapshot({ state: 'printing', filename: '' }))).toBe(timeline)
-        // a file that is selected but not started
         expect(advancePrintTimeline(timeline, snapshot({ state: 'standby', filename: 'other.gcode' }))).toBe(timeline)
         expect(advancePrintTimeline(null, snapshot({ state: 'standby', filename: 'other.gcode' }))).toBeNull()
     })
@@ -193,7 +190,6 @@ describe('advancePrintTimeline', () => {
             })
         })
 
-        // layer and progress are only right once the metadata of the file is loaded, which takes a moment
         it('does not stamp what the metadata of the file reveals with the time the page was opened', () => {
             const timeline = run([
                 { totalDuration: 300, printDuration: 260, currentLayer: 0, progress: 0.24, metadataLoaded: false },

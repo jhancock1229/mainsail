@@ -41,7 +41,6 @@ describe('Light and dark mode toggle', () => {
         cy.contains('.v-dialog--active .v-input', 'Dark').click()
         cy.contains('.v-menu__content .v-list-item', 'Auto (follow system)').click()
 
-        // the test browser reports its own preference; the app has to match it
         cy.window().then((win) => {
             const systemDark = win.matchMedia('(prefers-color-scheme: dark)').matches
             cy.get('.v-application').should('have.class', systemDark ? 'theme--dark' : 'theme--light')
