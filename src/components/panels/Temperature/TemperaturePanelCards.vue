@@ -1,13 +1,13 @@
 <template>
     <div>
-        <div class="temperature-cards">
+        <div v-if="visibleTemperatureCardObjects.length || allCardsHidden" class="temperature-cards">
             <temperature-panel-card
                 v-for="objectName in visibleTemperatureCardObjects"
                 :key="objectName"
                 :object-name="objectName"
                 :is-responsive-mobile="false"
                 :window-seconds="sparklineWindow" />
-            <div v-if="visibleTemperatureCardObjects.length === 0" class="temperature-cards__empty text--secondary">
+            <div v-if="allCardsHidden" class="temperature-cards__empty text--secondary">
                 {{ $t('Panels.TemperaturePanel.Cards.AllHidden') }}
             </div>
         </div>
@@ -29,9 +29,15 @@ import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import TemperatureCardsMixin from '@/components/mixins/temperatureCards'
+import { areAllTemperatureCardsHidden } from '@/plugins/temperatureCards'
 
 @Component
 export default class TemperaturePanelCards extends Mixins(BaseMixin, TemperatureCardsMixin) {
+    // not the same as "no cards": a printer without sensors or with all of them filtered out has nothing to unhide
+    get allCardsHidden(): boolean {
+        return areAllTemperatureCardsHidden(this.temperatureCardObjects, this.temperatureCardSettings.hidden)
+    }
+
     get nevermoreObjects(): string[] {
         return Object.keys(this.$store.state.printer ?? {})
             .filter((name) => name.startsWith('nevermore') && !name.split(' ').pop()?.startsWith('_'))

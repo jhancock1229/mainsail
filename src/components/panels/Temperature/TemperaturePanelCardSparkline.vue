@@ -40,6 +40,8 @@ import {
 import { PrinterTempHistoryStateSourceEntry } from '@/store/printer/tempHistory/types'
 
 const MILLISECONDS = 1000
+// ids are global in the document and object names cannot be turned into unique ids (top_cover, top-cover)
+let sparklineCount = 0
 
 @Component
 export default class TemperaturePanelCardSparkline extends Mixins(BaseMixin) {
@@ -52,10 +54,7 @@ export default class TemperaturePanelCardSparkline extends Mixins(BaseMixin) {
     // the svg is stretched to the card, only the proportions of these matter
     width = 200
     height = 40
-
-    get gradientId(): string {
-        return `temperature-sparkline-${this.objectName.replace(/[^a-zA-Z0-9]/g, '-')}`
-    }
+    gradientId = `temperature-sparkline-${++sparklineCount}`
 
     get source(): PrinterTempHistoryStateSourceEntry[] {
         return this.$store.state.printer.tempHistory?.source ?? []

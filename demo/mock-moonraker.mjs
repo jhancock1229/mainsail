@@ -32,7 +32,7 @@ const MCU = 'temperature_sensor mcu_temp'
 const ELECTRONICS_FAN = 'temperature_fan electronics'
 const HISTORY_SIZE = 1200
 const HISTORY_FIELDS = { temperature: 'temperatures', target: 'targets', power: 'powers', speed: 'speeds' }
-let temperatureHistory = null
+let temperatureHistory = {}
 let sinceLastRecord = 0
 
 const demoPreset = (name, extruder, bed) => ({
@@ -67,11 +67,11 @@ const addThermalObjects = () => {
         [MCU]: { sensor_type: 'temperature_mcu', min_temp: 0, max_temp: 100 },
         [ELECTRONICS_FAN]: { sensor_type: 'Generic 3950', min_temp: 0, max_temp: 80, target_temp: 45 },
     })
-    temperatureHistory = null
+    fillTemperatureHistory()
 }
 
-const drift = (object, goal, rate, seconds) => {
-    object.temperature += (goal - object.temperature) * (1 - Math.exp(-rate * seconds)) + (Math.random() - 0.5) * 0.06
+const drift = (object, goal, rate, seconds, noise = 0.06) => {
+    object.temperature += (goal - object.temperature) * (1 - Math.exp(-rate * seconds)) + (Math.random() - 0.5) * noise
     object.temperature = Math.round(object.temperature * 100) / 100
     if (!('measured_min_temp' in object)) return
 
@@ -80,54 +80,55 @@ const drift = (object, goal, rate, seconds) => {
 }
 
 // the chamber follows the bed, the electronics warm up with the heater power and are cooled by their fan
-const simulateThermals = (seconds) => {
-    const fan = status[ELECTRONICS_FAN]
-    const printing = status.print_stats.state === 'printing' ? 0.3 : 0
-    const load = (status.extruder.power + status.heater_bed.power) / 2 + printing
+const simulateThermals = (printer, seconds) => {
+    const fan = printer[ELECTRONICS_FAN]
+    const printing = printer.print_stats.state === 'printing' ? 0.3 : 0
+    const load = (printer.extruder.power + printer.heater_bed.power) / 2 + printing
 
-    drift(status[CHAMBER], AMBIENT + 1 + (status.heater_bed.temperature - AMBIENT) * 0.35, 0.02, seconds)
-    drift(status[MCU], 38 + load * 14, 0.05, seconds)
+    drift(printer[CHAMBER], AMBIENT + 1 + (printer.heater_bed.temperature - AMBIENT) * 0.35, 0.02, seconds)
+    drift(printer[MCU], 38 + load * 14, 0.05, seconds)
     drift(fan, 32 + load * 30 - fan.speed * 15, 0.05, seconds)
     const speed = fan.target > 0 ? (fan.temperature - fan.target + 2) / 6 : 0
     fan.speed = Math.round(Math.min(1, Math.max(0, speed)) * 100) / 100
 }
 
-const recordTemperatures = () => {
-    for (const name of status.heaters.available_sensors) {
+// like Moonraker, one entry per second
+const recordTemperatures = (printer) => {
+    for (const name of printer.heaters.available_sensors) {
         const entry = (temperatureHistory[name] ??= {})
         for (const [field, list] of Object.entries(HISTORY_FIELDS)) {
-            if (!(field in status[name])) continue
+            if (!(field in printer[name])) continue
 
             entry[list] ??= []
-            entry[list].push(status[name][field])
+            entry[list].push(printer[name][field])
             if (entry[list].length > HISTORY_SIZE) entry[list].shift()
         }
     }
 }
 
-// like Moonraker, one entry per second; it starts with an idle printer for the length of the store
-const temperatureStore = () => {
-    if (temperatureHistory !== null) return temperatureHistory
+// The history starts with an idle printer for the length of the store. That past is simulated on a copy, so the
+// printer itself starts at its initial temperatures whatever happens to it next.
+const fillTemperatureHistory = () => {
+    const idle = clone(status)
+    const settle = (heater) => drift(heater, AMBIENT, 0.03, 1, 0.2)
 
     temperatureHistory = {}
+    sinceLastRecord = 0
     for (let second = 0; second < HISTORY_SIZE; second++) {
-        approach(status.extruder, 1)
-        approach(status.heater_bed, 1)
-        simulateThermals(1)
-        recordTemperatures()
+        settle(idle.extruder)
+        settle(idle.heater_bed)
+        simulateThermals(idle, 1)
+        recordTemperatures(idle)
     }
-
-    return temperatureHistory
 }
 
 const tickThermals = (seconds) => {
-    simulateThermals(seconds)
+    simulateThermals(status, seconds)
     sinceLastRecord += seconds
     if (sinceLastRecord < 1) return
 
     sinceLastRecord = 0
-    temperatureStore()
-    recordTemperatures()
+    recordTemperatures(status)
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -466,7 +467,7 @@ const handlers = {
     }),
     'server.gcode_store': () => ({ gcode_store: gcodeStore.slice(-100) }),
     'printer.objects.list': () => ({ objects: Object.keys(status) }),
-    'server.temperature_store': () => clone(temperatureStore()),
+    'server.temperature_store': () => clone(temperatureHistory),
     'printer.objects.query': (params) => queryObjects(params.objects),
     'printer.objects.subscribe': (params) => queryObjects(params.objects),
     'printer.gcode.script': (params) => {

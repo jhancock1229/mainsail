@@ -4,11 +4,14 @@ import {
     COOLING_MIN_TEMPERATURE,
     DEFAULT_SPARKLINE_WINDOW,
     SPARKLINE_MIN_SPAN,
+    areAllTemperatureCardsHidden,
     buildSparkline,
+    getDefaultTemperatureCardSettings,
     getSparklineRange,
     getSparklineWindowOptions,
     getSparklineY,
     getTemperatureCardKind,
+    getTemperatureCardLabels,
     getTemperatureCardObjects,
     getTemperatureCardState,
     getTemperatureDelta,
@@ -342,14 +345,79 @@ describe('moveTemperatureCard', () => {
         expect(moveTemperatureCard(names, [], 'unknown', 1)).toEqual(names)
     })
 
-    it('keeps stored sensors that are currently filtered out', () => {
-        const order = ['temperature_sensor mcu', 'extruder', 'heater_bed', 'temperature_sensor chamber']
+    it('keeps the stored place of sensors that are currently filtered out', () => {
+        const mcu = 'temperature_sensor mcu'
 
-        expect(moveTemperatureCard(names, order, 'heater_bed', -1)).toEqual([
+        expect(moveTemperatureCard(names, [mcu, 'extruder', 'heater_bed', names[2]], 'heater_bed', -1)).toEqual([
+            mcu,
             'heater_bed',
             'extruder',
+            names[2],
+        ])
+        // the neighbour is the next card that is shown, the filtered one in between stays where it is
+        expect(moveTemperatureCard(names, ['extruder', mcu, 'heater_bed', names[2]], 'heater_bed', -1)).toEqual([
+            'heater_bed',
+            mcu,
+            'extruder',
+            names[2],
+        ])
+        expect(moveTemperatureCard(names, ['extruder', mcu, 'heater_bed', names[2]], 'extruder', 1)).toEqual([
+            'heater_bed',
+            mcu,
+            'extruder',
+            names[2],
+        ])
+    })
+
+    it('adds cards the stored order does not know yet behind it', () => {
+        expect(moveTemperatureCard(names, ['heater_bed'], 'temperature_sensor chamber', -1)).toEqual([
+            'heater_bed',
             'temperature_sensor chamber',
-            'temperature_sensor mcu',
+            'extruder',
+        ])
+    })
+
+    it('does not change a stored order at its ends', () => {
+        const order = ['temperature_sensor mcu', 'extruder', 'heater_bed', 'temperature_sensor chamber']
+
+        expect(moveTemperatureCard(names, order, 'extruder', -1)).toEqual(order)
+        expect(moveTemperatureCard(names, order, 'temperature_sensor chamber', 1)).toEqual(order)
+    })
+})
+
+describe('areAllTemperatureCardsHidden', () => {
+    const names = ['extruder', 'heater_bed']
+
+    it('is true when the user has hidden every card', () => {
+        expect(areAllTemperatureCardsHidden(names, ['heater_bed', 'extruder'])).toBe(true)
+        expect(areAllTemperatureCardsHidden(names, ['heater_bed', 'extruder', 'temperature_sensor gone'])).toBe(true)
+    })
+
+    it('is false while a card is shown', () => {
+        expect(areAllTemperatureCardsHidden(names, [])).toBe(false)
+        expect(areAllTemperatureCardsHidden(names, ['extruder'])).toBe(false)
+    })
+
+    it('is false when there is nothing the user could have hidden', () => {
+        expect(areAllTemperatureCardsHidden([], [])).toBe(false)
+        expect(areAllTemperatureCardsHidden([], ['extruder'])).toBe(false)
+    })
+})
+
+describe('getTemperatureCardLabels', () => {
+    it('names a card like the table does', () => {
+        expect(getTemperatureCardLabels(['extruder', 'heater_bed', 'temperature_sensor mcu_temp'])).toEqual([
+            { objectName: 'extruder', name: 'extruder', type: null },
+            { objectName: 'heater_bed', name: 'heater_bed', type: null },
+            { objectName: 'temperature_sensor mcu_temp', name: 'mcu_temp', type: null },
+        ])
+    })
+
+    it('adds the type to cards that would otherwise have the same name', () => {
+        expect(getTemperatureCardLabels(['heater_generic chamber', 'temperature_sensor Chamber', 'extruder'])).toEqual([
+            { objectName: 'heater_generic chamber', name: 'chamber', type: 'heater_generic' },
+            { objectName: 'temperature_sensor Chamber', name: 'Chamber', type: 'temperature_sensor' },
+            { objectName: 'extruder', name: 'extruder', type: null },
         ])
     })
 })
@@ -374,8 +442,14 @@ describe('normalizeTemperatureCardSettings', () => {
         order: [],
         hidden: [],
         sparklineWindow: DEFAULT_SPARKLINE_WINDOW,
-        chartExpanded: false,
+        // users who had the chart enabled before the cards existed keep seeing it
+        chartExpanded: true,
     }
+
+    it('provides the defaults', () => {
+        expect(getDefaultTemperatureCardSettings()).toEqual(defaults)
+        expect(getDefaultTemperatureCardSettings()).not.toBe(getDefaultTemperatureCardSettings())
+    })
 
     it('returns the defaults for settings stored before the cards existed', () => {
         expect(normalizeTemperatureCardSettings(undefined)).toEqual(defaults)
@@ -389,7 +463,7 @@ describe('normalizeTemperatureCardSettings', () => {
             order: ['heater_bed', 'extruder'],
             hidden: ['temperature_sensor mcu'],
             sparklineWindow: 600,
-            chartExpanded: true,
+            chartExpanded: false,
         }
 
         expect(normalizeTemperatureCardSettings(stored)).toEqual(stored)
@@ -407,7 +481,7 @@ describe('normalizeTemperatureCardSettings', () => {
         ).toEqual({ ...defaults, hidden: ['heater_bed'] })
     })
 
-    it('matches the default state of the gui store', () => {
-        expect(normalizeTemperatureCardSettings(getDefaultState().view.temperatureCards)).toEqual(defaults)
+    it('is the default state of the gui store', () => {
+        expect(getDefaultState().view.temperatureCards).toEqual(defaults)
     })
 })

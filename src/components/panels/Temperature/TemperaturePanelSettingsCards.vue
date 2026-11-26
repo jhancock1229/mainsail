@@ -19,8 +19,14 @@
                 :input-value="card.visible"
                 class="mt-0 temperature-settings-cards__checkbox"
                 hide-details
-                :label="card.label"
-                @change="setVisible(card.objectName, $event)" />
+                @change="setVisible(card.objectName, $event)">
+                <template #label>
+                    <span>{{ card.label }}</span>
+                    <span v-if="card.type" class="temperature-settings-cards__type text-caption text--secondary">
+                        {{ card.type }}
+                    </span>
+                </template>
+            </v-checkbox>
             <v-spacer />
             <v-btn
                 icon
@@ -56,13 +62,15 @@ import { mdiArrowDown, mdiArrowUp, mdiRestore } from '@mdi/js'
 import BaseMixin from '@/components/mixins/base'
 import TemperatureCardsMixin from '@/components/mixins/temperatureCards'
 import { convertName } from '@/plugins/helpers'
-import { getSparklineWindowOptions, moveTemperatureCard } from '@/plugins/temperatureCards'
+import { getSparklineWindowOptions, getTemperatureCardLabels, moveTemperatureCard } from '@/plugins/temperatureCards'
 
 const SECONDS_PER_MINUTE = 60
 
 interface CardOption {
     objectName: string
     label: string
+    // only set for cards that share their name with another card (heater_generic chamber, temperature_sensor chamber)
+    type: string | null
     visible: boolean
 }
 
@@ -92,10 +100,11 @@ export default class TemperaturePanelSettingsCards extends Mixins(BaseMixin, Tem
     get cards(): CardOption[] {
         const hidden = this.temperatureCardSettings.hidden
 
-        return this.temperatureCardObjects.map((objectName) => ({
-            objectName,
-            label: convertName(objectName.split(' ').pop() ?? objectName),
-            visible: !hidden.includes(objectName),
+        return getTemperatureCardLabels(this.temperatureCardObjects).map((card) => ({
+            objectName: card.objectName,
+            label: convertName(card.name),
+            type: card.type === null ? null : convertName(card.type),
+            visible: !hidden.includes(card.objectName),
         }))
     }
 
@@ -139,6 +148,11 @@ export default class TemperaturePanelSettingsCards extends Mixins(BaseMixin, Tem
 
 .temperature-settings-cards__checkbox {
     min-width: 0;
+}
+
+.temperature-settings-cards__type {
+    margin-left: 8px;
+    white-space: nowrap;
 }
 
 .temperature-settings-cards__window .v-btn {

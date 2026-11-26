@@ -94,7 +94,6 @@ import {
     mdiFan,
     mdiFlash,
     mdiPower,
-    mdiSnowflake,
     mdiTrendingDown,
     mdiTrendingNeutral,
     mdiTrendingUp,
@@ -120,8 +119,6 @@ const MIN_TARGET_DIGITS = 3
 // limits, presets, command, edit dialog) instead of repeating them. Only the template and the card state differ.
 @Component
 export default class TemperaturePanelCard extends Mixins(TemperaturePanelListItem) {
-    mdiSnowflake = mdiSnowflake
-
     @Prop({ type: Number, required: true }) readonly windowSeconds!: number
 
     get kind(): TemperatureCardKind {
@@ -415,15 +412,23 @@ export default class TemperaturePanelCard extends Mixins(TemperaturePanelListIte
     margin-top: 6px;
 }
 
-/* sits at the old end of the time axis: the line starts this long ago */
+/* sits at the old end of the time axis: the line starts this long ago; the backdrop keeps it readable on the line */
 .temperature-card__window {
     position: absolute;
-    bottom: 4px;
-    left: 8px;
+    bottom: 3px;
+    left: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: rgba(30, 30, 30, 0.8);
     font-size: 0.625rem;
     line-height: 1;
-    opacity: 0.55;
+    color: rgba(255, 255, 255, 0.6);
     pointer-events: none;
+}
+
+.theme--light .temperature-card__window {
+    background: rgba(255, 255, 255, 0.85);
+    color: rgba(0, 0, 0, 0.6);
 }
 
 .temperature-card__power {

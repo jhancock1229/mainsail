@@ -13,6 +13,13 @@ export interface TemperatureCardSettings {
     chartExpanded: boolean
 }
 
+export interface TemperatureCardLabel {
+    objectName: string
+    name: string
+    // the Klipper object type, only set when another card has the same name
+    type: string | null
+}
+
 export interface TemperatureSample {
     time: number
     value: number
@@ -43,8 +50,18 @@ export const SPARKLINE_MAX_POINTS = 60
 export const DEFAULT_SPARKLINE_WINDOW = 300
 export const sparklineWindows = [60, 300, 600, 1200]
 
+// the chart is open by default: users who had it enabled before the cards existed keep seeing it
+export const getDefaultTemperatureCardSettings = (): TemperatureCardSettings => ({
+    viewMode: 'cards',
+    order: [],
+    hidden: [],
+    sparklineWindow: DEFAULT_SPARKLINE_WINDOW,
+    chartExpanded: true,
+})
+
 const round = (value: number): number => Math.round(value * 10) / 10
 
+// the same split as the name of a row in the table (TemperaturePanelListItem)
 const shortName = (fullName: string): string => {
     const splits = fullName.split(' ')
 
@@ -250,18 +267,37 @@ export const sortTemperatureCards = (names: string[], order: string[]): string[]
     return [...known, ...names.filter((name) => !known.includes(name))]
 }
 
-// new stored order after moving a card one place up (-1) or down (1)
+// New stored order after moving a card one place up (-1) or down (1). The card swaps places with the next card
+// that is listed, so cards that are filtered out at the moment (e.g. hidden MCU sensors) keep their stored place.
 export const moveTemperatureCard = (names: string[], order: string[], name: string, offset: -1 | 1): string[] => {
-    const sorted = sortTemperatureCards(names, order)
-    const from = sorted.indexOf(name)
-    const to = from + offset
-    if (from !== -1 && to >= 0 && to < sorted.length) {
-        sorted.splice(from, 1)
-        sorted.splice(to, 0, name)
+    const stored = [...order, ...names.filter((entry) => !order.includes(entry))]
+    const listed = stored.filter((entry) => names.includes(entry))
+    const neighbour = listed[listed.indexOf(name) + offset]
+    if (!listed.includes(name) || neighbour === undefined) return stored
+
+    const from = stored.indexOf(name)
+    const to = stored.indexOf(neighbour)
+    stored[from] = neighbour
+    stored[to] = name
+
+    return stored
+}
+
+// true when there are cards and the user has hidden every one of them
+export const areAllTemperatureCardsHidden = (names: string[], hidden: string[]): boolean => {
+    return names.length > 0 && names.every((name) => hidden.includes(name))
+}
+
+export const getTemperatureCardLabels = (names: string[]): TemperatureCardLabel[] => {
+    const isAmbiguous = (name: string): boolean => {
+        return names.filter((other) => shortName(other).toLowerCase() === name.toLowerCase()).length > 1
     }
 
-    // cards that are filtered out at the moment (e.g. hidden MCU sensors) stay in the stored order
-    return [...sorted, ...order.filter((entry) => !sorted.includes(entry))]
+    return names.map((objectName) => {
+        const name = shortName(objectName)
+
+        return { objectName, name, type: isAmbiguous(name) ? objectName.split(' ')[0] : null }
+    })
 }
 
 export const getSparklineWindowOptions = (storeSize: number): number[] => {
@@ -285,16 +321,17 @@ const toNameList = (value: unknown): string[] => {
 // settings loaded from the database may lack keys or hold values of an older version
 export const normalizeTemperatureCardSettings = (raw: unknown): TemperatureCardSettings => {
     const stored = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-    const sparklineWindow = stored.sparklineWindow
+    const defaults = getDefaultTemperatureCardSettings()
+    const { viewMode, sparklineWindow, chartExpanded } = stored
 
     return {
-        viewMode: stored.viewMode === 'table' ? 'table' : 'cards',
+        viewMode: viewMode === 'cards' || viewMode === 'table' ? viewMode : defaults.viewMode,
         order: toNameList(stored.order),
         hidden: toNameList(stored.hidden),
         sparklineWindow:
             typeof sparklineWindow === 'number' && sparklineWindows.includes(sparklineWindow)
                 ? sparklineWindow
-                : DEFAULT_SPARKLINE_WINDOW,
-        chartExpanded: stored.chartExpanded === true,
+                : defaults.sparklineWindow,
+        chartExpanded: typeof chartExpanded === 'boolean' ? chartExpanded : defaults.chartExpanded,
     }
 }

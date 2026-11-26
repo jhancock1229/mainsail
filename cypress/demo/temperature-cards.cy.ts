@@ -92,6 +92,17 @@ describe('Temperature cards', () => {
         card(EXTRUDER).find('.temperature-card__target input').should('have.value', '0')
     })
 
+    it('starts heating from room temperature when a print starts right after a reset', () => {
+        // the idle past in the temperature history must not be simulated on the printer that just got a target
+        demo('reset')
+        demo('print')
+        cy.visit('/')
+        cy.contains('.panel-toolbar', 'Printing', { timeout: 15000 })
+
+        cardState(EXTRUDER).should('have.attr', 'data-state', 'heating')
+        card(EXTRUDER).should('contain', 'below target')
+    })
+
     it('keeps the target editable', () => {
         card(BED).find('.temperature-card__target input').clear()
         card(BED).find('.temperature-card__target input').type('60{enter}')
@@ -104,6 +115,23 @@ describe('Temperature cards', () => {
         card(FAN).should('contain', 'above target')
     })
 
+    it('shows the average fan speed of a temperature fan in both views', () => {
+        card(FAN).find('.temperature-card__target input').clear()
+        card(FAN).find('.temperature-card__target input').type('25{enter}')
+        card(FAN)
+            .find('.temperature-card__power-label')
+            .should('have.attr', 'title')
+            .and('match', /^Avg: [1-9]\d* %$/)
+
+        openSettings()
+        menu().contains('button', 'Table').click()
+        closeSettings()
+        cy.contains('.temperature-panel-table tr', 'Electronics').find('.state div').trigger('mouseenter')
+        cy.get('.v-tooltip__content.menuable__content__active')
+            .invoke('text')
+            .should('match', /Avg: [1-9]\d* %/)
+    })
+
     it('locks the presets while printing, like the table does', () => {
         demo('print')
         cy.contains('.panel-toolbar', 'Printing')
@@ -113,15 +141,18 @@ describe('Temperature cards', () => {
         cardState(EXTRUDER).should('have.attr', 'data-state', 'heating')
     })
 
-    it('opens the full chart on demand and remembers it', () => {
-        cy.get('.temperature-panel .echarts').should('not.exist')
-        cy.get('.temperature-panel__chart-toggle').should('have.attr', 'aria-expanded', 'false').click()
+    it('keeps the full chart below the cards, lets it be collapsed and remembers that', () => {
+        // open by default, so a chart that was enabled before the cards existed does not disappear
         cy.get('.temperature-panel .echarts').should('be.visible')
-
-        cy.reload()
-        cy.get('.temperature-panel .echarts', { timeout: 15000 }).should('be.visible')
         cy.get('.temperature-panel__chart-toggle').should('have.attr', 'aria-expanded', 'true').click()
         cy.get('.temperature-panel .echarts').should('not.exist')
+
+        cy.reload()
+        cy.get('.temperature-card', { timeout: 15000 })
+        cy.get('.temperature-panel__chart-toggle').should('have.attr', 'aria-expanded', 'false')
+        cy.get('.temperature-panel .echarts').should('not.exist')
+        cy.get('.temperature-panel__chart-toggle').click()
+        cy.get('.temperature-panel .echarts').should('be.visible')
 
         // the existing option still removes the chart completely
         openSettings()
@@ -170,12 +201,40 @@ describe('Temperature cards', () => {
         menu().contains('button', 'Reset cards').should('not.exist')
     })
 
+    it('says so when every card is hidden', () => {
+        cy.get('.temperature-panel').should('not.contain', 'All cards are hidden')
+
+        openSettings()
+        ;['Extruder', 'Heater Bed', 'Electronics', 'Chamber', 'Mcu Temp'].forEach((name) => {
+            cardOption(name).find('.v-input--selection-controls__ripple').click()
+        })
+        cy.get('.temperature-card').should('not.exist')
+        cy.get('.temperature-panel').should('contain', 'All cards are hidden')
+
+        cardOption('Chamber').find('.v-input--selection-controls__ripple').click()
+        cardOrder((objectNames) => expect(objectNames).to.deep.equal([CHAMBER]))
+        cy.get('.temperature-panel').should('not.contain', 'All cards are hidden')
+    })
+
     it('reuses the existing option to hide the MCU sensor', () => {
         openSettings()
         toggleCheckbox('Hide Host/MCU Sensors')
         cardOrder((objectNames) => expect(objectNames).to.deep.equal([EXTRUDER, BED, FAN, CHAMBER]))
         cardOption('Chamber').should('exist')
         menu().find('.temperature-settings-cards__card').should('have.length', 4)
+    })
+
+    it('keeps the place of a filtered out card while the others are reordered', () => {
+        openSettings()
+        cardOption('Mcu Temp').find('button[title="Move up"]').click()
+        cardOrder((objectNames) => expect(objectNames).to.deep.equal([EXTRUDER, BED, FAN, MCU, CHAMBER]))
+
+        toggleCheckbox('Hide Host/MCU Sensors')
+        cardOption('Chamber').find('button[title="Move up"]').click()
+        cardOrder((objectNames) => expect(objectNames).to.deep.equal([EXTRUDER, BED, CHAMBER, FAN]))
+
+        toggleCheckbox('Hide Host/MCU Sensors')
+        cardOrder((objectNames) => expect(objectNames).to.deep.equal([EXTRUDER, BED, CHAMBER, MCU, FAN]))
     })
 
     it('changes the time window of the sparklines and remembers it', () => {
