@@ -28,6 +28,7 @@ import { maintenance } from '@/store/gui/maintenance'
 import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
 import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
+import { defaultStoredThemeTokens } from '@/plugins/themeTokens'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 
 export const getDefaultState = (): GuiState => {
@@ -207,6 +208,7 @@ export const getDefaultState = (): GuiState => {
             dashboardFilesFilter: ['new', 'failed', 'completed'],
             dashboardHistoryLimit: 5,
             hideOtherInstances: false,
+            tokens: defaultStoredThemeTokens(),
         },
         view: {
             afc: {

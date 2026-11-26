@@ -36,7 +36,7 @@ import TheUpdateDialog from '@/components/TheUpdateDialog.vue'
 import TheConnectingDialog from '@/components/TheConnectingDialog.vue'
 import TheSelectPrinterDialog from '@/components/TheSelectPrinterDialog.vue'
 import TheEditor from '@/components/TheEditor.vue'
-import { panelToolbarHeight, topbarHeight, navigationItemHeight } from '@/store/variables'
+import { defaultPrimaryColor, topbarHeight, navigationItemHeight } from '@/store/variables'
 import TheTimelapseRenderingSnackbar from '@/components/TheTimelapseRenderingSnackbar.vue'
 import TheFullscreenUpload from '@/components/TheFullscreenUpload.vue'
 import TheUploadSnackbar from '@/components/TheUploadSnackbar.vue'
@@ -48,6 +48,14 @@ import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
+import {
+    resolveThemeTokens,
+    textColorOnAccent,
+    themeCssVariables,
+    themeRootAttributeNames,
+    themeRootAttributes,
+    ThemeTokens,
+} from '@/plugins/themeTokens'
 
 @Component({
     components: {
@@ -142,17 +150,25 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     }
 
     get primaryTextColor(): string {
-        const splits = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(this.primaryColor)
-        if (splits) {
-            const r = parseInt(splits[1], 16) * 0.2126
-            const g = parseInt(splits[2], 16) * 0.7152
-            const b = parseInt(splits[3], 16) * 0.0722
-            const perceivedLightness = (r + g + b) / 255
+        return textColorOnAccent(this.primaryColor)
+    }
 
-            return perceivedLightness > 0.7 ? '#222' : '#fff'
-        }
+    get themeTokens(): ThemeTokens {
+        return resolveThemeTokens(
+            this.primaryColor,
+            this.$store.state.gui.uiSettings.tokens,
+            this.theme?.colorPrimary ?? defaultPrimaryColor
+        )
+    }
 
-        return '#ffffff'
+    get themeAttributes(): Record<string, string> {
+        return themeRootAttributes(this.themeTokens)
+    }
+
+    get chartPaletteState(): string {
+        const series: { name: string }[] = this.$store.state.printer?.tempHistory?.series ?? []
+
+        return [this.themeTokens.chartPalette, this.darkMode, ...series.map((serie) => serie.name)].join('|')
     }
 
     get cssVars(): { [key: string]: string } {
@@ -161,8 +177,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
             '--color-logo': this.logoColor,
             '--color-primary': this.primaryColor,
             '--color-warning': this.warningColor,
-            '--panel-toolbar-icon-btn-width': panelToolbarHeight + 'px',
-            '--panel-toolbar-text-btn-height': panelToolbarHeight + 'px',
+            ...themeCssVariables(this.themeTokens, this.darkMode),
             '--topbar-icon-btn-width': topbarHeight + 'px',
             '--sidebar-menu-item-height': navigationItemHeight + 'px',
         }
@@ -226,6 +241,23 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     primaryColorChanged(newVal: string): void {
         this.$nextTick(() => {
             this.$vuetify.theme.currentTheme.primary = newVal
+        })
+    }
+
+    @Watch('themeAttributes', { immediate: true })
+    themeAttributesChanged(attributes: Record<string, string>): void {
+        const doc = document.documentElement
+        themeRootAttributeNames.forEach((name) => {
+            if (name in attributes) doc.setAttribute(name, attributes[name])
+            else doc.removeAttribute(name)
+        })
+    }
+
+    @Watch('chartPaletteState')
+    chartPaletteStateChanged(): void {
+        this.$store.dispatch('printer/tempHistory/applyChartPalette', {
+            palette: this.themeTokens.chartPalette,
+            dark: this.darkMode,
         })
     }
 
@@ -428,6 +460,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 @import './assets/styles/sidebar.css';
 @import './assets/styles/utils.css';
 @import './assets/styles/updateManager.css';
+@import './assets/styles/themeTokens.css';
 
 :root {
     --app-height: 100%;

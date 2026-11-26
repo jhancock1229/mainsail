@@ -83,6 +83,7 @@ import SettingsTimelapseTab from '@/components/settings/SettingsTimelapseTab.vue
 import SettingsNavigationTab from '@/components/settings/SettingsNavigationTab.vue'
 import SettingsNotificationsTab from '@/components/settings/SettingsNotificationsTab.vue'
 import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
+import SettingsAppearanceTab from '@/components/settings/SettingsAppearanceTab.vue'
 import { commandPaletteBus, OPEN_SETTINGS_TAB, PaletteSettingsTab } from '@/plugins/commandPaletteBus'
 import { EventBus } from '@/plugins/eventBus'
 
@@ -107,6 +108,7 @@ import {
     mdiMenu,
     mdiGrid,
     mdiKeyboardOutline,
+    mdiBrush,
 } from '@mdi/js'
 import SettingsMiscellaneousTab from '@/components/settings/SettingsMiscellaneousTab.vue'
 import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue'
@@ -132,6 +134,7 @@ import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
         SettingsNotificationsTab,
         SettingsHeightmapTab,
         SettingsCommandPaletteTab,
+        SettingsAppearanceTab,
     },
 })
 export default class TheSettingsMenu extends Mixins(BaseMixin) {
@@ -224,6 +227,11 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
                 icon: mdiKeyboardOutline,
                 name: 'command-palette',
                 title: this.$t('Settings.CommandPaletteTab.CommandPalette'),
+            },
+            {
+                icon: mdiBrush,
+                name: 'appearance',
+                title: this.$t('Settings.AppearanceTab.Appearance'),
             },
         ]
 

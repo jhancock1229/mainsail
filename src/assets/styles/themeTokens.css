@@ -1,0 +1,170 @@
+html[data-theme-radius] .v-application .v-card,
+html[data-theme-radius] .v-application .v-dialog:not(.v-dialog--fullscreen) {
+    border-radius: var(--theme-radius);
+}
+
+html[data-theme-radius] .v-application .v-dialog--fullscreen > .v-card {
+    border-radius: 0;
+}
+
+html[data-theme-radius] .v-application .v-card.panel {
+    overflow: clip;
+}
+
+html[data-theme-radius] .v-application .panel.expanded header.v-toolbar {
+    border-bottom-left-radius: var(--theme-radius);
+    border-bottom-right-radius: var(--theme-radius);
+}
+
+html[data-theme-radius] .v-application .command-palette__card {
+    border-radius: var(--theme-radius) !important;
+}
+
+html[data-theme-radius]
+    .v-application
+    .v-btn:not(.v-btn--round):not(.v-btn--fab):not(.v-btn--tile):not(.v-btn--icon):not(.v-btn--rounded):not(
+        :is(._btn-group, .v-item-group, .v-btn-toggle) .v-btn
+    ),
+html[data-theme-radius] .v-application ._btn-group,
+html[data-theme-radius] .v-application .v-btn-toggle,
+html[data-theme-radius] .v-application .v-menu__content,
+html[data-theme-radius] .v-application .v-alert,
+html[data-theme-radius] .v-application .v-snack__wrapper,
+html[data-theme-radius] .v-application .v-text-field--outlined,
+html[data-theme-radius] .v-application .v-text-field--outlined fieldset,
+html[data-theme-radius] .v-application .v-text-field--solo > .v-input__control > .v-input__slot,
+html[data-theme-radius] .v-application .temperature-card,
+html[data-theme-radius] .v-application .theme-preset-card {
+    border-radius: var(--theme-radius-control);
+}
+
+html[data-theme-density='compact'] .v-application .panel-toolbar,
+html[data-theme-density='compact'] .v-application .panel-toolbar > .v-toolbar__content {
+    height: var(--theme-panel-toolbar-height) !important;
+}
+
+html[data-theme-density='compact'] .v-application .panel-toolbar .v-toolbar__title {
+    font-size: 1.1rem;
+}
+
+html[data-theme-density='compact'] .v-application .panel .v-card__text {
+    padding: 12px;
+}
+
+html[data-theme-density='compact'] .v-application #page-container > .row,
+html[data-theme-density='compact'] .v-application #page-container > * > .row {
+    margin: calc(var(--theme-gap) / -2);
+}
+
+html[data-theme-density='compact'] .v-application #page-container > .row > [class*='col'],
+html[data-theme-density='compact'] .v-application #page-container > * > .row > [class*='col'] {
+    padding: calc(var(--theme-gap) / 2);
+}
+
+@media (min-width: 600px) {
+    html[data-theme-density='compact'] .v-application #page-container:not(.fullscreen) {
+        padding: var(--theme-gap) !important;
+    }
+}
+
+@media (min-width: 960px) {
+    html[data-theme-density='compact'] .v-application .panel.mb-md-6 {
+        margin-bottom: var(--theme-gap) !important;
+    }
+}
+
+html[data-theme-surface='flat'] .v-application .v-card.panel,
+html[data-theme-surface='outlined'] .v-application .v-card.panel {
+    box-shadow: none !important;
+}
+
+html:is([data-theme-surface], [data-theme-tint]) .v-application {
+    background: var(--theme-page) !important;
+}
+
+html:is([data-theme-surface], [data-theme-tint]) .v-application .v-card.panel {
+    background-color: var(--theme-panel);
+}
+
+html:is([data-theme-surface], [data-theme-tint])
+    .v-application
+    .v-card.panel
+    > .panel-toolbar.v-toolbar:not([class*='lighten']):not([class*='darken']) {
+    background-color: var(--theme-panel-toolbar);
+}
+
+html[data-theme-surface='elevated'] .v-application .v-card.panel {
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        0 10px 28px -6px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.theme--light[data-theme-surface='elevated'] .v-application .v-card.panel {
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.08),
+        0 12px 28px -8px rgba(16, 24, 40, 0.2) !important;
+}
+
+html[data-theme-surface='outlined'] .v-application .v-card.panel {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme-surface='outlined'] .v-application .v-card.panel > .panel-toolbar.v-toolbar {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.theme--light[data-theme-surface='outlined'] .v-application .v-card.panel {
+    border-color: rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme-tint] .v-application .v-card,
+html[data-theme-tint] .v-application .v-list,
+html[data-theme-tint] .v-application .v-tabs > .v-tabs-bar,
+html[data-theme-tint] .v-application .v-tabs-items,
+html[data-theme-tint] .v-application .v-data-table,
+html[data-theme-tint] .v-application .v-expansion-panels .v-expansion-panel,
+html[data-theme-tint] .v-application .v-picker__body {
+    background-color: var(--theme-panel);
+}
+
+html[data-theme-tint] .v-application .v-app-bar.v-toolbar.v-sheet,
+html[data-theme-tint] .v-application .v-navigation-drawer {
+    background-color: var(--theme-bar);
+}
+
+html[data-theme-tint] .v-application .v-navigation-drawer .v-list {
+    background-color: transparent;
+}
+
+html[data-theme-tint] .v-application .v-navigation-drawer__image {
+    mix-blend-mode: luminosity;
+}
+
+html[data-theme-font] .v-application,
+html[data-theme-font] .v-application .text-h1,
+html[data-theme-font] .v-application .text-h2,
+html[data-theme-font] .v-application .text-h3,
+html[data-theme-font] .v-application .text-h4,
+html[data-theme-font] .v-application .text-h5,
+html[data-theme-font] .v-application .text-h6,
+html[data-theme-font] .v-application .text-subtitle-1,
+html[data-theme-font] .v-application .text-subtitle-2,
+html[data-theme-font] .v-application .text-body-1,
+html[data-theme-font] .v-application .text-body-2,
+html[data-theme-font] .v-application .text-button,
+html[data-theme-font] .v-application .text-caption,
+html[data-theme-font] .v-application .text-overline,
+html[data-theme-font] .v-application .display-4,
+html[data-theme-font] .v-application .display-3,
+html[data-theme-font] .v-application .display-2,
+html[data-theme-font] .v-application .display-1,
+html[data-theme-font] .v-application .headline,
+html[data-theme-font] .v-application .title,
+html[data-theme-font] .v-application .subtitle-1,
+html[data-theme-font] .v-application .subtitle-2,
+html[data-theme-font] .v-application .body-1,
+html[data-theme-font] .v-application .body-2,
+html[data-theme-font] .v-application .caption,
+html[data-theme-font] .v-application .overline {
+    font-family: var(--theme-font) !important;
+}

@@ -1384,6 +1384,101 @@
         "YouCanFindMore": "You can find more details at"
     },
     "Settings": {
+        "AppearanceTab": {
+            "Accent": "Accent color",
+            "AccentDescription": "Used for buttons, links and highlights. This is the primary color from the UI settings.",
+            "Appearance": "Appearance",
+            "ChartPalette": "Chart colors",
+            "ChartPaletteDescription": "Colors of the temperature chart and cards. A color you picked for a single sensor is kept.",
+            "ChartPalettes": {
+                "accessible": "Color-blind friendly",
+                "classic": "Classic",
+                "soft": "Soft",
+                "vivid": "Vivid"
+            },
+            "ContrastDark": "This accent is hard to see in dark mode (contrast {ratio}:1, at least 3:1 is recommended). Pick a lighter color.",
+            "ContrastLight": "This accent is hard to see in light mode (contrast {ratio}:1, at least 3:1 is recommended). Pick a darker color.",
+            "ContrastOnAccent": "Text on accent-colored buttons is hard to read (contrast {ratio}:1). Pick a darker or a much lighter color.",
+            "CustomizeDescription": "Every change is applied immediately. The arrow next to a setting puts it back to the Mainsail default.",
+            "CustomizeTitle": "Customize",
+            "CustomTheme": "Custom",
+            "Densities": {
+                "comfortable": "Comfortable",
+                "compact": "Compact"
+            },
+            "Density": "Spacing",
+            "DensityDescription": "Compact fits more on the screen: smaller gaps and lower panel headers.",
+            "Export": "Export",
+            "Font": "Font",
+            "FontDescription": "Uses fonts that come with Mainsail or with your device. Nothing is loaded from the internet.",
+            "Fonts": {
+                "humanist": "Humanist",
+                "mono": "Monospace",
+                "roboto": "Roboto",
+                "rounded": "Rounded",
+                "system": "System"
+            },
+            "Import": "Import",
+            "ImportErrors": {
+                "invalidValue": "The theme was not imported: {value} is not a valid value for \"{key}\".",
+                "notJson": "The theme was not imported: the file is not a JSON file.",
+                "notTheme": "The theme was not imported: the file is not a Mainsail theme.",
+                "tooLarge": "The theme was not imported: the file is larger than {max} KB.",
+                "unknownKey": "The theme was not imported: it contains the unknown setting \"{key}\".",
+                "unsupportedVersion": "The theme was not imported: version {value} is not supported."
+            },
+            "ImportSuccess": "Theme \"{name}\" imported.",
+            "Presets": {
+                "blueprint": {
+                    "Description": "Sharp outlines, monospace and compact.",
+                    "Name": "Blueprint"
+                },
+                "classic": {
+                    "Description": "The Mainsail look you know.",
+                    "Name": "Mainsail Classic"
+                },
+                "ember": {
+                    "Description": "Warm accent on raised, rounded panels.",
+                    "Name": "Ember"
+                },
+                "lagoon": {
+                    "Description": "Flat and calm with soft chart colors.",
+                    "Name": "Lagoon"
+                },
+                "orchid": {
+                    "Description": "Very round, outlined and friendly.",
+                    "Name": "Orchid"
+                },
+                "workshop": {
+                    "Description": "Dense and practical with vivid charts.",
+                    "Name": "Workshop"
+                }
+            },
+            "PresetsDescription": "One click changes the whole look. Light, dark and auto mode keep working with every theme.",
+            "PresetsTitle": "Themes",
+            "Radius": "Corner radius",
+            "RadiusDescription": "How round panels, dialogs, buttons and inputs are.",
+            "ResetTheme": "Reset theme",
+            "ResetThemeButton": "Reset",
+            "ResetThemeDescription": "Go back to Mainsail Classic. Logo color, background image and custom.css are not touched.",
+            "ResetToken": "Reset to default",
+            "Share": "Share theme",
+            "ShareDescription": "Save the current theme to a file or load one. A theme file only contains the settings on this page.",
+            "Surface": "Panel style",
+            "SurfaceDescription": "How panels stand out from the background.",
+            "Surfaces": {
+                "elevated": "Elevated",
+                "flat": "Flat",
+                "outlined": "Outlined",
+                "standard": "Standard"
+            },
+            "Tint": "Background",
+            "TintDescription": "Tinted mixes a little of the accent color into the backgrounds.",
+            "Tints": {
+                "accent": "Tinted",
+                "neutral": "Neutral"
+            }
+        },
         "CommandPaletteTab": {
             "AddFavourite": "Add a command to the favourites",
             "ClearRecent": "Clear",

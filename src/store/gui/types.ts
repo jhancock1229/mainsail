@@ -9,6 +9,7 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { ThemeStoredTokens } from '@/plugins/themeTokens'
 
 export interface GuiState {
     // error explainer and printer event notifications
@@ -126,6 +127,7 @@ export interface GuiState {
         dashboardFilesFilter: GuiStateUiSettingsDashboardFilesFilter[]
         dashboardHistoryLimit: number
         hideOtherInstances: boolean
+        tokens: ThemeStoredTokens
     }
     view: {
         afc: {
