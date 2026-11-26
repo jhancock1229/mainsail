@@ -2,7 +2,7 @@
 //
 // It answers Mainsail's startup requests from a recorded session (fixture.json) and simulates the parts that
 // change: Klipper state, print jobs, temperatures, toolhead position and a webcam picture.
-// Start it with `demo/demo.sh up`. Control it with `demo/demo.sh <print|pause|resume|fail|error|idle>`.
+// Start it with `demo/demo.sh up`. Control it with `demo/demo.sh <print|pause|resume|finish|fail|error|runout|idle>`.
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -16,6 +16,7 @@ const DB_FILE = process.env.DEMO_DB_FILE ?? path.join(DIR, '.demo-db.json')
 const fixture = JSON.parse(fs.readFileSync(path.join(DIR, 'fixture.json'), 'utf8'))
 
 const AMBIENT = 22
+const RUNOUT_SENSOR = 'filament_motion_sensor runout_sensor'
 const PRINT_SECONDS = 600
 const TOTAL_LAYERS = 120
 const DEMO_FILE = 'demo.gcode'
@@ -36,6 +37,7 @@ const resetStatus = () => {
     status = clone(fixture.status)
     status.extruder.temperature = AMBIENT
     status.heater_bed.temperature = AMBIENT
+    status[RUNOUT_SENSOR].filament_detected = true
     printElapsed = 0
 }
 resetStatus()
@@ -78,6 +80,7 @@ const startPrint = (filename = DEMO_FILE) => {
     })
     status.pause_resume.is_paused = false
     status.idle_timeout.state = 'Printing'
+    status[RUNOUT_SENSOR].filament_detected = true
     gcodeResponse(`File opened: ${filename}`)
 }
 
@@ -96,6 +99,8 @@ const resumePrint = () => {
     status.print_stats.state = 'printing'
     status.pause_resume.is_paused = false
     status.virtual_sdcard.is_active = true
+    // resuming after a runout means new filament was loaded
+    status[RUNOUT_SENSOR].filament_detected = true
 }
 
 const endPrint = (state, message = '') => {
@@ -126,6 +131,114 @@ const emergencyStop = () => {
     broadcast('notify_klippy_shutdown', [])
     gcodeResponse('!! Shutdown due to webhooks request')
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// named errors and filament runout: demo/demo.sh error <name>, demo/demo.sh fail <name>, demo/demo.sh runout
+// ---------------------------------------------------------------------------------------------------------
+
+const FIRMWARE_RESTART_HINT =
+    'Once the underlying issue is corrected, use the\n"FIRMWARE_RESTART" command to reset the firmware, reload the\nconfig, and restart the host software.\n'
+const RESTART_HINT =
+    'Once the underlying issue is corrected, use the "RESTART"\ncommand to reload the config and restart the host software.\n'
+
+// messages as Klipper reports them; "error" states happen while Klipper starts, "shutdown" states while it runs
+const klipperErrors = {
+    'timer-too-close': {
+        state: 'shutdown',
+        message: `MCU 'mcu' shutdown: Timer too close\nThis often indicates the host computer is overloaded. Check\nfor other processes consuming excessive CPU time, high swap\nusage, disk errors, overheating, unstable voltage, or\nsimilar system problems on the host computer.\n${FIRMWARE_RESTART_HINT}Printer is shutdown\n`,
+    },
+    'lost-communication': {
+        state: 'shutdown',
+        message: `Lost communication with MCU 'mcu'\n${FIRMWARE_RESTART_HINT}Printer is shutdown\n`,
+    },
+    thermistor: {
+        state: 'shutdown',
+        message: `MCU 'mcu' shutdown: ADC out of range\nThis generally occurs when a heater temperature exceeds\nits configured min_temp or max_temp.\n${FIRMWARE_RESTART_HINT}Printer is shutdown\n`,
+    },
+    heater: {
+        state: 'shutdown',
+        message: `Heater extruder not heating at expected rate\nSee the 'verify_heater' section in docs/Config_Reference.md\nfor the parameters that control this check.\n${FIRMWARE_RESTART_HINT}Printer is shutdown\n`,
+    },
+    unknown: {
+        state: 'shutdown',
+        message: `MCU 'mcu' shutdown: Stepper too far in past\n${FIRMWARE_RESTART_HINT}Printer is shutdown\n`,
+    },
+    'mcu-connect': {
+        state: 'error',
+        message: `mcu 'mcu': Unable to connect\n${FIRMWARE_RESTART_HINT}Error configuring printer\n`,
+    },
+    config: {
+        state: 'error',
+        message: `Option 'sensor_type' in section 'extruder' must be specified\n${RESTART_HINT}Printer is halted\n`,
+    },
+}
+
+const printErrors = {
+    heater: 'Heater extruder not heating at expected rate',
+    'move-out-of-range': 'Move out of range: 310.000 110.000 0.200 [25.000]',
+    'must-home': 'Must home axis first: 110.000 110.000 0.200 [0.000]',
+    'cold-extrude': "Extrude below minimum temp\nSee the 'min_extrude_temp' config option for details",
+    unknown: 'Unable to read tool 3 offsets',
+}
+
+const pick = (errors, name) => {
+    if (!(name in errors)) throw new Error(`Unknown error "${name}". Known errors: ${Object.keys(errors).join(', ')}`)
+
+    return errors[name]
+}
+
+const failPrint = (name = 'heater') => endPrint('error', pick(printErrors, name))
+
+const klipperError = (name) => {
+    const { state, message } = pick(klipperErrors, name)
+    if (klippyState !== 'ready') throw new Error('Klipper is not ready')
+
+    const firstLine = message.split('\n')[0]
+    if (state === 'shutdown') {
+        endPrint('error', firstLine)
+        status.extruder.target = 0
+        status.heater_bed.target = 0
+        setKlippyState('shutdown', message)
+        broadcast('notify_klippy_shutdown', [])
+        gcodeResponse(`!! ${firstLine}`)
+        return
+    }
+
+    // Klipper restarts and then stops with the error while it reads its config
+    setKlippyState('startup', 'Printer is not ready')
+    broadcast('notify_klippy_disconnected', [])
+    setTimeout(() => {
+        // a reset in the meantime wins
+        if (klippyState !== 'startup') return
+
+        resetStatus()
+        lastSent = {}
+        setKlippyState('error', message)
+    }, 1500)
+}
+
+// the sensor runs empty; like Klipper, a running print gets paused
+const filamentRunout = () => {
+    status[RUNOUT_SENSOR].filament_detected = false
+    if (status.print_stats.state !== 'printing') return
+
+    gcodeResponse('// Filament runout detected')
+    pausePrint()
+}
+
+const DEMO_PRINTER_CFG = `# printer.cfg of the simulated printer (demo/mock-moonraker.mjs)
+[mcu]
+serial: /dev/serial/by-id/usb-Klipper_demo
+
+[extruder]
+sensor_type: EPCOS 100K B57560G104F
+min_temp: 0
+max_temp: 250
+
+[stepper_x]
+position_min: 0
+position_max: 220
+`
 
 const restartKlipper = () => {
     setKlippyState('startup', 'Printer is not ready')
@@ -464,8 +577,10 @@ const controls = {
     print: () => startPrint(),
     pause: pausePrint,
     resume: resumePrint,
-    fail: () => endPrint('error', 'Heater extruder not heating at expected rate'),
-    error: emergencyStop,
+    fail: failPrint,
+    error: (name) => (name === undefined ? emergencyStop() : klipperError(name)),
+    runout: filamentRunout,
+    finish: () => endPrint('complete'),
     idle: setIdle,
     // back to a freshly started printer with default settings
     reset: () => {
@@ -492,6 +607,11 @@ const server = http.createServer((req, res) => {
         return res.end(webcamSvg())
     }
 
+    if (url.pathname === '/server/files/config/printer.cfg') {
+        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
+        return res.end(DEMO_PRINTER_CFG)
+    }
+
     if (url.pathname === '/server/database/list') {
         res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
         return res.end(JSON.stringify({ result: { namespaces: Object.keys(database), backups: [] } }))
@@ -507,10 +627,12 @@ const server = http.createServer((req, res) => {
         )
     }
 
-    const control = controls[url.pathname.replace('/demo/', '')]
+    // /demo/<command> or /demo/<command>/<name>, e.g. /demo/error/timer-too-close
+    const [command, argument] = url.pathname.replace('/demo/', '').split('/')
+    const control = Object.hasOwn(controls, command) ? controls[command] : undefined
     if (url.pathname.startsWith('/demo/') && control) {
         try {
-            control()
+            control(argument)
             res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
             return res.end(`klipper: ${klippyState}  print: ${status.print_stats.state}\n`)
         } catch (error) {
