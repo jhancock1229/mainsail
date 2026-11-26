@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -56,6 +57,48 @@ const DEMO_FILES = [
         fixture.responses[directoryKey(dir)].files.push({ modified, size, permissions: 'rw', filename: parts.at(-1) })
     }
 }
+
+const DAY_SECONDS = 86400
+const SPOOL_LOADED_DAYS_AGO = 12
+const DEMO_FILE_FACTS = {
+    'benchy.gcode': { estimated_time: 4320, filament_weight_total: 9 },
+    'calibration_cube.gcode': { estimated_time: 1440, filament_weight_total: 4 },
+    'phone_stand.gcode': { estimated_time: 6720, filament_weight_total: 31 },
+    'functional/cable_clip.gcode': { estimated_time: 5280, filament_weight_total: 12 },
+    'functional/spool_holder.gcode': { estimated_time: 11100, filament_weight_total: 64 },
+}
+const DEMO_HISTORY = [
+    [0.15, 'phone_stand.gcode', 6720, 10400, 'completed', true],
+    [1, 'benchy.gcode', 4320, 3020, 'completed', true],
+    [2, 'functional/spool_holder.gcode', 11100, 21470, 'completed', true],
+    [3, 'enclosure_panel.gcode', 30200, 60000, 'completed', false],
+    [5, 'enclosure_panel.gcode', 30150, 60000, 'completed', false],
+    [7, 'drawer_box.gcode', 25300, 50000, 'completed', false],
+    [9, 'functional/cable_clip.gcode', 1900, 4030, 'cancelled', true],
+    [10, 'vase.gcode', 9800, 20000, 'completed', false],
+    [20, 'tool_tray.gcode', 19600, 40000, 'completed', false],
+]
+let historyJobs = []
+let historyJob = null
+const seedHistory = () => {
+    const now = Date.now() / 1000
+    historyJob = null
+    historyJobs = DEMO_HISTORY.map(([daysAgo, filename, duration, filament, status, exists], index) => ({
+        job_id: String(DEMO_HISTORY.length - index).padStart(6, '0'),
+        user: '_TRUSTED_USER_',
+        filename,
+        status,
+        start_time: now - daysAgo * DAY_SECONDS - duration,
+        end_time: now - daysAgo * DAY_SECONDS,
+        print_duration: duration - 240,
+        total_duration: duration,
+        filament_used: filament,
+        metadata: { size: 1500000, slicer: 'DemoSlicer', estimated_time: duration, filament_total: filament },
+        auxiliary_data: [],
+        exists,
+    }))
+}
+seedHistory()
 
 const CHAMBER = 'temperature_sensor chamber'
 const MCU = 'temperature_sensor mcu_temp'
@@ -214,6 +257,27 @@ const startPrint = (filename = DEMO_FILE, options = {}) => {
     status.idle_timeout.state = 'Printing'
     status[RUNOUT_SENSOR].filament_detected = true
     gcodeResponse(`File opened: ${filename}`)
+    historyJob = {
+        job_id: String(historyJobs.length + 1).padStart(6, '0'),
+        user: '_TRUSTED_USER_',
+        filename,
+        status: 'in_progress',
+        start_time: Date.now() / 1000,
+        end_time: null,
+        print_duration: 0,
+        total_duration: 0,
+        filament_used: 0,
+        metadata: {
+            size: 1500000,
+            slicer: 'DemoSlicer',
+            estimated_time: job.seconds,
+            filament_total: job.seconds * 2.5,
+        },
+        auxiliary_data: [],
+        exists: true,
+    }
+    historyJobs.unshift(historyJob)
+    broadcast('notify_history_changed', [{ action: 'added', job: clone(historyJob) }])
 }
 
 const pausePrint = () => {
@@ -247,6 +311,17 @@ const endPrint = (state, message = '') => {
     status.motion_report.live_velocity = 0
     status.idle_timeout.state = 'Ready'
     if (message) gcodeResponse(`!! ${message}`)
+    if (historyJob === null) return
+
+    Object.assign(historyJob, {
+        status: state === 'complete' ? 'completed' : state,
+        end_time: Date.now() / 1000,
+        print_duration: status.print_stats.print_duration,
+        total_duration: status.print_stats.total_duration,
+        filament_used: status.print_stats.filament_used,
+    })
+    broadcast('notify_history_changed', [{ action: 'finished', job: clone(historyJob) }])
+    historyJob = null
 }
 
 const emergencyStop = () => {
@@ -648,6 +723,12 @@ const handlers = {
             },
         ],
     }),
+    'server.history.list': (params) => {
+        const start = params.start ?? 0
+        const jobs = historyJobs.slice(start, start + (params.limit ?? 50))
+
+        return { count: historyJobs.length, jobs: clone(jobs) }
+    },
     'server.files.metadata': (params) => ({
         filename: params.filename,
         size: 1500000,
@@ -672,7 +753,16 @@ const handlers = {
             size: thumbnailSvg(size).length,
             relative_path: `.thumbs/demo-${size}x${size}.svg`,
         })),
+        ...demoFileFacts(params.filename),
     }),
+}
+
+const FILAMENT_MM_PER_GRAM = 1000 / (Math.PI * 0.875 ** 2 * 1.24)
+function demoFileFacts(filename) {
+    const facts = DEMO_FILE_FACTS[filename]
+    if (!facts || status.print_stats.filename === filename) return {}
+
+    return { ...facts, filament_total: Math.round(facts.filament_weight_total * FILAMENT_MM_PER_GRAM) }
 }
 
 const gcodeLog = []
@@ -758,6 +848,16 @@ const controls = {
         if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
     },
     reconnect: () => wss.clients.forEach((client) => client.close()),
+    classic: () => dbSet('mainsail', 'uiSettings.interfaceShell', 'classic'),
+    spool: () =>
+        dbSet('mainsail', 'spoolTracker', {
+            enabled: true,
+            name: 'Black PLA',
+            material: 'PLA',
+            sizeGrams: 1000,
+            loadedAt: Date.now() / 1000 - SPOOL_LOADED_DAYS_AGO * DAY_SECONDS,
+            baselineLength: 0,
+        }),
     status: () => {},
 }
 
@@ -771,6 +871,7 @@ controls.reset = () => {
     resetWithoutPresets()
     gcodeLog.length = 0
     seedPresets()
+    seedHistory()
 }
 
 const configFileText = () =>
@@ -826,6 +927,31 @@ const server = http.createServer((req, res) => {
         return res.end(configFileText())
     }
 
+    if (url.pathname === '/server/files/upload' && req.method === 'POST') {
+        const chunks = []
+        req.on('data', (chunk) => chunks.push(chunk))
+        req.on('end', () => {
+            const body = Buffer.concat(chunks)
+            const filename = /filename="([^"]+)"/.exec(body.toString('latin1'))?.[1] ?? 'upload.gcode'
+            const item = {
+                path: filename,
+                root: 'gcodes',
+                modified: Date.now() / 1000,
+                size: body.length,
+                permissions: 'rw',
+            }
+            const directory = fixture.responses[`server.files.get_directory|${JSON.stringify({ path: 'gcodes' })}`]
+            directory.files = directory.files.filter((file) => file.filename !== filename)
+            directory.files.push({ modified: item.modified, size: item.size, permissions: 'rw', filename })
+            broadcast('notify_filelist_changed', [{ action: 'create_file', item }])
+            res.writeHead(201, { ...headers, 'Content-Type': 'application/json' })
+            res.end(
+                JSON.stringify({ result: { item, print_started: false, print_queued: false, action: 'create_file' } })
+            )
+        })
+        return
+    }
+
     const [command, argument] = url.pathname.replace('/demo/', '').split('/')
     const control = Object.hasOwn(controls, command) ? controls[command] : undefined
     if (url.pathname.startsWith('/demo/') && control) {
@@ -859,12 +985,19 @@ wss.on('connection', (socket) => {
             return
         }
 
-        const response = { jsonrpc: '2.0', id: request.id }
-        try {
-            response.result = handleRpc(request)
-        } catch (error) {
-            response.error = { code: error.code ?? 400, message: error.message }
+        const answer = (single) => {
+            const response = { jsonrpc: '2.0', id: single.id }
+            try {
+                response.result = handleRpc(single)
+            } catch (error) {
+                response.error = { code: error.code ?? 400, message: error.message }
+            }
+
+            return response
         }
+        if (Array.isArray(request)) return socket.send(JSON.stringify(request.map(answer)))
+
+        const response = answer(request)
         if (request.id !== undefined) socket.send(JSON.stringify(response))
     })
 })
