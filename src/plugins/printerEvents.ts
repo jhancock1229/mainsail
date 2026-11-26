@@ -154,6 +154,19 @@ export const isEventStillCurrent = (name: PrinterEventName, current: PrinterSnap
     return true
 }
 
+// Splits the events that wait for their confirmation: a pending event is cancelled as soon as the state it
+// was raised for ends. Otherwise a pause that was resumed and followed by a second pause would be confirmed by
+// the second one, and told twice.
+export const partitionPendingEvents = <T extends { event: PrinterEvent }>(
+    pending: T[],
+    current: PrinterSnapshot
+): { kept: T[]; cancelled: T[] } => {
+    const kept = pending.filter((entry) => isEventStillCurrent(entry.event.name, current))
+    const cancelled = pending.filter((entry) => !kept.includes(entry))
+
+    return { kept, cancelled }
+}
+
 // explanation for a paused print with an empty filament sensor: a runout, or filament that was pulled out
 export const explainMissingFilament = (current: PrinterSnapshot): ErrorExplanation | null => {
     if (current.klipperState !== 'ready' || current.printState !== 'paused') return null

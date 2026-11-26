@@ -332,6 +332,21 @@ describe('Printer event notifications', () => {
         toast('Print paused')
     })
 
+    it('tells a pause once when the print pauses, resumes and pauses again right away', () => {
+        open()
+        startPrint()
+        // each state lasts longer than an update of the printer, and all three fit into the delay of a pause
+        demo('pause')
+        cy.wait(600)
+        demo('resume')
+        cy.wait(600)
+        demo('pause')
+
+        toast('Print paused')
+        cy.wait(2500)
+        cy.get('.v-toast__item:contains("Print paused")').should('have.length', 1)
+    })
+
     it('tells about the failed print when a Klipper error stops it and Klipper errors are silenced', () => {
         open()
         openNotificationSettings()

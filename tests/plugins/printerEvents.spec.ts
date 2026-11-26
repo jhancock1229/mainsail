@@ -6,6 +6,7 @@ import {
     explainMissingFilament,
     filamentSensorLabel,
     isEventStillCurrent,
+    partitionPendingEvents,
 } from '@/plugins/printerEvents'
 import type { PrinterSnapshot } from '@/plugins/printerEvents'
 
@@ -330,5 +331,55 @@ describe('buildPrinterSnapshot', () => {
             filamentSensors: {},
         })
         expect(buildPrinterSnapshot('ready', undefined).printState).toBe('')
+    })
+})
+
+describe('partitionPendingEvents', () => {
+    const pending = (name: 'printPaused' | 'printFailed', id: number) => ({ event: { name }, id })
+
+    it('keeps a pending event while its transition still holds', () => {
+        const paused = pending('printPaused', 1)
+        const failed = pending('printFailed', 2)
+
+        expect(partitionPendingEvents([paused], snapshot({ printState: 'paused' }))).toEqual({
+            kept: [paused],
+            cancelled: [],
+        })
+        expect(partitionPendingEvents([failed], snapshot({ printState: 'error' }))).toEqual({
+            kept: [failed],
+            cancelled: [],
+        })
+    })
+
+    it('cancels a pending pause as soon as the print is not paused anymore', () => {
+        const paused = pending('printPaused', 1)
+
+        expect(partitionPendingEvents([paused], snapshot({ printState: 'printing' }))).toEqual({
+            kept: [],
+            cancelled: [paused],
+        })
+    })
+
+    it('cancels a pending failed print as soon as the print is cleared or restarted', () => {
+        const failed = pending('printFailed', 1)
+
+        expect(partitionPendingEvents([failed], snapshot({ printState: 'standby' })).cancelled).toEqual([failed])
+        expect(partitionPendingEvents([failed], snapshot({ printState: 'printing' })).cancelled).toEqual([failed])
+        expect(partitionPendingEvents([failed], snapshot({ klipperState: 'shutdown' })).kept).toEqual([failed])
+    })
+
+    it('lets only the second pause through when a print pauses, resumes and pauses again', () => {
+        const first = pending('printPaused', 1)
+        const second = pending('printPaused', 2)
+
+        // the resume ends the first pause, so it cannot be confirmed by the second one
+        const afterResume = partitionPendingEvents([first], snapshot({ printState: 'printing' }))
+        expect(afterResume.kept).toEqual([])
+
+        const afterSecondPause = partitionPendingEvents(
+            [...afterResume.kept, second],
+            snapshot({ printState: 'paused' })
+        )
+        expect(afterSecondPause.kept).toEqual([second])
     })
 })

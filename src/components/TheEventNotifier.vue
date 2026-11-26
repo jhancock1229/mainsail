@@ -13,12 +13,18 @@ import {
     dropFollowUpEvents,
     filamentSensorLabel,
     isEventStillCurrent,
+    partitionPendingEvents,
 } from '@/plugins/printerEvents'
 
 // These events are told after a short delay, if they still hold then (see isEventStillCurrent): a failed
 // print is often followed by the Klipper shutdown that caused it, and a pause can be a timelapse frame.
 const DELAYED_EVENTS: PrinterEventName[] = ['printFailed', 'printPaused']
 const SETTLE_DELAY_MS = 1500
+interface PendingEvent {
+    event: PrinterEvent
+    timer: number
+}
+
 // Klipper's message arrives a moment after the state
 const KLIPPER_MESSAGE_POLL_MS = 250
 const KLIPPER_MESSAGE_MAX_WAIT_MS = 5000
@@ -31,6 +37,8 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
     // when the events were last told (only events with at least one channel)
     lastFired: Partial<Record<PrinterEventName, number>> = {}
     timers: number[] = []
+    // delayed events that wait for their confirmation
+    pending: PendingEvent[] = []
 
     get snapshot(): PrinterSnapshot {
         return buildPrinterSnapshot(this.klipperState, this.$store.state.printer)
@@ -49,6 +57,11 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         const detected = detectPrinterEvents(this.previousSnapshot, current)
         this.previousSnapshot = current
 
+        // a pending event whose state ended is obsolete, also when the same state comes back later
+        const { kept, cancelled } = partitionPendingEvents(this.pending, current)
+        cancelled.forEach((entry) => window.clearTimeout(entry.timer))
+        this.pending = kept
+
         // a silent event must not hide the events that follow from it
         const audible = detected.filter((event) => this.getEventChannels(event.name).length > 0)
         const now = Date.now()
@@ -57,7 +70,7 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         events.forEach((event) => {
             this.lastFired[event.name] = now
 
-            if (DELAYED_EVENTS.includes(event.name)) this.later(SETTLE_DELAY_MS, () => this.confirmEvent(event))
+            if (DELAYED_EVENTS.includes(event.name)) this.delayEvent(event)
             else this.tellEvent(event)
         })
     }
@@ -68,6 +81,15 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
 
     render(h: CreateElement): VNode {
         return h()
+    }
+
+    delayEvent(event: PrinterEvent): void {
+        const entry: PendingEvent = { event, timer: 0 }
+        entry.timer = this.later(SETTLE_DELAY_MS, () => {
+            this.pending = this.pending.filter((other) => other !== entry)
+            this.confirmEvent(event)
+        })
+        this.pending.push(entry)
     }
 
     confirmEvent(event: PrinterEvent): void {
@@ -128,8 +150,11 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         return this.$t(`ErrorExplainer.Errors.${explanation.id}.Title`, explanation.params).toString()
     }
 
-    later(delay: number, callback: () => void): void {
-        this.timers.push(window.setTimeout(callback, delay))
+    later(delay: number, callback: () => void): number {
+        const timer = window.setTimeout(callback, delay)
+        this.timers.push(timer)
+
+        return timer
     }
 }
 </script>
