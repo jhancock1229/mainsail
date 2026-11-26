@@ -16,6 +16,10 @@ export default class SettingsGeneralDatabase extends BaseMixin {
                 label: this.$t('Settings.GeneralTab.General'),
             },
             {
+                value: 'commandPalette',
+                label: this.$t('Settings.GeneralTab.DbCommandPalette'),
+            },
+            {
                 value: 'control',
                 label: this.$t('Settings.ControlTab.Control'),
             },

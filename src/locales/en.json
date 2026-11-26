@@ -109,6 +109,8 @@
             "CannotUploadTheFile": "Cannot upload the file!",
             "EmergencyStop": "Emergency Stop",
             "SAVE_CONFIG": "SAVE CONFIG",
+            "SwitchToDarkMode": "Switch to dark mode",
+            "SwitchToLightMode": "Switch to light mode",
             "Uploading": "Uploading",
             "UploadOfFileSuccessful": "Upload of {file} successful!",
             "UploadPrint": "Upload & Print"
@@ -178,6 +180,75 @@
     "CancelJobDialog": {
         "AreYouSure": "Are you sure?",
         "CancelJob": "Cancel Job"
+    },
+    "CommandPalette": {
+        "Actions": {
+            "Cancel": "Cancel print",
+            "Cooldown": "Cooldown",
+            "EmergencyStop": "Emergency stop",
+            "FirmwareRestart": "Firmware restart",
+            "Home": "Home all axes",
+            "Pause": "Pause print",
+            "Preheat": "Preheat {name}",
+            "Resume": "Resume print"
+        },
+        "Confirm": {
+            "Cancel": "The running print job is stopped and cannot be resumed.",
+            "Cooldown": "All heaters are switched off.",
+            "EmergencyStop": "The printer stops immediately and Klipper shuts down. A firmware restart is needed to use it again.",
+            "FirmwareRestart": "Klipper and the printer firmware restart. A running print job is lost.",
+            "Headline": "Please confirm"
+        },
+        "Footer": {
+            "Count": "{count} commands",
+            "Navigate": "navigate",
+            "Pin": "pin",
+            "Run": "run"
+        },
+        "Hints": {
+            "actions": "Run",
+            "files": "Print",
+            "macros": "Run macro",
+            "navigation": "Go to page",
+            "settings": "Open settings"
+        },
+        "Keys": {
+            "Alt": "Alt",
+            "Ctrl": "Ctrl",
+            "Esc": "esc",
+            "Meta": "Meta",
+            "Shift": "Shift",
+            "Space": "Space"
+        },
+        "MoreResults": "+{count} more, type to find them",
+        "NoResults": "No command matches \"{query}\"",
+        "NotAvailable": "This command is no longer available",
+        "Open": "Open the command palette",
+        "Pin": "Add to favourites",
+        "Placeholder": "Search pages, macros, files, actions and settings",
+        "Reasons": {
+            "AlreadyPaused": "The print is already paused",
+            "AlreadyShutdown": "The printer is already shut down",
+            "KlipperNotConnected": "Klipper is not connected",
+            "KlipperNotReady": "Klipper is not ready",
+            "NoPrintRunning": "No print is running",
+            "NotConnected": "Not connected to the printer",
+            "NotPaused": "No print is paused",
+            "WhilePrinting": "Not available while printing"
+        },
+        "Sections": {
+            "actions": "Printer actions",
+            "files": "Print a file",
+            "macros": "Macros",
+            "navigation": "Go to",
+            "pinned": "Favourites",
+            "recent": "Recently used",
+            "settings": "Settings",
+            "unavailable": "Not available right now"
+        },
+        "Sent": "{command} sent",
+        "Trigger": "Search commands",
+        "Unpin": "Remove from favourites"
     },
     "ConnectionDialog": {
         "CannotConnectTo": "Cannot connect to Moonraker ({host}).",
@@ -1129,6 +1200,31 @@
         "TemperaturePanel": {
             "AutoscaleChart": "Autoscale Chart",
             "Avg": "Avg",
+            "Cards": {
+                "AboveTarget": "{delta}° above target",
+                "AllHidden": "All cards are hidden. Show them again in the settings of this panel.",
+                "AtTarget": "At target",
+                "BelowTarget": "{delta}° below target",
+                "Chart": "Chart",
+                "Cooling": "Cooling",
+                "Falling": "Falling",
+                "Heating": "Heating",
+                "InRange": "In range",
+                "Minutes": "{minutes} min",
+                "MoveDown": "Move down",
+                "MoveUp": "Move up",
+                "NoTarget": "No target set",
+                "Off": "Off",
+                "OnTarget": "On target",
+                "PresetOff": "Off",
+                "Reset": "Reset cards",
+                "Rising": "Rising",
+                "SparklineWindow": "Sparkline",
+                "Steady": "Steady",
+                "View": "View",
+                "ViewCards": "Cards",
+                "ViewTable": "Table"
+            },
             "Cooldown": "Cooldown",
             "Current": "Current",
             "Dataset": {
@@ -1241,6 +1337,30 @@
         "YouCanFindMore": "You can find more details at"
     },
     "Settings": {
+        "CommandPaletteTab": {
+            "AddFavourite": "Add a command to the favourites",
+            "ClearRecent": "Clear",
+            "CommandPalette": "Commands",
+            "Enable": "Enable the command palette",
+            "EnableDescription": "Search pages, macros, G-Code files, printer actions and settings from one place, with the keyboard.",
+            "Favourites": "Favourites",
+            "FavouritesDescription": "Favourites are shown at the top of the palette. Drag them to change their order.",
+            "NoFavourites": "No favourites yet. Add one here, or with the pin next to a command in the palette.",
+            "Recent": "Recently used commands",
+            "RecentDescription": "Remembered commands: {count}. They are shown below the favourites.",
+            "RemoveFavourite": "Remove from favourites",
+            "ResetShortcut": "Reset",
+            "Shortcut": "Keyboard shortcut",
+            "ShortcutDescription": "Opens and closes the palette. Click the shortcut to change it.",
+            "ShortcutErrors": {
+                "NeedsModifier": "Use Ctrl, Cmd or Alt together with another key, or a function key.",
+                "Reserved": "This combination is used by the browser or by Mainsail.",
+                "Unsupported": "This key cannot be used in a shortcut."
+            },
+            "ShortcutPressKeys": "Press keys",
+            "ShortcutRecording": "Press the new key combination, or Esc to keep the current one.",
+            "Unavailable": "Not available on this printer"
+        },
         "ConsoleTab": {
             "AddFilter": "add filter",
             "Console": "Console",
@@ -1356,6 +1476,7 @@
             "CannotReadJson": "Cannot read/parse backup file.",
             "DateFormat": "Date Format",
             "DbAlerts": "Notification Rules",
+            "DbCommandPalette": "Command palette",
             "DbConsoleHistory": "Console History",
             "DbHistoryJobs": "History Jobs",
             "DbHistoryTotals": "History Totals",
@@ -1691,9 +1812,12 @@
             "ProgressAsFaviconDescription": "Change the Mainsail logo favicon to a progress circle.",
             "ScrewsTiltAdjustDialog": "Screws Tilt Adjust Dialog",
             "ScrewsTiltAdjustDialogDescription": "Display helper dialog for SCREWS_TILT_CALCULATE.",
+            "ShowModeToggle": "Light/dark toggle in the top bar",
+            "ShowModeToggleDescription": "Show a button in the top bar that switches between light and dark mode.",
             "TempchartHeight": "Height Temperature Chart",
             "TempchartHeightDescription": "Modify the height of the temperature chart on the Dashboard.",
             "Theme": "Theme",
+            "ThemeAuto": "Auto (follow system)",
             "ThemeDark": "Dark",
             "ThemeDescription": "Customizes the branding of the interface.",
             "ThemeLight": "Light",

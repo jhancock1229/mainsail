@@ -7,6 +7,20 @@
         </template>
         <v-list>
             <v-list-item class="minHeight36">
+                <span class="text-body-2 mr-4">{{ $t('Panels.TemperaturePanel.Cards.View') }}</span>
+                <v-spacer />
+                <v-btn-toggle v-model="viewMode" class="temperature-panel-settings__view" dense mandatory>
+                    <v-btn value="cards" small>
+                        <v-icon small left>{{ mdiViewGridOutline }}</v-icon>
+                        {{ $t('Panels.TemperaturePanel.Cards.ViewCards') }}
+                    </v-btn>
+                    <v-btn value="table" small>
+                        <v-icon small left>{{ mdiTable }}</v-icon>
+                        {{ $t('Panels.TemperaturePanel.Cards.ViewTable') }}
+                    </v-btn>
+                </v-btn-toggle>
+            </v-list-item>
+            <v-list-item class="minHeight36">
                 <v-checkbox
                     v-model="boolTempchart"
                     class="mt-0"
@@ -34,6 +48,7 @@
                     hide-details
                     :label="$t('Panels.TemperaturePanel.AutoscaleChart')" />
             </v-list-item>
+            <temperature-panel-settings-cards v-if="temperatureCardsActive" />
         </v-list>
     </v-menu>
 </template>
@@ -42,11 +57,23 @@
 import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
-import { mdiCog } from '@mdi/js'
+import { mdiCog, mdiTable, mdiViewGridOutline } from '@mdi/js'
+import TemperatureCardsMixin from '@/components/mixins/temperatureCards'
+import { TemperatureViewMode } from '@/plugins/temperatureCards'
 
 @Component
-export default class TemperaturePanelSettings extends Mixins(BaseMixin) {
+export default class TemperaturePanelSettings extends Mixins(BaseMixin, TemperatureCardsMixin) {
     mdiCog = mdiCog
+    mdiTable = mdiTable
+    mdiViewGridOutline = mdiViewGridOutline
+
+    get viewMode(): TemperatureViewMode {
+        return this.temperatureCardSettings.viewMode
+    }
+
+    set viewMode(newVal: TemperatureViewMode) {
+        this.saveTemperatureCardSetting('viewMode', newVal)
+    }
 
     get boolTempchart(): boolean {
         return this.$store.state.gui.view.tempchart.boolTempchart ?? false
@@ -81,3 +108,9 @@ export default class TemperaturePanelSettings extends Mixins(BaseMixin) {
     }
 }
 </script>
+
+<style scoped>
+.temperature-panel-settings__view .v-btn {
+    text-transform: none;
+}
+</style>

@@ -191,7 +191,7 @@ describe('Error explainer', () => {
 
         cy.get('.error-explainer [data-action=openConfig]').click()
         cy.contains('.v-dialog--active', 'printer.cfg')
-        cy.contains('.v-dialog--active .cm-content', '[extruder]')
+        cy.contains('.v-dialog--active .cm-content', 'kinematics', { timeout: 15000 })
         cy.get('body').type('{esc}')
 
         cy.get('.error-explainer [data-action=restart]').click()

@@ -82,6 +82,9 @@ import SettingsEditorTab from '@/components/settings/SettingsEditorTab.vue'
 import SettingsTimelapseTab from '@/components/settings/SettingsTimelapseTab.vue'
 import SettingsNavigationTab from '@/components/settings/SettingsNavigationTab.vue'
 import SettingsNotificationsTab from '@/components/settings/SettingsNotificationsTab.vue'
+import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
+import { commandPaletteBus, OPEN_SETTINGS_TAB, PaletteSettingsTab } from '@/plugins/commandPaletteBus'
+import { EventBus } from '@/plugins/eventBus'
 
 import Panel from '@/components/ui/Panel.vue'
 import {
@@ -103,6 +106,7 @@ import {
     mdiDipSwitch,
     mdiMenu,
     mdiGrid,
+    mdiKeyboardOutline,
 } from '@mdi/js'
 import SettingsMiscellaneousTab from '@/components/settings/SettingsMiscellaneousTab.vue'
 import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue'
@@ -127,6 +131,7 @@ import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
         SettingsNavigationTab,
         SettingsNotificationsTab,
         SettingsHeightmapTab,
+        SettingsCommandPaletteTab,
     },
 })
 export default class TheSettingsMenu extends Mixins(BaseMixin) {
@@ -215,6 +220,11 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
                 name: 'notifications',
                 title: this.$t('Settings.NotificationsTab.Notifications'),
             },
+            {
+                icon: mdiKeyboardOutline,
+                name: 'command-palette',
+                title: this.$t('Settings.CommandPaletteTab.CommandPalette'),
+            },
         ]
 
         if (this.moonrakerComponents.includes('timelapse')) {
@@ -244,8 +254,28 @@ export default class TheSettingsMenu extends Mixins(BaseMixin) {
         this.scrollToTop()
     }
 
+    // command palette: it lists the tabs of this dialog
+    @Watch('tabTitles', { immediate: true })
+    publishTabsToCommandPalette(tabs: { name: string; title: unknown; icon: string }[]): void {
+        commandPaletteBus.settingsTabs = tabs.map((tab): PaletteSettingsTab => ({ ...tab, title: String(tab.title) }))
+    }
+
+    mounted(): void {
+        EventBus.$on(OPEN_SETTINGS_TAB, this.openTab)
+    }
+
+    beforeDestroy(): void {
+        EventBus.$off(OPEN_SETTINGS_TAB, this.openTab)
+    }
+
     scrollToTop() {
         this.settingsScroll?.osInstance()?.scroll({ y: '0%' })
+    }
+
+    // command palette: opens the dialog on a tab
+    openTab(name: string): void {
+        if (this.tabTitles.some((tab) => tab.name === name)) this.activeTab = name
+        this.showSettings = true
     }
 }
 </script>

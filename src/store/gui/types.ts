@@ -7,6 +7,7 @@ import { GuiNotificationState } from '@/store/gui/notifications/types'
 import { FileStateFile, FileStateGcodefile } from '@/store/files/types'
 import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { AlertSettings } from '@/plugins/notificationRules'
+import { PaletteSettings } from '@/plugins/commandPalette'
 
 export interface GuiState {
     // error explainer and printer event notifications
@@ -20,6 +21,7 @@ export interface GuiState {
         calcEstimateTime: string[] // file, filament are possible values
         calcEtaTime: string[] // file, filament, slicer are possible values
     }
+    commandPalette: PaletteSettings
     console?: GuiConsoleState
     control: {
         style: 'bars' | 'circle' | 'cross'
@@ -91,7 +93,8 @@ export interface GuiState {
     presets?: GuiPresetsState
     remoteprinters?: GuiRemoteprintersState
     uiSettings: {
-        mode: 'dark' | 'light'
+        mode: 'dark' | 'light' | 'auto'
+        showModeToggle: boolean
         theme: string
         logo: string
         primary: string
@@ -192,6 +195,7 @@ export interface GuiState {
             autoscale: boolean
             datasetSettings: Record<string, Record<string, unknown>>
         }
+        temperatureCards: import('@/plugins/temperatureCards').TemperatureCardSettings
         timelapse: {
             countPerPage: number
             sortBy: string

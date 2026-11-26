@@ -25,6 +25,159 @@ const startedAt = Date.now()
 const eventtime = () => (Date.now() - startedAt) / 1000
 
 // ---------------------------------------------------------------------------------------------------------
+// command palette demo content: more macros, gcode files and preheat presets than the recorded printer has
+// ---------------------------------------------------------------------------------------------------------
+
+// name: [description, gcode]
+const DEMO_MACROS = {
+    PARK_TOOLHEAD: ['Park the toolhead at the front of the bed', 'G28\nRESPOND MSG="Toolhead parked"'],
+    PURGE_LINE: ['Prime the nozzle with a purge line', 'RESPOND MSG="Purge line printed"'],
+    CLEAN_NOZZLE: ['Wipe the nozzle on the brush', 'RESPOND MSG="Nozzle cleaned"'],
+    CALIBRATE_BED_MESH: ['Probe the bed and save the mesh', 'G28\nRESPOND MSG="Bed mesh saved"'],
+    LIGHTS_ON: ['Switch the chamber lights on', 'RESPOND MSG="Lights on"'],
+    LIGHTS_OFF: ['Switch the chamber lights off', 'RESPOND MSG="Lights off"'],
+    MOTORS_OFF: ['Disable the stepper motors', 'M84\nRESPOND MSG="Motors off"'],
+}
+for (const [name, [description, gcode]] of Object.entries(DEMO_MACROS)) {
+    fixture.status[`gcode_macro ${name}`] = {}
+    fixture.status.gcode.commands[name] = { help: description }
+    fixture.status.configfile.config[`gcode_macro ${name}`] = { description, gcode: `\n${gcode}` }
+    fixture.status.configfile.settings[`gcode_macro ${name.toLowerCase()}`] = { description, gcode: `\n${gcode}` }
+    fixture.responses['printer.objects.list|{}'].objects.push(`gcode_macro ${name}`)
+}
+
+// [path below the gcodes root, age in hours, size]
+const DEMO_FILES = [
+    ['benchy.gcode', 2, 2843110],
+    ['calibration_cube.gcode', 26, 412870],
+    ['phone_stand.gcode', 50, 5120044],
+    ['functional/cable_clip.gcode', 5, 301554],
+    ['functional/spool_holder.gcode', 120, 7405112],
+]
+{
+    const directoryKey = (dir) => `server.files.get_directory|${JSON.stringify({ path: dir })}`
+    const root = fixture.responses[directoryKey('gcodes')]
+    for (const [file, ageHours, size] of DEMO_FILES) {
+        const parts = file.split('/')
+        const dir = ['gcodes', ...parts.slice(0, -1)].join('/')
+        const modified = Date.now() / 1000 - ageHours * 3600
+        if (!fixture.responses[directoryKey(dir)]) {
+            fixture.responses[directoryKey(dir)] = { ...clone(root), dirs: [], files: [] }
+            root.dirs.push({ modified, size: 64, permissions: 'rw', dirname: parts[0] })
+        }
+        fixture.responses[directoryKey(dir)].files.push({ modified, size, permissions: 'rw', filename: parts.at(-1) })
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// temperature objects that are not part of the recorded fixture, and the temperature history
+// ---------------------------------------------------------------------------------------------------------
+
+const CHAMBER = 'temperature_sensor chamber'
+const MCU = 'temperature_sensor mcu_temp'
+const ELECTRONICS_FAN = 'temperature_fan electronics'
+const HISTORY_SIZE = 1200
+const HISTORY_FIELDS = { temperature: 'temperatures', target: 'targets', power: 'powers', speed: 'speeds' }
+let temperatureHistory = {}
+let sinceLastRecord = 0
+
+const demoPreset = (name, extruder, bed) => ({
+    name,
+    gcode: '',
+    values: {
+        extruder: { bool: true, type: 'heater', value: extruder },
+        heater_bed: { bool: true, type: 'heater', value: bed },
+    },
+})
+const demoPresets = () => ({
+    presets: {
+        'demo-pla': demoPreset('PLA', 210, 60),
+        'demo-petg': demoPreset('PETG', 240, 80),
+        'demo-abs': demoPreset('ABS', 250, 100),
+    },
+})
+
+const addThermalObjects = () => {
+    const sensor = (temperature) => ({
+        temperature,
+        measured_min_temp: temperature,
+        measured_max_temp: temperature,
+    })
+
+    status[CHAMBER] = sensor(AMBIENT + 1)
+    status[MCU] = sensor(38)
+    status[ELECTRONICS_FAN] = { temperature: 32, target: 45, speed: 0 }
+    status.heaters.available_sensors.push(CHAMBER, MCU, ELECTRONICS_FAN)
+    Object.assign(status.configfile.settings, {
+        [CHAMBER]: { sensor_type: 'Generic 3950', min_temp: 0, max_temp: 80 },
+        [MCU]: { sensor_type: 'temperature_mcu', min_temp: 0, max_temp: 100 },
+        [ELECTRONICS_FAN]: { sensor_type: 'Generic 3950', min_temp: 0, max_temp: 80, target_temp: 45 },
+    })
+    fillTemperatureHistory()
+}
+
+const drift = (object, goal, rate, seconds, noise = 0.06) => {
+    object.temperature += (goal - object.temperature) * (1 - Math.exp(-rate * seconds)) + (Math.random() - 0.5) * noise
+    object.temperature = Math.round(object.temperature * 100) / 100
+    if (!('measured_min_temp' in object)) return
+
+    object.measured_min_temp = Math.min(object.measured_min_temp, object.temperature)
+    object.measured_max_temp = Math.max(object.measured_max_temp, object.temperature)
+}
+
+// the chamber follows the bed, the electronics warm up with the heater power and are cooled by their fan
+const simulateThermals = (printer, seconds) => {
+    const fan = printer[ELECTRONICS_FAN]
+    const printing = printer.print_stats.state === 'printing' ? 0.3 : 0
+    const load = (printer.extruder.power + printer.heater_bed.power) / 2 + printing
+
+    drift(printer[CHAMBER], AMBIENT + 1 + (printer.heater_bed.temperature - AMBIENT) * 0.35, 0.02, seconds)
+    drift(printer[MCU], 38 + load * 14, 0.05, seconds)
+    drift(fan, 32 + load * 30 - fan.speed * 15, 0.05, seconds)
+    const speed = fan.target > 0 ? (fan.temperature - fan.target + 2) / 6 : 0
+    fan.speed = Math.round(Math.min(1, Math.max(0, speed)) * 100) / 100
+}
+
+// like Moonraker, one entry per second
+const recordTemperatures = (printer) => {
+    for (const name of printer.heaters.available_sensors) {
+        const entry = (temperatureHistory[name] ??= {})
+        for (const [field, list] of Object.entries(HISTORY_FIELDS)) {
+            if (!(field in printer[name])) continue
+
+            entry[list] ??= []
+            entry[list].push(printer[name][field])
+            if (entry[list].length > HISTORY_SIZE) entry[list].shift()
+        }
+    }
+}
+
+// The history starts with an idle printer for the length of the store. That past is simulated on a copy, so the
+// printer itself starts at its initial temperatures whatever happens to it next.
+const fillTemperatureHistory = () => {
+    const idle = clone(status)
+    const settle = (heater) => drift(heater, AMBIENT, 0.03, 1, 0.2)
+
+    temperatureHistory = {}
+    sinceLastRecord = 0
+    for (let second = 0; second < HISTORY_SIZE; second++) {
+        settle(idle.extruder)
+        settle(idle.heater_bed)
+        simulateThermals(idle, 1)
+        recordTemperatures(idle)
+    }
+}
+
+const tickThermals = (seconds) => {
+    simulateThermals(status, seconds)
+    sinceLastRecord += seconds
+    if (sinceLastRecord < 1) return
+
+    sinceLastRecord = 0
+    recordTemperatures(status)
+}
+
+// ---------------------------------------------------------------------------------------------------------
 // simulated printer
 // ---------------------------------------------------------------------------------------------------------
 
@@ -38,6 +191,7 @@ const resetStatus = () => {
     status.extruder.temperature = AMBIENT
     status.heater_bed.temperature = AMBIENT
     status[RUNOUT_SENSOR].filament_detected = true
+    addThermalObjects()
     printElapsed = 0
 }
 resetStatus()
@@ -238,20 +392,6 @@ const timelapseFrame = () => {
     setTimeout(resumePrint, 1900)
 }
 
-const DEMO_PRINTER_CFG = `# printer.cfg of the simulated printer (demo/mock-moonraker.mjs)
-[mcu]
-serial: /dev/serial/by-id/usb-Klipper_demo
-
-[extruder]
-sensor_type: EPCOS 100K B57560G104F
-min_temp: 0
-max_temp: 250
-
-[stepper_x]
-position_min: 0
-position_max: 220
-`
-
 const restartKlipper = () => {
     setKlippyState('startup', 'Printer is not ready')
     broadcast('notify_klippy_disconnected', [])
@@ -305,6 +445,7 @@ const tick = (seconds) => {
 
     approach(status.extruder, seconds)
     approach(status.heater_bed, seconds)
+    tickThermals(seconds)
     status.extruder.can_extrude = status.extruder.temperature >= 170
 
     if (['printing', 'paused'].includes(status.print_stats.state)) status.print_stats.total_duration += seconds
@@ -378,6 +519,11 @@ const runGcode = (script) => {
                 if (heater) heater.target = Number(param('TARGET') ?? 0)
                 break
             }
+            case 'SET_TEMPERATURE_FAN_TARGET': {
+                const fan = status[`temperature_fan ${param('TEMPERATURE_FAN') ?? ''}`]
+                if (fan) fan.target = Number(param('TARGET') ?? 0)
+                break
+            }
             case 'TURN_OFF_HEATERS':
                 status.extruder.target = 0
                 status.heater_bed.target = 0
@@ -405,7 +551,7 @@ const runGcode = (script) => {
 // database (Mainsail settings), kept across restarts of the mock
 // ---------------------------------------------------------------------------------------------------------
 
-const emptyDatabase = () => ({ mainsail: { initVersion: '2.19.0' }, maintenance: {} })
+const emptyDatabase = () => ({ mainsail: { initVersion: '2.19.0', presets: demoPresets() }, maintenance: {} })
 let database = emptyDatabase()
 try {
     if (DB_FILE !== 'none') database = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
@@ -476,6 +622,8 @@ const handlers = {
         state_message: status.webhooks.state_message,
     }),
     'server.gcode_store': () => ({ gcode_store: gcodeStore.slice(-100) }),
+    'printer.objects.list': () => ({ objects: Object.keys(status) }),
+    'server.temperature_store': () => clone(temperatureHistory),
     'printer.objects.query': (params) => queryObjects(params.objects),
     'printer.objects.subscribe': (params) => queryObjects(params.objects),
     'printer.gcode.script': (params) => {
@@ -550,6 +698,28 @@ const handlers = {
     }),
 }
 
+// command palette: run the gcode of the macros (lines without templates), answer RESPOND, and remember the
+// received scripts so the browser tests can check what was sent (/demo/gcode-log)
+const gcodeLog = []
+const MAX_MACRO_DEPTH = 3
+const runScript = (script, depth = 0) => {
+    for (const line of script.split('\n')) {
+        const command = line.trim().split(/\s+/)[0]
+        const respond = line.match(/^\s*RESPOND\s+MSG="(.*)"\s*$/i)
+        const macro = status.configfile.settings[`gcode_macro ${command.toLowerCase()}`]
+
+        if (respond) gcodeResponse(`// ${respond[1]}`)
+        else if (macro && !('rename_existing' in macro) && !macro.gcode.includes('{') && depth < MAX_MACRO_DEPTH)
+            runScript(macro.gcode, depth + 1)
+        else runGcode(line)
+    }
+}
+handlers['printer.gcode.script'] = (params) => {
+    gcodeLog.push(params.script ?? '')
+    runScript(params.script ?? '')
+    return 'ok'
+}
+
 const handleRpc = (request) => {
     const params = request.params ?? {}
     const handler = handlers[request.method]
@@ -607,6 +777,30 @@ const controls = {
     status: () => {},
 }
 
+// command palette: preheat presets for a fresh demo database
+const seedPresets = () => {
+    database.mainsail ??= {}
+    database.mainsail.presets ??= demoPresets()
+}
+seedPresets()
+const resetWithoutPresets = controls.reset
+controls.reset = () => {
+    resetWithoutPresets()
+    gcodeLog.length = 0
+    seedPresets()
+}
+
+// printer.cfg as the editor shows it, rebuilt from the recorded config
+const configFileText = () =>
+    Object.entries(fixture.status.configfile.config)
+        .map(([name, options]) => {
+            const lines = Object.entries(options).map(
+                ([key, value]) => `${key}: ${String(value).replace(/\n/g, '\n  ')}`
+            )
+            return `[${name}]\n${lines.join('\n')}\n`
+        })
+        .join('\n')
+
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`)
     const headers = {
@@ -618,11 +812,6 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/demo/webcam.svg') {
         res.writeHead(200, { ...headers, 'Content-Type': 'image/svg+xml' })
         return res.end(webcamSvg())
-    }
-
-    if (url.pathname === '/server/files/config/printer.cfg') {
-        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
-        return res.end(DEMO_PRINTER_CFG)
     }
 
     if (url.pathname === '/server/database/list') {
@@ -638,6 +827,16 @@ const server = http.createServer((req, res) => {
         return res.end(
             JSON.stringify(value === undefined ? { error: { code: 404 } } : { result: { namespace, key, value } })
         )
+    }
+
+    // command palette: the gcode scripts received so far, and file contents for the editor
+    if (url.pathname === '/demo/gcode-log') {
+        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify(gcodeLog))
+    }
+    if (req.method === 'GET' && /^\/server\/files\/config\/[^.][^/]*\.(cfg|conf)$/.test(url.pathname)) {
+        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
+        return res.end(configFileText())
     }
 
     // /demo/<command> or /demo/<command>/<name>, e.g. /demo/error/timer-too-close

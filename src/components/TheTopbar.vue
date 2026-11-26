@@ -10,6 +10,7 @@
             <v-toolbar-title class="text-no-wrap ml-0 pl-2 mr-2">{{ printerName }}</v-toolbar-title>
             <printer-selector v-if="countPrinters" />
             <v-spacer />
+            <the-command-palette />
             <input
                 ref="fileUploadAndStart"
                 type="file"
@@ -53,6 +54,21 @@
                 <v-icon class="mr-md-2">{{ mdiAlertOctagonOutline }}</v-icon>
                 <span class="d-none d-md-inline">{{ $t('App.TopBar.EmergencyStop') }}</span>
             </v-btn>
+            <v-tooltip v-if="showModeToggle" bottom>
+                <template #activator="{ on, attrs }">
+                    <v-btn
+                        icon
+                        tile
+                        class="mode-toggle-button"
+                        :aria-label="modeToggleLabel"
+                        v-bind="attrs"
+                        v-on="on"
+                        @click="toggleMode">
+                        <v-icon>{{ $vuetify.theme.dark ? mdiWeatherSunny : mdiWeatherNight }}</v-icon>
+                    </v-btn>
+                </template>
+                <span>{{ modeToggleLabel }}</span>
+            </v-tooltip>
             <the-notification-menu />
             <the-settings-menu />
             <the-top-corner-menu />
@@ -87,10 +103,21 @@ import PrinterSelector from '@/components/ui/PrinterSelector.vue'
 import MainsailLogo from '@/components/ui/MainsailLogo.vue'
 import TheNotificationMenu from '@/components/notifications/TheNotificationMenu.vue'
 import { topbarHeight } from '@/store/variables'
-import { mdiAlertOctagonOutline, mdiContentSave, mdiFileUpload, mdiClose, mdiCloseThick } from '@mdi/js'
+import {
+    mdiAlertOctagonOutline,
+    mdiContentSave,
+    mdiFileUpload,
+    mdiClose,
+    mdiCloseThick,
+    mdiWeatherNight,
+    mdiWeatherSunny,
+} from '@mdi/js'
+import { systemPrefersDarkQuery, toggledThemeMode } from '@/plugins/themeMode'
+import { TranslateResult } from 'vue-i18n'
 import EmergencyStopDialog from '@/components/dialogs/EmergencyStopDialog.vue'
 import InlineSvg from 'vue-inline-svg'
 import ThemeMixin from '@/components/mixins/theme'
+import TheCommandPalette from '@/components/TheCommandPalette.vue'
 
 type uploadSnackbar = {
     status: boolean
@@ -111,6 +138,7 @@ type uploadSnackbar = {
         PrinterSelector,
         MainsailLogo,
         TheNotificationMenu,
+        TheCommandPalette,
     },
 })
 export default class TheTopbar extends Mixins(BaseMixin, ThemeMixin) {
@@ -119,6 +147,8 @@ export default class TheTopbar extends Mixins(BaseMixin, ThemeMixin) {
     mdiFileUpload = mdiFileUpload
     mdiClose = mdiClose
     mdiCloseThick = mdiCloseThick
+    mdiWeatherNight = mdiWeatherNight
+    mdiWeatherSunny = mdiWeatherSunny
 
     topbarHeight = topbarHeight
 
@@ -136,6 +166,16 @@ export default class TheTopbar extends Mixins(BaseMixin, ThemeMixin) {
     formatFilesize = formatFilesize
 
     @Ref() readonly fileUploadAndStart!: HTMLInputElement
+
+    get showModeToggle(): boolean {
+        return this.$store.state.gui.uiSettings.showModeToggle ?? true
+    }
+
+    get modeToggleLabel(): TranslateResult {
+        return this.$vuetify.theme.dark
+            ? this.$t('App.TopBar.SwitchToLightMode')
+            : this.$t('App.TopBar.SwitchToDarkMode')
+    }
 
     get gcodeInputFileAccept() {
         if (this.isIOS) return []
@@ -312,6 +352,13 @@ export default class TheTopbar extends Mixins(BaseMixin, ThemeMixin) {
     cancelUpload(): void {
         this.uploadSnackbar.cancelTokenSource?.cancel()
         this.uploadSnackbar.status = false
+    }
+
+    toggleMode(): void {
+        const systemPrefersDark = window.matchMedia?.(systemPrefersDarkQuery).matches ?? true
+        const mode = toggledThemeMode(this.$store.state.gui.uiSettings.mode, systemPrefersDark)
+
+        this.$store.dispatch('gui/saveSetting', { name: 'uiSettings.mode', value: mode })
     }
 }
 </script>
