@@ -92,5 +92,23 @@ export const actions: ActionTree<GuiMacrosState, RootState> = {
                 { root: true }
             )
         })
+
+        const stateLayouts = rootState.gui?.dashboard?.stateLayouts
+        ;(['printing', 'error'] as const).forEach((layoutState) => {
+            layouts.forEach((layoutname) => {
+                const layoutArray = stateLayouts?.[layoutState]?.[layoutname]
+                if (!Array.isArray(layoutArray)) return
+                if (!layoutArray.some((layoutPos) => layoutPos.name === 'macrogroup_' + id)) return
+
+                dispatch(
+                    'gui/saveSetting',
+                    {
+                        name: `dashboard.stateLayouts.${layoutState}.${layoutname}`,
+                        value: layoutArray.filter((layoutPos) => layoutPos.name !== 'macrogroup_' + id),
+                    },
+                    { root: true }
+                )
+            })
+        })
     },
 }

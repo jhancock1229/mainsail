@@ -32,7 +32,7 @@ export default class DashboardMixin extends BaseMixin {
 
     get dashboardLayoutState(): DashboardLayoutState {
         return resolveDashboardLayoutState({
-            enabled: this.$store.state.gui.dashboard.stateLayouts?.enabled ?? false,
+            enabled: this.$store.state.gui.dashboard.stateLayouts?.enabled ?? true,
             klipperState: this.klipperState,
             printerState: this.printer_state,
         })

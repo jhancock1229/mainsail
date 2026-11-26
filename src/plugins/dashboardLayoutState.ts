@@ -11,22 +11,25 @@ const viewportLayoutKeys: Record<string, GuiStateDashboardLayoutKey[]> = {
     widescreen: ['widescreenLayout1', 'widescreenLayout2', 'widescreenLayout3'],
 }
 
+// The rules only reorder and reveal panels. They never hide one, because every panel has controls that are
+// needed in some situation (e.g. z-offset in the toolhead panel while printing, motion controls after a failed
+// print). Hiding is left to the user.
 interface DeriveRule {
     promote: string[]
+    demote: string[]
     show: string[]
-    hide: string[]
 }
 
 const deriveRules: Record<Exclude<DashboardLayoutState, 'idle'>, DeriveRule> = {
     printing: {
         promote: ['webcam', 'temperature'],
+        demote: ['toolhead-control'],
         show: ['webcam'],
-        hide: ['toolhead-control'],
     },
     error: {
         promote: ['miniconsole'],
+        demote: [],
         show: ['miniconsole'],
-        hide: ['toolhead-control', 'extruder-control'],
     },
 }
 
@@ -41,8 +44,12 @@ export const resolveDashboardLayoutState = (input: {
 }): DashboardLayoutState => {
     if (!input.enabled) return 'idle'
 
-    if (['error', 'shutdown'].includes(input.klipperState) || input.printerState === 'error') return 'error'
-    if (input.klipperState === 'ready' && ['printing', 'paused'].includes(input.printerState)) return 'printing'
+    if (['error', 'shutdown'].includes(input.klipperState)) return 'error'
+
+    // print_stats can be stale while Klipper is not ready
+    if (input.klipperState !== 'ready') return 'idle'
+    if (input.printerState === 'error') return 'error'
+    if (['printing', 'paused'].includes(input.printerState)) return 'printing'
 
     return 'idle'
 }
@@ -55,16 +62,12 @@ export const deriveStateLayout = (
     if (layoutState === 'idle') return panels
 
     const rule = deriveRules[layoutState]
-    const derived = panels.map((panel) => {
-        if (rule.show.includes(panel.name)) return { ...panel, visible: true }
-        if (rule.hide.includes(panel.name)) return { ...panel, visible: false }
+    const derived = panels.map((panel) => (rule.show.includes(panel.name) ? { ...panel, visible: true } : { ...panel }))
+    const pick = (names: string[]) =>
+        names
+            .map((name) => derived.find((panel) => panel.name === name))
+            .filter((panel): panel is GuiStateLayoutoption => panel !== undefined)
+    const moved = [...rule.promote, ...rule.demote]
 
-        return { ...panel }
-    })
-
-    const promoted = rule.promote
-        .map((name) => derived.find((panel) => panel.name === name))
-        .filter((panel): panel is GuiStateLayoutoption => panel !== undefined)
-
-    return [...promoted, ...derived.filter((panel) => !rule.promote.includes(panel.name))]
+    return [...pick(rule.promote), ...derived.filter((panel) => !moved.includes(panel.name)), ...pick(rule.demote)]
 }

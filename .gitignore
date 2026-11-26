@@ -24,3 +24,4 @@ i18n-extract
 
 # demo (simulated printer)
 demo/.demo-db.json
+dist-demo

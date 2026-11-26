@@ -1,7 +1,7 @@
 import Vue from 'vue'
 import { getDefaultState } from './index'
 import { MutationTree } from 'vuex'
-import { GuiState, GuiStateDashboard, GuiStateLayoutoption } from '@/store/gui/types'
+import { GuiState, GuiStateDashboard, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
 import { setDataDeep } from '@/plugins/helpers'
 
 export const mutations: MutationTree<GuiState> = {
@@ -81,6 +81,11 @@ export const mutations: MutationTree<GuiState> = {
         ]
         layoutArray.splice(payload.index, 1)
         Vue.set(state.dashboard, payload.layoutname, layoutArray)
+    },
+
+    deleteStateLayout(state, payload: { layoutState: 'printing' | 'error'; layoutKey: GuiStateDashboardLayoutKey }) {
+        const stateLayouts = state.dashboard.stateLayouts?.[payload.layoutState]
+        if (stateLayouts) Vue.delete(stateLayouts, payload.layoutKey)
     },
 
     setChartDatasetStatus(state, payload: { objectName: string; dataset: string; value: boolean }) {

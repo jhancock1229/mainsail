@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getters } from '@/store/gui/getters'
+import Vue from 'vue'
 import { actions } from '@/store/gui/actions'
+import { mutations } from '@/store/gui/mutations'
 import type { GuiState, GuiStateLayoutoption } from '@/store/gui/types'
 import type { RootState } from '@/store/types'
 
@@ -70,16 +72,35 @@ describe('gui/getPanels with layout states', () => {
     it('derives the printing layout from the idle layout', () => {
         const g = createGetters(createState())
 
-        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature'])
-        expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual(['webcam'])
+        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature', 'toolhead-control'])
+        expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual(['webcam', 'toolhead-control'])
         expect(names(g.getPanels('desktop', 2, true, 'printing'))).toEqual(['temperature', 'miniconsole'])
     })
 
     it('derives the error layout from the idle layout', () => {
         const g = createGetters(createState())
 
-        expect(names(g.getPanels('mobile', 0, true, 'error'))).toEqual(['miniconsole', 'temperature'])
+        expect(names(g.getPanels('mobile', 0, true, 'error'))).toEqual([
+            'miniconsole',
+            'toolhead-control',
+            'temperature',
+        ])
         expect(names(g.getPanels('desktop', 2, true, 'error'))).toEqual(['miniconsole', 'temperature'])
+    })
+
+    it('applies the derive rules to panels that are missing from the stored layout', () => {
+        const state = createState()
+        state.dashboard.desktopLayout1 = [{ name: 'toolhead-control', visible: true }]
+        state.dashboard.desktopLayout2 = [{ name: 'miniconsole', visible: true }]
+        const g = createGetters(state)
+
+        // webcam and temperature are not stored and get appended to the first column
+        expect(names(g.getPanels('desktop', 1, true))).toEqual(['toolhead-control', 'webcam', 'temperature'])
+        expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual([
+            'webcam',
+            'temperature',
+            'toolhead-control',
+        ])
     })
 
     it('prefers a customized state layout over the derived one', () => {
@@ -92,13 +113,17 @@ describe('gui/getPanels with layout states', () => {
         const g = createGetters(createState({ printing: { mobileLayout: custom } }))
 
         expect(g.getPanels('mobile', 0, false, 'printing')).toEqual(custom)
-        expect(names(g.getPanels('mobile', 0, true, 'error'))).toEqual(['miniconsole', 'temperature'])
+        expect(names(g.getPanels('mobile', 0, true, 'error'))).toEqual([
+            'miniconsole',
+            'toolhead-control',
+            'temperature',
+        ])
     })
 
-    it('falls back to the derived layout after a state layout was reset to null', () => {
+    it('falls back to the derived layout when a state layout is not an array', () => {
         const g = createGetters(createState({ printing: { mobileLayout: null } }))
 
-        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature'])
+        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature', 'toolhead-control'])
     })
 
     it('does not re-add panels that live in another column of a customized state layout', () => {
@@ -128,7 +153,7 @@ describe('gui/getPanels with layout states', () => {
         delete (state.dashboard as unknown as Record<string, unknown>).stateLayouts
         const g = createGetters(state)
 
-        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature'])
+        expect(names(g.getPanels('mobile', 0, true, 'printing'))).toEqual(['webcam', 'temperature', 'toolhead-control'])
     })
 })
 
@@ -182,25 +207,60 @@ describe('gui/saveStateLayout', () => {
 })
 
 describe('gui/resetStateLayout', () => {
-    it('clears the customized layouts of a viewport for a state', () => {
+    const run = (state: GuiState, payload: Record<string, unknown>) => {
         const dispatch = vi.fn()
-        ;(actions.resetStateLayout as AnyFn)({ dispatch }, { layoutState: 'printing', viewport: 'desktop' })
+        const commit = vi.fn()
+        const emit = vi.fn()
+        ;(Vue as unknown as { $socket: unknown }).$socket = { emit }
+        ;(actions.resetStateLayout as AnyFn)({ dispatch, commit, state }, payload)
 
-        expect(dispatch).toHaveBeenCalledWith('saveSetting', {
-            name: 'dashboard.stateLayouts.printing.desktopLayout1',
-            value: null,
+        return { dispatch, commit, emit }
+    }
+
+    it('deletes the customized layouts of a viewport for a state', () => {
+        const custom = [{ name: 'webcam', visible: true }]
+        const state = createState({
+            printing: { desktopLayout1: custom, desktopLayout2: custom, mobileLayout: custom },
         })
-        expect(dispatch).toHaveBeenCalledWith('saveSetting', {
-            name: 'dashboard.stateLayouts.printing.desktopLayout2',
-            value: null,
+        const { commit, emit } = run(state, { layoutState: 'printing', viewport: 'desktop' })
+
+        expect(commit).toHaveBeenCalledTimes(2)
+        expect(commit).toHaveBeenCalledWith('deleteStateLayout', {
+            layoutState: 'printing',
+            layoutKey: 'desktopLayout1',
+        })
+        expect(commit).toHaveBeenCalledWith('deleteStateLayout', {
+            layoutState: 'printing',
+            layoutKey: 'desktopLayout2',
+        })
+        expect(emit).toHaveBeenCalledTimes(2)
+        expect(emit).toHaveBeenCalledWith('server.database.delete_item', {
+            namespace: 'mainsail',
+            key: 'dashboard.stateLayouts.printing.desktopLayout1',
         })
     })
 
+    it('does nothing for a state layout that is not customized', () => {
+        const { commit, emit, dispatch } = run(createState(), { layoutState: 'error', viewport: 'desktop' })
+
+        expect(commit).not.toHaveBeenCalled()
+        expect(emit).not.toHaveBeenCalled()
+        expect(dispatch).not.toHaveBeenCalled()
+    })
+
     it('resets the idle layout to the defaults', () => {
-        const dispatch = vi.fn()
-        ;(actions.resetStateLayout as AnyFn)({ dispatch }, { layoutState: 'idle', viewport: 'tablet' })
+        const { dispatch } = run(createState(), { layoutState: 'idle', viewport: 'tablet' })
 
         expect(dispatch).toHaveBeenCalledWith('resetLayout', 'tabletLayout1')
         expect(dispatch).toHaveBeenCalledWith('resetLayout', 'tabletLayout2')
+    })
+})
+
+describe('gui/deleteStateLayout', () => {
+    it('removes the customized layout from the state', () => {
+        const state = createState({ printing: { mobileLayout: [{ name: 'webcam', visible: true }] } })
+        ;(mutations.deleteStateLayout as AnyFn)(state, { layoutState: 'printing', layoutKey: 'mobileLayout' })
+
+        expect('mobileLayout' in state.dashboard.stateLayouts.printing).toBe(false)
     })
 })

@@ -475,16 +475,21 @@ export const actions: ActionTree<GuiState, RootState> = {
         })
     },
 
-    resetStateLayout({ dispatch }, payload: { layoutState: DashboardLayoutState; viewport: string }) {
+    resetStateLayout({ commit, dispatch, state }, payload: { layoutState: DashboardLayoutState; viewport: string }) {
+        const layoutState = payload.layoutState
+
         getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
-            if (payload.layoutState === 'idle') {
+            if (layoutState === 'idle') {
                 dispatch('resetLayout', layoutKey)
                 return
             }
 
-            dispatch('saveSetting', {
-                name: `dashboard.stateLayouts.${payload.layoutState}.${layoutKey}`,
-                value: null,
+            if (!Array.isArray(state.dashboard.stateLayouts?.[layoutState]?.[layoutKey])) return
+
+            commit('deleteStateLayout', { layoutState, layoutKey })
+            Vue.$socket.emit('server.database.delete_item', {
+                namespace: 'mainsail',
+                key: `dashboard.stateLayouts.${layoutState}.${layoutKey}`,
             })
         })
     },

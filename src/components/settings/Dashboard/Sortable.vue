@@ -75,7 +75,7 @@ export default class SettingsDashboardSortable extends Mixins(DashboardMixin) {
         this.saveLayout(newVal.filter((element) => element !== undefined))
     }
 
-    saveLayout(value: GuiStateLayoutoption[]) {
+    saveLayout(value: GuiStateLayoutoption[]): void {
         this.$store.dispatch('gui/saveStateLayout', {
             layoutState: this.layoutState,
             viewport: this.viewportName,

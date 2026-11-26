@@ -27,6 +27,11 @@ describe('resolveDashboardLayoutState', () => {
         expect(resolve('ready', 'error')).toBe('error')
     })
 
+    it('does not report a failed print from stale data while Klipper is not ready', () => {
+        expect(resolve('disconnected', 'error')).toBe('idle')
+        expect(resolve('startup', 'error')).toBe('idle')
+    })
+
     it('does not report printing from stale data while Klipper is not ready', () => {
         expect(resolve('disconnected', 'printing')).toBe('idle')
         expect(resolve('startup', 'paused')).toBe('idle')
@@ -52,29 +57,40 @@ describe('deriveStateLayout', () => {
         expect(deriveStateLayout('idle', idle)).toEqual(idle)
     })
 
-    it('puts webcam and temperature first and hides jog controls while printing', () => {
+    it('puts webcam and temperature first and the toolhead controls last while printing', () => {
         const result = deriveStateLayout('printing', idle)
 
         expect(result.map((panel) => panel.name)).toEqual([
             'webcam',
             'temperature',
-            'toolhead-control',
             'extruder-control',
             'macros',
             'miniconsole',
+            'toolhead-control',
         ])
         expect(result.find((panel) => panel.name === 'webcam')?.visible).toBe(true)
-        expect(result.find((panel) => panel.name === 'toolhead-control')?.visible).toBe(false)
-        expect(result.find((panel) => panel.name === 'extruder-control')?.visible).toBe(true)
     })
 
-    it('puts the console first and hides motion controls on error', () => {
+    it('puts the console first on error', () => {
         const result = deriveStateLayout('error', idle)
 
         expect(result[0]).toEqual({ name: 'miniconsole', visible: true })
-        expect(result.find((panel) => panel.name === 'toolhead-control')?.visible).toBe(false)
-        expect(result.find((panel) => panel.name === 'extruder-control')?.visible).toBe(false)
-        expect(result.find((panel) => panel.name === 'temperature')?.visible).toBe(true)
+        expect(result.slice(1).map((panel) => panel.name)).toEqual([
+            'webcam',
+            'toolhead-control',
+            'extruder-control',
+            'macros',
+            'temperature',
+        ])
+    })
+
+    it('never hides a panel, because every panel has controls that are needed in some situation', () => {
+        for (const layoutState of ['printing', 'error'] as const) {
+            const result = deriveStateLayout(layoutState, idle)
+            for (const panel of idle.filter((entry) => entry.visible)) {
+                expect(result.find((entry) => entry.name === panel.name)?.visible).toBe(true)
+            }
+        }
     })
 
     it('keeps every panel exactly once', () => {

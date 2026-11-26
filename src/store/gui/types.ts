@@ -244,8 +244,8 @@ export interface GuiStateDashboard {
 
 export type GuiStateDashboardLayoutKey = Exclude<keyof GuiStateDashboard, 'nonExpandPanels' | 'stateLayouts'>
 
-// null = not customized, use the layout derived from the idle layout
-export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[] | null>>
+// a missing key means not customized: the layout is derived from the idle layout
+export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[]>>
 
 export interface GuiStateLayoutoption {
     name: string

@@ -85,6 +85,7 @@ import {
     mdiTablet,
 } from '@mdi/js'
 import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
+import { TranslateResult } from 'vue-i18n'
 
 @Component({
     components: {
@@ -113,7 +114,7 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
     }
 
     get stateLayoutsEnabled(): boolean {
-        return this.$store.state.gui.dashboard.stateLayouts?.enabled ?? false
+        return this.$store.state.gui.dashboard.stateLayouts?.enabled ?? true
     }
 
     set stateLayoutsEnabled(newVal: boolean) {
@@ -124,7 +125,7 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
         return this.stateLayoutsEnabled ? this.currentLayoutState : 'idle'
     }
 
-    get layoutStates() {
+    get layoutStates(): { value: DashboardLayoutState; text: TranslateResult; icon: string }[] {
         return [
             { value: 'idle', text: this.$t('Settings.DashboardTab.Idle'), icon: mdiSleep },
             { value: 'printing', text: this.$t('Settings.DashboardTab.Printing'), icon: mdiPrinter3dNozzle },

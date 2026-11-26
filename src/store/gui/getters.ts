@@ -130,15 +130,23 @@ export const getters: GetterTree<GuiState, RootState> = {
             onlyVisible: boolean = false,
             layoutState: DashboardLayoutState = 'idle'
         ) => {
-            const layoutName = column ? `${viewport}Layout${column}` : `${viewport}Layout`
-            let panels = getters['getDashboardLayout'](layoutName, layoutState) as GuiStateLayoutoption[]
+            const layoutName = (
+                column ? `${viewport}Layout${column}` : `${viewport}Layout`
+            ) as GuiStateDashboardLayoutKey
+
+            // a derived state layout is built from the idle layout after the missing panels are added, so the
+            // derive rules apply to them too
+            const isDerived =
+                layoutState !== 'idle' && !Array.isArray(state.dashboard.stateLayouts?.[layoutState]?.[layoutName])
+            const sourceState = isDerived ? 'idle' : layoutState
+            let panels = getters['getDashboardLayout'](layoutName, sourceState) as GuiStateLayoutoption[]
 
             const allPossiblePanels = getters['getAllPossiblePanels']
 
             if (column < 2) {
                 const allViewportPanels = getters['getAllPanelsFromViewport'](
                     viewport,
-                    layoutState
+                    sourceState
                 ) as GuiStateLayoutoption[]
                 const missingPanels: GuiStateLayoutoption[] = []
 
@@ -151,6 +159,8 @@ export const getters: GetterTree<GuiState, RootState> = {
                 })
                 panels = panels.concat(missingPanels)
             }
+
+            if (isDerived) panels = deriveStateLayout(layoutState, panels)
 
             if (onlyVisible) {
                 panels = panels.filter((element) => element.visible)

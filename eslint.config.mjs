@@ -9,6 +9,7 @@ export default defineConfigWithVueTs(
     {
         ignores: [
             'dist/',
+            'dist-demo/',
             'dev-dist/',
             'i18n-extract/',
             'components.d.ts',

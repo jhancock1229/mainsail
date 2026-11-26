@@ -32,10 +32,11 @@ case "${1:-}" in
         export DEMO_PORT=${DEMO_PORT:-7135}
         export DEMO_UI_PORT=${DEMO_UI_PORT:-4183}
         export DEMO_DB_FILE=none
-        VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite build
+        # built into its own directory, so a production build in dist/ is left alone
+        VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite build --outDir dist-demo
         npx start-server-and-test \
             'node demo/mock-moonraker.mjs' "http://localhost:${DEMO_PORT}/demo/status" \
-            "vite preview --port ${DEMO_UI_PORT} --strictPort" "http://127.0.0.1:${DEMO_UI_PORT}/" \
+            "vite preview --outDir dist-demo --port ${DEMO_UI_PORT} --strictPort" "http://127.0.0.1:${DEMO_UI_PORT}/" \
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
