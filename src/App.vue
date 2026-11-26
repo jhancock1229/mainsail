@@ -18,6 +18,7 @@
             <the-bed-screws-dialog />
             <the-screws-tilt-adjust-dialog />
             <the-macro-prompt />
+            <the-event-notifier />
         </template>
         <the-select-printer-dialog v-else-if="instancesDB !== 'moonraker'" />
         <the-connecting-dialog v-else />
@@ -45,9 +46,12 @@ import TheScrewsTiltAdjustDialog from '@/components/dialogs/TheScrewsTiltAdjustD
 import { setAndLoadLocale } from './plugins/i18n'
 import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
+import TheEventNotifier from '@/components/TheEventNotifier.vue'
+import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 
 @Component({
     components: {
+        TheEventNotifier,
         TheMacroPrompt,
         TheTimelapseRenderingSnackbar,
         TheEditor,
@@ -114,8 +118,15 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return this.$store.state.printer.print_stats?.filename ?? ''
     }
 
+    systemDarkQuery: MediaQueryList | null = window.matchMedia?.(systemPrefersDarkQuery) ?? null
+    systemPrefersDark = this.systemDarkQuery?.matches ?? true
+
     get mode(): string {
         return this.$store.state.gui.uiSettings.mode
+    }
+
+    get darkMode(): boolean {
+        return resolveDarkMode(this.mode, this.systemPrefersDark)
     }
 
     get logoColor(): string {
@@ -218,9 +229,8 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         })
     }
 
-    @Watch('mode')
-    modeChanged(newVal: string): void {
-        const dark = newVal !== 'light'
+    @Watch('darkMode')
+    darkModeChanged(dark: boolean): void {
         this.$vuetify.theme.dark = dark
 
         const doc = document.documentElement
@@ -392,6 +402,21 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.appHeight()
         window.addEventListener('resize', this.appHeight)
         window.addEventListener('orientationchange', this.appHeight)
+
+        // older Safari only has the deprecated addListener
+        if (this.systemDarkQuery?.addEventListener)
+            this.systemDarkQuery.addEventListener('change', this.systemPrefersDarkChanged)
+        else this.systemDarkQuery?.addListener?.(this.systemPrefersDarkChanged)
+    }
+
+    beforeDestroy(): void {
+        if (this.systemDarkQuery?.removeEventListener)
+            this.systemDarkQuery.removeEventListener('change', this.systemPrefersDarkChanged)
+        else this.systemDarkQuery?.removeListener?.(this.systemPrefersDarkChanged)
+    }
+
+    systemPrefersDarkChanged(event: MediaQueryListEvent): void {
+        this.systemPrefersDark = event.matches
     }
 }
 </script>

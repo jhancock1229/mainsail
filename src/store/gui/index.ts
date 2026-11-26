@@ -11,6 +11,7 @@ import {
     defaultBigThumbnailBackground,
     defaultMode,
 } from '@/store/variables'
+import { getDefaultAlertSettings } from '@/plugins/notificationRules'
 
 import { getDefaultPrintHeroSettings } from '@/plugins/printHero'
 
@@ -26,9 +27,12 @@ import { remoteprinters } from '@/store/gui/remoteprinters'
 import { maintenance } from '@/store/gui/maintenance'
 import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
+import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
+import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 
 export const getDefaultState = (): GuiState => {
     return {
+        alerts: getDefaultAlertSettings(),
         general: {
             printername: '',
             language: 'en',
@@ -38,6 +42,7 @@ export const getDefaultState = (): GuiState => {
             calcEstimateTime: ['file', 'filament'],
             calcEtaTime: ['file', 'filament', 'slicer'],
         },
+        commandPalette: getDefaultPaletteSettings(),
         control: {
             style: 'bars',
             actionButton: null,
@@ -171,6 +176,7 @@ export const getDefaultState = (): GuiState => {
         },
         uiSettings: {
             mode: defaultMode,
+            showModeToggle: true,
             theme: defaultTheme,
             logo: defaultLogoColor,
             primary: defaultPrimaryColor,
@@ -307,6 +313,7 @@ export const getDefaultState = (): GuiState => {
                 autoscale: false,
                 datasetSettings: {},
             },
+            temperatureCards: getDefaultTemperatureCardSettings(),
             timelapse: {
                 countPerPage: 10,
                 sortBy: 'modified',

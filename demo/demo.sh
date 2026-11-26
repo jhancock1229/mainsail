@@ -6,8 +6,15 @@
 #   demo/demo.sh quickprint  start a 90 second print with a 20 second warm-up
 #   demo/demo.sh pause     pause the print                 -> printing state (paused)
 #   demo/demo.sh resume    resume the print
+#   demo/demo.sh finish    complete the print right away   -> idle state (print complete)
 #   demo/demo.sh fail      make the print fail             -> error state (Klipper keeps running)
 #   demo/demo.sh error     trigger an emergency stop       -> error state (Klipper shutdown)
+#   demo/demo.sh fail <heater|move-out-of-range|must-home|cold-extrude|unknown>
+#                          make the print fail with a specific message
+#   demo/demo.sh error <timer-too-close|lost-communication|thermistor|heater|mcu-connect|config|unknown>
+#                          stop Klipper with a specific error
+#   demo/demo.sh runout    the filament sensor runs empty  -> a running print is paused
+#   demo/demo.sh frame     take a timelapse frame          -> the print pauses for a moment
 #   demo/demo.sh idle      cancel the print / recover      -> idle state
 #   demo/demo.sh reconnect  drop the connection to Mainsail, which then reconnects
 #   demo/demo.sh reset     fresh printer and default Mainsail settings
@@ -26,8 +33,8 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | quickprint | pause | resume | fail | error | idle | reconnect | reset | status)
-        curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1"
+    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | reset | status)
+        curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
         # separate ports and in-memory settings, so a running demo is not disturbed
@@ -44,7 +51,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

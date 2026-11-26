@@ -58,13 +58,32 @@
             <template v-if="print_stats_message">
                 <v-container>
                     <v-row>
-                        <v-col class="py-2">
+                        <v-col v-if="printErrorExplanation" class="pt-3 pb-2">
+                            <error-explainer
+                                :explanation="printErrorExplanation"
+                                :icon="mdiAlertOutline"
+                                color="warning" />
+                        </v-col>
+                        <v-col v-else class="py-2">
                             <span class="subtitle-2 px-0 text--disabled">
                                 <v-icon class="mr-2 mt-1 float-left" color="warning" small>
                                     {{ mdiAlertOutline }}
                                 </v-icon>
                                 {{ print_stats_message }}
                             </span>
+                        </v-col>
+                    </v-row>
+                </v-container>
+                <v-divider class="mt-0 mb-0" />
+            </template>
+            <template v-if="missingFilamentExplanation">
+                <v-container>
+                    <v-row>
+                        <v-col class="pt-3 pb-0">
+                            <error-explainer
+                                :explanation="missingFilamentExplanation"
+                                :icon="mdiAlertOutline"
+                                color="warning" />
                         </v-col>
                     </v-row>
                 </v-container>
@@ -167,10 +186,15 @@ import {
 } from '@mdi/js'
 import { PrinterStateMacro } from '@/store/printer/types'
 import ConfirmationDialog from '@/components/dialogs/ConfirmationDialog.vue'
+import ErrorExplainer from '@/components/ui/ErrorExplainer.vue'
+import { ErrorExplanation, explainError } from '@/plugins/errorExplainer'
+import { resolveAlertSettings } from '@/plugins/notificationRules'
+import { buildPrinterSnapshot, explainMissingFilament } from '@/plugins/printerEvents'
 
 @Component({
     components: {
         ConfirmationDialog,
+        ErrorExplainer,
         KlippyStatePanel,
         MinSettingsPanel,
         Panel,
@@ -332,6 +356,20 @@ export default class StatusPanel extends Mixins(BaseMixin, PrintHeroStatusMixin)
 
     get print_stats_message() {
         return this.$store.state.printer.print_stats?.message ?? null
+    }
+
+    // plain-language explanation of the message of a failed print
+    get printErrorExplanation(): ErrorExplanation | null {
+        if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
+
+        return explainError(this.print_stats_message, { klipperState: this.klipperState })
+    }
+
+    // tells why a paused print waits, when a filament sensor is empty (a runout or a filament change)
+    get missingFilamentExplanation(): ErrorExplanation | null {
+        if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
+
+        return explainMissingFilament(buildPrinterSnapshot(this.klipperState, this.$store.state.printer))
     }
 
     get layer_count() {
