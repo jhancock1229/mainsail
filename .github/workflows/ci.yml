@@ -72,3 +72,31 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+  demo:
+    name: Demo Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Cypress
+        run: npx cypress install
+
+      - name: Run browser tests against the simulated printer
+        run: demo/demo.sh test
+
+      - name: Upload screenshots of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: demo-test-screenshots
+          path: cypress/screenshots
