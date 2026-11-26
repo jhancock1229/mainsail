@@ -61,7 +61,9 @@ describe('State-aware dashboard', () => {
         cy.contains('.v-dialog--active .v-btn-toggle button', 'Printing').click()
         cy.contains('.v-dialog--active', 'Follows your idle layout')
         // an untranslated label would show its key
-        cy.get('.v-dialog--active').invoke('text').should('not.match', /Settings\.DashboardTab\./i)
+        cy.get('.v-dialog--active')
+            .invoke('text')
+            .should('not.match', /Settings\.DashboardTab\./i)
         cy.contains('.v-dialog--active .v-list-item', 'Toolhead').find('.v-icon').last().click()
         cy.contains('.v-dialog--active', 'Customized.')
         cy.get('body').type('{esc}')
