@@ -2,6 +2,11 @@
 .dashboard-rows-container /deep/ .v-list-item-group {
     min-height: 80px;
 }
+
+/* reserve the line, so the lists below do not jump when switching between states */
+.state-layout-status {
+    min-height: 20px;
+}
 </style>
 
 <template>
@@ -16,6 +21,7 @@
             <v-divider class="my-2" />
             <v-row v-if="stateLayoutsEnabled">
                 <v-col class="text-center pb-0">
+                    <div class="text-overline text--secondary">{{ $t('Settings.DashboardTab.PrinterState') }}</div>
                     <v-btn-toggle v-model="currentLayoutState" class="mx-auto" mandatory>
                         <v-btn v-for="layoutState in layoutStates" :key="layoutState.value" :value="layoutState.value">
                             <span class="hidden-sm-and-down">{{ layoutState.text }}</span>
@@ -23,13 +29,23 @@
                             <v-icon class="hidden-md-and-up">{{ layoutState.icon }}</v-icon>
                         </v-btn>
                     </v-btn-toggle>
-                    <p v-if="activeLayoutState !== 'idle'" class="text-caption text--secondary mt-2 mb-0">
-                        {{ $t('Settings.DashboardTab.StateLayoutHint') }}
-                    </p>
+                    <div class="state-layout-status text-caption text--secondary mt-2">
+                        <template v-if="activeLayoutState !== 'idle'">
+                            <v-icon small class="mr-1">{{ isCustomized ? mdiPencil : mdiLinkVariant }}</v-icon>
+                            {{
+                                isCustomized
+                                    ? $t('Settings.DashboardTab.StateLayoutCustomized')
+                                    : $t('Settings.DashboardTab.StateLayoutHint')
+                            }}
+                        </template>
+                    </div>
                 </v-col>
             </v-row>
             <v-row>
                 <v-col class="text-center">
+                    <div v-if="stateLayoutsEnabled" class="text-overline text--secondary">
+                        {{ $t('Settings.DashboardTab.ScreenSize') }}
+                    </div>
                     <v-btn-toggle v-model="currentViewport" class="mx-auto" mandatory>
                         <v-btn value="mobile">
                             <span class="hidden-sm-and-down">{{ $t('Settings.DashboardTab.Mobile') }}</span>
@@ -78,8 +94,10 @@ import SettingsRow from '@/components/settings/SettingsRow.vue'
 import {
     mdiAlertCircleOutline,
     mdiCellphone,
+    mdiLinkVariant,
     mdiMonitorScreenshot,
     mdiMonitorDashboard,
+    mdiPencil,
     mdiPrinter3dNozzle,
     mdiSleep,
     mdiTablet,
@@ -98,6 +116,8 @@ import { TranslateResult } from 'vue-i18n'
 })
 export default class SettingsDashboardTab extends Mixins(BaseMixin) {
     mdiCellphone = mdiCellphone
+    mdiLinkVariant = mdiLinkVariant
+    mdiPencil = mdiPencil
     mdiTablet = mdiTablet
     mdiMonitorDashboard = mdiMonitorDashboard
     mdiMonitorScreenshot = mdiMonitorScreenshot
@@ -123,6 +143,10 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
 
     get activeLayoutState(): DashboardLayoutState {
         return this.stateLayoutsEnabled ? this.currentLayoutState : 'idle'
+    }
+
+    get isCustomized(): boolean {
+        return this.$store.getters['gui/hasCustomStateLayout'](this.currentViewport, this.activeLayoutState)
     }
 
     get layoutStates(): { value: DashboardLayoutState; text: TranslateResult; icon: string }[] {

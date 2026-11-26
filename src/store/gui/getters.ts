@@ -122,6 +122,15 @@ export const getters: GetterTree<GuiState, RootState> = {
             return deriveStateLayout(layoutState, idlePanels)
         },
 
+    hasCustomStateLayout:
+        (state) =>
+        (viewport: string, layoutState: DashboardLayoutState): boolean => {
+            if (layoutState === 'idle') return false
+
+            const customLayouts = state.dashboard.stateLayouts?.[layoutState] ?? {}
+            return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
+        },
+
     getPanels:
         (state, getters, rootState) =>
         (

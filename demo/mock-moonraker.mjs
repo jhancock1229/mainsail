@@ -497,6 +497,16 @@ const server = http.createServer((req, res) => {
         return res.end(JSON.stringify({ result: { namespaces: Object.keys(database), backups: [] } }))
     }
 
+    if (url.pathname === '/server/database/item' && req.method === 'GET') {
+        const namespace = url.searchParams.get('namespace')
+        const key = url.searchParams.get('key')
+        const value = dbGet(namespace, key)
+        res.writeHead(value === undefined ? 404 : 200, { ...headers, 'Content-Type': 'application/json' })
+        return res.end(
+            JSON.stringify(value === undefined ? { error: { code: 404 } } : { result: { namespace, key, value } })
+        )
+    }
+
     const control = controls[url.pathname.replace('/demo/', '')]
     if (url.pathname.startsWith('/demo/') && control) {
         try {

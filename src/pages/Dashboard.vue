@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div :class="{ 'dashboard-layout-changed': layoutChanged }">
         <v-row v-if="isMobile">
             <v-col>
                 <status-panel />
@@ -81,7 +81,7 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Watch } from 'vue-property-decorator'
 import AfcPanel from '@/components/panels/AfcPanel.vue'
 import ExtruderControlPanel from '@/components/panels/ExtruderControlPanel.vue'
 import DashboardMixin from '@/components/mixins/dashboard'
@@ -121,6 +121,25 @@ import WebcamPanel from '@/components/panels/WebcamPanel.vue'
     },
 })
 export default class PageDashboard extends Mixins(DashboardMixin) {
+    layoutChanged = false
+    layoutChangedTimeout: number | null = null
+
+    // let the panels settle in softly when the printer state switches the layout
+    @Watch('dashboardLayoutState')
+    onDashboardLayoutStateChanged(): void {
+        if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)
+
+        this.layoutChanged = true
+        this.layoutChangedTimeout = window.setTimeout(() => {
+            this.layoutChanged = false
+            this.layoutChangedTimeout = null
+        }, 400)
+    }
+
+    beforeDestroy(): void {
+        if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)
+    }
+
     get mobileLayout() {
         return this.$store.getters['gui/getPanels']('mobile', 0, true, this.dashboardLayoutState)
     }
@@ -162,3 +181,22 @@ export default class PageDashboard extends Mixins(DashboardMixin) {
     }
 }
 </script>
+
+<style scoped>
+@keyframes dashboard-panel-settle {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+}
+
+.dashboard-layout-changed ::v-deep .panel {
+    animation: dashboard-panel-settle 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-layout-changed ::v-deep .panel {
+        animation: none;
+    }
+}
+</style>

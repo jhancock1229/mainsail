@@ -157,6 +157,24 @@ describe('gui/getPanels with layout states', () => {
     })
 })
 
+describe('gui/hasCustomStateLayout', () => {
+    const run = (state: GuiState, viewport: string, layoutState: string) =>
+        ((getters.hasCustomStateLayout as AnyFn)(state) as AnyFn)(viewport, layoutState)
+
+    it('is false while a state layout follows the idle layout', () => {
+        expect(run(createState(), 'desktop', 'printing')).toBe(false)
+        expect(run(createState(), 'desktop', 'idle')).toBe(false)
+    })
+
+    it('is true when a column of the viewport is customized for the state', () => {
+        const state = createState({ printing: { desktopLayout2: [{ name: 'webcam', visible: true }] } })
+
+        expect(run(state, 'desktop', 'printing')).toBe(true)
+        expect(run(state, 'desktop', 'error')).toBe(false)
+        expect(run(state, 'mobile', 'printing')).toBe(false)
+    })
+})
+
 describe('gui/saveStateLayout', () => {
     const run = (state: GuiState, payload: Record<string, unknown>) => {
         const dispatch = vi.fn()
