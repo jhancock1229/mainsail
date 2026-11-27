@@ -35,6 +35,7 @@ const store = () =>
         const app = $app[0] as unknown as {
             __vue__: {
                 $store: {
+                    state: { gui: { uiSettings: { primary: string } } }
                     dispatch: (name: string, value: unknown) => void
                     getters: Record<string, (name: string) => string>
                 }
@@ -43,6 +44,10 @@ const store = () =>
 
         return app.__vue__.$store
     })
+const appVariable = (name: string, check: (value: string) => void) =>
+    cy.get('.v-application').should(($app) => check(getComputedStyle($app[0]).getPropertyValue(name).trim()))
+const classicAccentIs = (color: string) =>
+    store().should(($store) => expect($store.state.gui.uiSettings.primary.toLowerCase()).to.equal(color))
 const pageDoesNotScroll = (tabListFits: boolean) =>
     cy.window().should((win) => {
         const doc = win.document
@@ -127,6 +132,8 @@ describe('Theming of the new interface', () => {
         inlineVariable('--shell-accent', (value) => expect(value).to.equal('#8ea2ff'))
         cy.get('body').should('not.have.css', 'background-color', 'rgb(35, 40, 50)')
         cy.get('.shell-settings__tab[aria-selected="true"]').should('have.css', 'border-radius', '10px')
+        appVariable('--v-primary-base', (value) => expect(value).to.equal('#8ea2ff'))
+        classicAccentIs('#2196f3')
         store().should(($store) => {
             expect($store.getters['printer/tempHistory/getDatasetColor']('heater_bed')).to.equal('#9cc9e8')
         })
@@ -135,6 +142,12 @@ describe('Theming of the new interface', () => {
         cy.get('html').should('have.class', 'theme--light')
         inlineVariable('--shell-text', (value) => expect(value).to.match(/^#[0-3]/))
         inlineVariable('--shell-accent', isColorOtherThan('#8ea2ff'))
+        appVariable('--v-primary-base', isColorOtherThan('#8ea2ff'))
+        cy.get('.mode-toggle-button').click()
+        cy.get('html').should('have.class', 'theme--dark')
+        appVariable('--v-primary-base', (value) => expect(value).to.equal('#8ea2ff'))
+        cy.get('.mode-toggle-button').click()
+        cy.get('html').should('have.class', 'theme--light')
         store().should(($store) => {
             expect($store.getters['printer/tempHistory/getDatasetColor']('heater_bed')).to.equal('#4a7fa5')
         })
@@ -202,8 +215,28 @@ describe('Theming of the new interface', () => {
         inlineVariable('--shell-accent', isColorOtherThan('#0a3d91'))
 
         cy.visit('/settings/appearance')
+        cy.contains(tab, 'Themes')
+        classicAccentIs('#2196f3')
         resetButton('accent').click()
         approvedLook()
+    })
+
+    it('puts readable text on buttons in the accent colour', () => {
+        cy.get('.mode-toggle-button').click()
+        cy.get('html').should('have.class', 'theme--light')
+        cy.get(`${tab} .appearance-accent`).click()
+        cy.get('.appearance-accent-picker .v-color-picker__input input').first().clear().type('#ffe600{enter}').blur()
+        cy.get('body').type('{esc}')
+
+        inlineVariable('--shell-accent', isColorOtherThan('#ffe600'))
+        cy.document().should((doc) => {
+            const accent = doc.documentElement.style.getPropertyValue('--shell-accent').trim()
+            const app = getComputedStyle(doc.querySelector('.v-application') as HTMLElement)
+
+            expect(app.getPropertyValue('--color-primary').trim(), 'button colour').to.equal(accent)
+            expect(app.getPropertyValue('--v-primary-base').trim(), 'Vuetify primary').to.equal(accent)
+            expect(app.getPropertyValue('--v-btn-text-primary').trim(), 'button text').to.equal('#ffffff')
+        })
     })
 
     it('does not let the theme of the classic interface leak into the new one', () => {
@@ -213,6 +246,8 @@ describe('Theming of the new interface', () => {
                 value: { radius: 0, density: 'compact', surface: 'outlined', tint: 'accent', font: 'rounded' },
             })
         )
+        store().then(($store) => $store.dispatch('gui/saveSetting', { name: 'uiSettings.primary', value: '#ff0000' }))
+        appVariable('--color-primary', (value) => expect(value.toLowerCase()).to.equal('#2196f3'))
 
         cy.get('html').should(($html) => {
             ;['radius', 'density', 'surface', 'tint', 'font'].forEach((name) =>
@@ -223,6 +258,12 @@ describe('Theming of the new interface', () => {
     })
 
     it('exports the theme to a file that can be imported again', () => {
+        cy.get(`${tab} .appearance-export`).click()
+        cy.readFile('cypress/downloads/mainsail-theme.json').should((file) => {
+            expect(file.name).to.equal('Slate')
+            expect(file.tokens).not.to.have.property('accent')
+        })
+
         preset('ink').click()
         cy.get(`${tab} .appearance-export`).click()
         cy.readFile('cypress/downloads/mainsail-theme.json').should('deep.equal', inkFile)

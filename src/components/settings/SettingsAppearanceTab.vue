@@ -21,11 +21,7 @@
                         :font-family="preset.fontFamily"
                         :active="preset.id === activePreset"
                         @select="applyPreset">
-                        <theme-shell-preview
-                            v-if="isShell"
-                            :preset="preset.preset"
-                            :accent="preset.accent"
-                            :default-accent="defaultAccent" />
+                        <theme-shell-preview v-if="isShell" :preset="preset.preset" />
                         <theme-classic-preview v-else :preset="preset.preset" :accent="preset.accent" />
                     </theme-preset-card>
                 </div>
@@ -55,14 +51,14 @@
                                 <template #activator="{ on, attrs }">
                                     <v-btn
                                         v-bind="attrs"
-                                        :color="tokens.accent"
+                                        :color="accentColor"
                                         class="minwidth-0 px-5 appearance-accent"
                                         :aria-label="$t('Settings.AppearanceTab.Accent')"
                                         small
                                         v-on="on" />
                                 </template>
                                 <v-color-picker
-                                    :value="tokens.accent"
+                                    :value="accentColor"
                                     hide-mode-switch
                                     mode="hexa"
                                     class="appearance-accent-picker"
@@ -361,7 +357,13 @@ import ThemeShellPreview from '@/components/settings/Appearance/ThemeShellPrevie
 import { clearColorObject, ColorPickerValue } from '@/plugins/helpers'
 import { InterfaceShell } from '@/plugins/shellNavigation'
 import { defaultPrimaryColor } from '@/store/variables'
-import { exportThemeFile, MAX_THEME_FILE_SIZE, parseThemeFile, ThemeFileError } from '@/plugins/themeFile'
+import {
+    exportThemeFile,
+    MAX_THEME_FILE_SIZE,
+    parseThemeFile,
+    ThemeFileContent,
+    ThemeFileError,
+} from '@/plugins/themeFile'
 import {
     defaultShellStoredTokens,
     isDefaultShellAccent,
@@ -371,10 +373,12 @@ import {
     MIN_SHELL_RADIUS,
     resolveShellTokens,
     shellAccentColors,
+    shellDefaultAccent,
     shellPalette,
     ShellStoredTokens,
     ShellThemePreset,
     shellThemePresets,
+    ShellTokens,
     ShellTone,
     shellTones,
 } from '@/plugins/shellTheme'
@@ -403,12 +407,12 @@ import {
     themeSurfaces,
     ThemeTint,
     themeTints,
+    ThemeTokens,
 } from '@/plugins/themeTokens'
 
 const EXPORT_FILENAME = 'mainsail-theme.json'
 const SWATCH_COUNT = 6
 
-type AnyStoredTokens = ThemeStoredTokens | ShellStoredTokens
 type EditorTokens = { accent: string } & Partial<ThemeStoredTokens> & Partial<ShellStoredTokens>
 
 interface PresetCard {
@@ -455,24 +459,38 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
         return this.isShell ? 'ShellPresets' : 'Presets'
     }
 
-    get tokens(): EditorTokens {
+    get shellTokens(): ShellTokens {
+        return resolveShellTokens(this.$store.state.gui.uiSettings.shellTokens)
+    }
+
+    get classicTokens(): ThemeTokens {
         const uiSettings = this.$store.state.gui.uiSettings
-        if (this.isShell) return resolveShellTokens(uiSettings.primary, uiSettings.shellTokens, this.defaultAccent)
 
         return resolveThemeTokens(uiSettings.primary, uiSettings.tokens, this.defaultAccent)
     }
 
-    get storedTokens(): AnyStoredTokens {
-        const stored: Record<string, unknown> = { ...this.tokens }
-        delete stored.accent
-
-        return stored as unknown as AnyStoredTokens
+    get tokens(): EditorTokens {
+        return this.isShell ? this.shellTokens : this.classicTokens
     }
 
     get defaults(): EditorTokens {
-        const stored = this.isShell ? defaultShellStoredTokens() : defaultStoredThemeTokens()
+        if (this.isShell) return defaultShellStoredTokens()
 
-        return { accent: this.defaultAccent, ...stored }
+        return { accent: this.defaultAccent, ...defaultStoredThemeTokens() }
+    }
+
+    get accentColor(): string {
+        if (!this.isShell || !isDefaultShellAccent(this.tokens.accent)) return this.tokens.accent
+
+        return shellDefaultAccent[this.dark ? 'dark' : 'light'].accent
+    }
+
+    get fileContent(): ThemeFileContent {
+        if (this.isShell) return { interface: 'new', tokens: this.shellTokens }
+
+        const { accent, ...tokens } = this.classicTokens
+
+        return { interface: 'classic', accent: this.isDefault('accent') ? null : accent, tokens }
     }
 
     get presets(): (ThemePreset | ShellThemePreset)[] {
@@ -488,24 +506,16 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
             id: preset.id,
             name: this.presetName(preset.id),
             description: this.$t(`Settings.AppearanceTab.${this.presetsKey}.${preset.id}.Description`).toString(),
-            accent: preset.accent ?? this.defaultAccent,
+            accent: this.presetAccent(preset),
             fontFamily: themeFonts[preset.tokens.font],
             preset,
         }))
     }
 
     get activePreset(): string | null {
-        const uiSettings = this.$store.state.gui.uiSettings
-        if (this.isShell)
-            return matchingShellPreset(
-                resolveShellTokens(uiSettings.primary, uiSettings.shellTokens, this.defaultAccent),
-                this.defaultAccent
-            )
+        if (this.isShell) return matchingShellPreset(this.shellTokens)
 
-        return matchingPreset(
-            resolveThemeTokens(uiSettings.primary, uiSettings.tokens, this.defaultAccent),
-            this.defaultAccent
-        )
+        return matchingPreset(this.classicTokens, this.defaultAccent)
     }
 
     get currentThemeName(): string {
@@ -574,9 +584,9 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
 
     get shellAccentNotes(): string[] {
         const accent = this.tokens.accent
-        if (isDefaultShellAccent(accent, this.defaultAccent)) return []
+        if (isDefaultShellAccent(accent)) return []
 
-        const shown = shellAccentColors(accent, this.defaultAccent, this.tokens.tone ?? 'slate', this.dark).accent
+        const shown = shellAccentColors(accent, this.shellTokens.tone, this.dark).accent
         if (shown === accent.toLowerCase()) return []
 
         const key = this.dark ? 'AccentAdjustedDark' : 'AccentAdjustedLight'
@@ -614,6 +624,12 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
         return warnings
     }
 
+    presetAccent(preset: ThemePreset | ShellThemePreset): string {
+        if ('accent' in preset) return preset.accent ?? this.defaultAccent
+
+        return shellAccentColors(preset.tokens.accent, preset.tokens.tone, this.dark).accent
+    }
+
     presetName(id: string): string {
         return this.$t(`Settings.AppearanceTab.${this.presetsKey}.${id}.Name`).toString()
     }
@@ -642,7 +658,7 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
     }
 
     settingName(name: string): string {
-        return name === 'accent' ? 'uiSettings.primary' : `${this.tokensSetting}.${name}`
+        return name === 'accent' && !this.isShell ? 'uiSettings.primary' : `${this.tokensSetting}.${name}`
     }
 
     setToken(name: keyof EditorTokens, value: unknown): void {
@@ -655,9 +671,14 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
         this.setToken(name, this.defaults[name])
     }
 
-    applyTheme(accent: string, tokens: AnyStoredTokens): void {
-        this.$store.dispatch('gui/saveSetting', { name: this.tokensSetting, value: { ...tokens } })
-        this.$store.dispatch('gui/saveSetting', { name: 'uiSettings.primary', value: accent })
+    applyTheme(content: ThemeFileContent): void {
+        this.$store.dispatch('gui/saveSetting', { name: this.tokensSetting, value: { ...content.tokens } })
+        if (content.interface === 'new') return
+
+        this.$store.dispatch('gui/saveSetting', {
+            name: 'uiSettings.primary',
+            value: content.accent ?? this.defaultAccent,
+        })
     }
 
     applyPreset(id: string): void {
@@ -665,7 +686,8 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
         if (!preset) return
 
         this.importMessage = ''
-        this.applyTheme(preset.accent ?? this.defaultAccent, preset.tokens)
+        if ('accent' in preset) this.applyTheme({ interface: 'classic', accent: preset.accent, tokens: preset.tokens })
+        else this.applyTheme({ interface: 'new', tokens: preset.tokens })
     }
 
     previewRadius(value: number): void {
@@ -695,7 +717,7 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
 
     exportTheme(): void {
         const name = this.activePreset === null ? undefined : this.currentThemeName
-        const text = exportThemeFile(this.settingsInterface, this.tokens.accent, this.storedTokens, name)
+        const text = exportThemeFile(this.fileContent, name)
         const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
         const link = document.createElement('a')
         link.href = url
@@ -726,7 +748,7 @@ export default class SettingsAppearanceTab extends Mixins(BaseMixin, ThemeMixin)
             return
         }
 
-        this.applyTheme(result.accent ?? this.defaultAccent, result.tokens)
+        this.applyTheme(result)
         this.importFailed = false
         this.importMessage = this.$t('Settings.AppearanceTab.ImportSuccess', {
             name: result.name ?? file.name,

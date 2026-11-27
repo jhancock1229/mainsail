@@ -11,6 +11,7 @@ import {
     shellCssVariables,
     shellDefaultAccent,
     shellPalette,
+    shellPrimary,
     shellSlatePalette,
     shellThemePresets,
     shellTones,
@@ -19,7 +20,7 @@ import {
 import { chartPalettes, contrastRatio, hexToHsl, themeFonts } from '@/plugins/themeTokens'
 import { defaultPrimaryColor } from '@/store/variables'
 
-const defaults: ShellTokens = { accent: defaultPrimaryColor, ...defaultShellStoredTokens() }
+const defaults: ShellTokens = defaultShellStoredTokens()
 const modes = [true, false]
 const shellCss = readFileSync(resolve(__dirname, '../../src/assets/styles/shell.css'), 'utf8')
 
@@ -32,11 +33,12 @@ const cssBlock = (selector: string): Record<string, string> => {
 
 describe('the approved look of the new interface', () => {
     it('is what the default tokens give: no variable is overridden', () => {
-        modes.forEach((dark) => expect(shellCssVariables(defaults, defaultPrimaryColor, dark)).toEqual({}))
+        modes.forEach((dark) => expect(shellCssVariables(defaults, dark)).toEqual({}))
     })
 
     it('uses Manrope, 8px corners and the slate palette', () => {
         expect(defaultShellStoredTokens()).toEqual({
+            accent: 'default',
             radius: 8,
             density: 'comfortable',
             font: 'manrope',
@@ -68,9 +70,7 @@ describe('the approved look of the new interface', () => {
             tone: 'plum',
         }
 
-        expect(Object.keys(shellCssVariables(everything, defaultPrimaryColor, true)).sort()).toEqual(
-            [...shellCssVariableNames].sort()
-        )
+        expect(Object.keys(shellCssVariables(everything, true)).sort()).toEqual([...shellCssVariableNames].sort())
     })
 })
 
@@ -78,12 +78,14 @@ describe('resolveShellTokens', () => {
     it('falls back per token', () => {
         const stored = { radius: 99, density: 'compact', font: 'mono', chartPalette: 'soft', tone: 'black' }
 
-        expect(resolveShellTokens('nope', stored, defaultPrimaryColor)).toEqual({
-            ...defaults,
-            density: 'compact',
-            chartPalette: 'soft',
-        })
-        expect(resolveShellTokens(undefined, null, defaultPrimaryColor)).toEqual(defaults)
+        expect(resolveShellTokens(stored)).toEqual({ ...defaults, density: 'compact', chartPalette: 'soft' })
+        expect(resolveShellTokens(null)).toEqual(defaults)
+    })
+
+    it('keeps the approved accent for settings that were stored before the shell had its own accent', () => {
+        expect(resolveShellTokens({ radius: 10, tone: 'ink' }).accent).toBe('default')
+        expect(resolveShellTokens({ accent: 'red' }).accent).toBe('default')
+        expect(resolveShellTokens({ accent: '#AA33CC' }).accent).toBe('#AA33CC')
     })
 })
 
@@ -133,19 +135,15 @@ describe('shellPalette', () => {
 })
 
 describe('shellAccentColors', () => {
-    it('keeps the approved accent while the accent setting is at its default', () => {
-        expect(shellAccentColors(defaultPrimaryColor, defaultPrimaryColor, 'slate', true)).toEqual(
-            shellDefaultAccent.dark
-        )
-        expect(shellAccentColors(defaultPrimaryColor.toLowerCase(), defaultPrimaryColor, 'slate', false)).toEqual(
-            shellDefaultAccent.light
-        )
-        expect(shellAccentColors('rubbish', defaultPrimaryColor, 'slate', true)).toEqual(shellDefaultAccent.dark)
+    it('keeps the approved accent while the accent is at its default', () => {
+        expect(shellAccentColors('default', 'slate', true)).toEqual(shellDefaultAccent.dark)
+        expect(shellAccentColors('default', 'slate', false)).toEqual(shellDefaultAccent.light)
+        expect(shellAccentColors('rubbish', 'slate', true)).toEqual(shellDefaultAccent.dark)
     })
 
     it('leaves a readable accent as the user picked it', () => {
-        expect(shellAccentColors('#ffd166', defaultPrimaryColor, 'slate', true).accent).toBe('#ffd166')
-        expect(shellAccentColors('#7a1fa2', defaultPrimaryColor, 'slate', false).accent).toBe('#7a1fa2')
+        expect(shellAccentColors('#ffd166', 'slate', true).accent).toBe('#ffd166')
+        expect(shellAccentColors('#7a1fa2', 'slate', false).accent).toBe('#7a1fa2')
     })
 
     it.each(['#000000', '#ffffff', '#ffff00', '#0000ff', '#ff0000', '#808080', '#123456', '#fedcba'])(
@@ -153,7 +151,7 @@ describe('shellAccentColors', () => {
         (accent) => {
             shellTones.forEach((tone) =>
                 modes.forEach((dark) => {
-                    const colors = shellAccentColors(accent, defaultPrimaryColor, tone, dark)
+                    const colors = shellAccentColors(accent, tone, dark)
                     const background = shellPalette(tone, dark).bg
 
                     expect(colors.accent).toMatch(/^#[0-9a-f]{6}$/)
@@ -165,29 +163,62 @@ describe('shellAccentColors', () => {
     )
 
     it('keeps the hue of the accent when it has to be adjusted', () => {
-        const adjusted = shellAccentColors('#0a3d91', defaultPrimaryColor, 'slate', true).accent
+        const adjusted = shellAccentColors('#0a3d91', 'slate', true).accent
 
         expect(adjusted).not.toBe('#0a3d91')
         expect(Math.abs(hexToHsl(adjusted)[0] - hexToHsl('#0a3d91')[0])).toBeLessThan(4)
     })
 })
 
+describe('shellPrimary', () => {
+    it('keeps the stock primary colour and its text colour while the accent is at its default', () => {
+        modes.forEach((dark) =>
+            expect(shellPrimary(defaults, defaultPrimaryColor, dark)).toEqual({
+                color: defaultPrimaryColor,
+                text: '#fff',
+            })
+        )
+    })
+
+    it('uses the adjusted accent as the button colour, never the raw one', () => {
+        const tokens = { ...defaults, accent: '#ffe600' }
+
+        expect(shellPrimary(tokens, defaultPrimaryColor, false).color).toBe(
+            shellAccentColors('#ffe600', 'slate', false).accent
+        )
+        expect(shellPrimary(tokens, defaultPrimaryColor, false).color).not.toBe('#ffe600')
+    })
+
+    it.each(['#ffe600', '#000000', '#ffffff', '#0a3d91', '#ff0000', '#8ea2ff'])(
+        'gives readable text on a primary button for the accent %s in every tone and mode',
+        (accent) => {
+            shellTones.forEach((tone) =>
+                modes.forEach((dark) => {
+                    const primary = shellPrimary({ ...defaults, accent, tone }, defaultPrimaryColor, dark)
+
+                    expect(contrastRatio(primary.text, primary.color), `${tone} ${dark}`).toBeGreaterThanOrEqual(4.5)
+                })
+            )
+        }
+    )
+})
+
 describe('shellCssVariables', () => {
     it('overrides only what differs from the approved look', () => {
-        expect(shellCssVariables({ ...defaults, radius: 12 }, defaultPrimaryColor, true)).toEqual({
+        expect(shellCssVariables({ ...defaults, radius: 12 }, true)).toEqual({
             '--shell-radius': '12px',
         })
-        expect(shellCssVariables({ ...defaults, font: 'system' }, defaultPrimaryColor, true)).toEqual({
+        expect(shellCssVariables({ ...defaults, font: 'system' }, true)).toEqual({
             '--shell-font': themeFonts.system,
         })
-        expect(Object.keys(shellCssVariables({ ...defaults, accent: '#ff00ff' }, defaultPrimaryColor, true))).toEqual([
+        expect(Object.keys(shellCssVariables({ ...defaults, accent: '#ff00ff' }, true))).toEqual([
             '--shell-accent',
             '--shell-on-accent',
         ])
     })
 
     it('tightens the spacing in compact density', () => {
-        const compact = shellCssVariables({ ...defaults, density: 'compact' }, defaultPrimaryColor, true)
+        const compact = shellCssVariables({ ...defaults, density: 'compact' }, true)
 
         expect(parseInt(compact['--shell-pad-x'])).toBeLessThan(28)
         expect(parseInt(compact['--shell-pad-y'])).toBeLessThan(22)
@@ -196,7 +227,7 @@ describe('shellCssVariables', () => {
     })
 
     it('sets the whole palette and a matching accent for another tone', () => {
-        const variables = shellCssVariables({ ...defaults, tone: 'pine' }, defaultPrimaryColor, false)
+        const variables = shellCssVariables({ ...defaults, tone: 'pine' }, false)
 
         expect(variables['--shell-bg']).toBe(shellPalette('pine', false).bg)
         expect(variables['--shell-accent']).toBeDefined()
@@ -206,7 +237,6 @@ describe('shellCssVariables', () => {
     it('never emits anything but colours, pixel sizes and known font stacks', () => {
         const variables = shellCssVariables(
             { accent: '#aa33cc', radius: 16, density: 'compact', font: 'rounded', chartPalette: 'soft', tone: 'ink' },
-            defaultPrimaryColor,
             true
         )
 
@@ -219,14 +249,14 @@ describe('shellCssVariables', () => {
 
 describe('shellThemePresets', () => {
     it('starts with the approved look', () => {
-        expect(shellThemePresets[0]).toEqual({ id: 'slate', accent: null, tokens: defaultShellStoredTokens() })
+        expect(shellThemePresets[0]).toEqual({ id: 'slate', tokens: defaultShellStoredTokens() })
     })
 
     it('offers four to six presets that differ in tone and accent', () => {
         expect(shellThemePresets.length).toBeGreaterThanOrEqual(4)
         expect(shellThemePresets.length).toBeLessThanOrEqual(6)
         expect(new Set(shellThemePresets.map((preset) => preset.tokens.tone)).size).toBe(shellThemePresets.length)
-        expect(new Set(shellThemePresets.map((preset) => preset.accent)).size).toBe(shellThemePresets.length)
+        expect(new Set(shellThemePresets.map((preset) => preset.tokens.accent)).size).toBe(shellThemePresets.length)
     })
 
     it('stays within the tastes of the owner', () => {
@@ -239,24 +269,20 @@ describe('shellThemePresets', () => {
 
     it('only uses valid token values and is recognised from them', () => {
         shellThemePresets.forEach((preset) => {
-            const accent = preset.accent ?? defaultPrimaryColor
-            const tokens = resolveShellTokens(accent, preset.tokens, defaultPrimaryColor)
+            const tokens = resolveShellTokens(preset.tokens)
 
-            expect(tokens).toEqual({ accent, ...preset.tokens })
-            expect(matchingShellPreset(tokens, defaultPrimaryColor)).toBe(preset.id)
+            expect(tokens).toEqual(preset.tokens)
+            expect(matchingShellPreset(tokens)).toBe(preset.id)
+            expect(matchingShellPreset({ ...tokens, accent: tokens.accent.toUpperCase() })).toBe(preset.id)
         })
-        expect(matchingShellPreset({ ...defaults, radius: 9 }, defaultPrimaryColor)).toBeNull()
+        expect(matchingShellPreset({ ...defaults, radius: 9 })).toBeNull()
+        expect(matchingShellPreset({ ...defaults, accent: '#123456' })).toBeNull()
     })
 
     it.each(modes)('has a readable accent and readable chart colours in every preset (dark: %s)', (dark) => {
         shellThemePresets.forEach((preset) => {
             const palette = shellPalette(preset.tokens.tone, dark)
-            const colors = shellAccentColors(
-                preset.accent ?? defaultPrimaryColor,
-                defaultPrimaryColor,
-                preset.tokens.tone,
-                dark
-            )
+            const colors = shellAccentColors(preset.tokens.accent, preset.tokens.tone, dark)
 
             expect(contrastRatio(colors.accent, palette.bg), `${preset.id} accent`).toBeGreaterThanOrEqual(4.5)
             expect(contrastRatio(colors.onAccent, colors.accent), `${preset.id} on accent`).toBeGreaterThanOrEqual(4.5)

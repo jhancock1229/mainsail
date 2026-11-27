@@ -83,7 +83,7 @@ html.shell-new {
     --shell-control: 52px;
     --shell-control-large: 56px;
     overflow: hidden;
-    scrollbar-color: #566174 #232832;
+    scrollbar-color: var(--shell-border) var(--shell-bg);
 }
 
 html.shell-new.theme--light {
@@ -108,7 +108,7 @@ html.shell-new.theme--light {
     --shell-strong-text: #ffffff;
     --shell-track: #d9dde3;
     --shell-bar: #1c2430;
-    scrollbar-color: #aab2bd #f6f7f9;
+    scrollbar-color: var(--shell-dash) var(--shell-bg);
 }
 
 @media (max-height: 599px) {

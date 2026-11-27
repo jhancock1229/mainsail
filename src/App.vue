@@ -52,13 +52,14 @@ import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 import {
-    isDefaultShellAccent,
     resolveShellTokens,
-    shellAccentColors,
     shellCssVariableNames,
     shellCssVariables,
+    shellPrimary,
     ShellTokens,
 } from '@/plugins/shellTheme'
+
+type AppliedPrimary = { color: string; text: string }
 import {
     defaultThemeTokens,
     resolveThemeTokens,
@@ -184,8 +185,24 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return this.$vuetify?.theme?.currentTheme?.warning?.toString() ?? '#ff8300'
     }
 
-    get primaryTextColor(): string {
-        return textColorOnAccent(this.primaryColor)
+    get appliedPrimary(): { dark: AppliedPrimary; light: AppliedPrimary } {
+        if (this.interfaceShell === 'new')
+            return {
+                dark: shellPrimary(this.shellTokens, this.defaultAccent, true),
+                light: shellPrimary(this.shellTokens, this.defaultAccent, false),
+            }
+
+        const classic = { color: this.primaryColor, text: textColorOnAccent(this.primaryColor) }
+
+        return { dark: classic, light: classic }
+    }
+
+    get currentPrimary(): AppliedPrimary {
+        return this.appliedPrimary[this.darkMode ? 'dark' : 'light']
+    }
+
+    get vuetifyPrimaries(): string {
+        return `${this.appliedPrimary.dark.color}|${this.appliedPrimary.light.color}`
     }
 
     get defaultAccent(): string {
@@ -203,20 +220,13 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     }
 
     get shellTokens(): ShellTokens {
-        return resolveShellTokens(this.primaryColor, this.$store.state.gui.uiSettings.shellTokens, this.defaultAccent)
+        return resolveShellTokens(this.$store.state.gui.uiSettings.shellTokens)
     }
 
     get shellVariables(): Record<string, string> {
         if (this.interfaceShell !== 'new') return {}
 
-        return shellCssVariables(this.shellTokens, this.defaultAccent, this.darkMode)
-    }
-
-    get appliedPrimary(): string {
-        if (this.interfaceShell !== 'new' || isDefaultShellAccent(this.primaryColor, this.defaultAccent))
-            return this.primaryColor
-
-        return shellAccentColors(this.primaryColor, this.defaultAccent, this.shellTokens.tone, this.darkMode).accent
+        return shellCssVariables(this.shellTokens, this.darkMode)
     }
 
     get chartPalette(): ThemeChartPalette {
@@ -231,9 +241,9 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 
     get cssVars(): { [key: string]: string } {
         return {
-            '--v-btn-text-primary': this.primaryTextColor,
+            '--v-btn-text-primary': this.currentPrimary.text,
             '--color-logo': this.logoColor,
-            '--color-primary': this.primaryColor,
+            '--color-primary': this.currentPrimary.color,
             '--color-warning': this.warningColor,
             ...themeCssVariables(this.themeTokens, this.darkMode),
             '--topbar-icon-btn-width': topbarHeight + 'px',
@@ -295,10 +305,11 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.$socket.emit('server.files.metadata', { filename: newVal }, { action: 'files/getMetadataCurrentFile' })
     }
 
-    @Watch('appliedPrimary')
-    primaryColorChanged(newVal: string): void {
+    @Watch('vuetifyPrimaries')
+    primaryColorChanged(): void {
         this.$nextTick(() => {
-            this.$vuetify.theme.currentTheme.primary = newVal
+            this.$vuetify.theme.themes.dark.primary = this.appliedPrimary.dark.color
+            this.$vuetify.theme.themes.light.primary = this.appliedPrimary.light.color
         })
     }
 

@@ -29,8 +29,6 @@ const PREVIEW_RADIUS_SCALE = 0.4
 @Component
 export default class ThemeShellPreview extends Mixins(BaseMixin) {
     @Prop({ type: Object, required: true }) declare readonly preset: ShellThemePreset
-    @Prop({ type: String, required: true }) declare readonly accent: string
-    @Prop({ type: String, required: true }) declare readonly defaultAccent: string
 
     get rootStyle(): Record<string, string> {
         const dark = this.$vuetify.theme.dark
@@ -45,8 +43,7 @@ export default class ThemeShellPreview extends Mixins(BaseMixin) {
             '--preview-text': palette.text,
             '--preview-muted': palette.muted,
             '--preview-strong': palette['strong-bg'],
-            '--preview-accent': shellAccentColors(this.accent, this.defaultAccent, this.preset.tokens.tone, dark)
-                .accent,
+            '--preview-accent': shellAccentColors(this.preset.tokens.accent, this.preset.tokens.tone, dark).accent,
             '--preview-gap': compact ? '3px' : '5px',
             '--preview-pad': compact ? '5px' : '7px',
         }

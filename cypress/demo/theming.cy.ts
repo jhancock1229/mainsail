@@ -102,6 +102,9 @@ describe('Theming system', () => {
         cy.get('.mode-toggle-button').click()
         cy.get('.v-application').should('have.class', 'theme--light')
         cy.get('html').should('have.attr', 'data-theme-surface', 'elevated')
+        cy.get('.v-application').should(($app) =>
+            expect(getComputedStyle($app[0]).getPropertyValue('--v-primary-base').trim()).to.equal('#e2622a')
+        )
         sparklineColor('heater_bed').should('equal', '#0369a1')
         dashboardPanel().should('have.css', 'background-color', 'rgb(255, 255, 255)')
 
@@ -184,6 +187,15 @@ describe('Theming system', () => {
         preset('ember').click()
         cy.get(`${dialog} .appearance-export`).click()
         cy.readFile('cypress/downloads/mainsail-theme.json').should('deep.equal', emberFile)
+
+        cy.window().then((win) => {
+            const store = (
+                win.document.getElementById('app') as unknown as {
+                    __vue__: { $store: { state: { gui: { uiSettings: { shellTokens: { accent: string } } } } } }
+                }
+            ).__vue__.$store
+            expect(store.state.gui.uiSettings.shellTokens.accent).to.equal('default')
+        })
 
         cy.get(`${dialog} .appearance-reset-all`).click()
         stockLook()

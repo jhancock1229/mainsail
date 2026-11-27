@@ -26,14 +26,14 @@ import { mdiCheckCircle } from '@mdi/js'
 
 @Component
 export default class ThemePresetCard extends Mixins(BaseMixin) {
-    mdiCheckCircle = mdiCheckCircle
-
     @Prop({ type: String, required: true }) declare readonly presetId: string
     @Prop({ type: String, required: true }) declare readonly name: string
     @Prop({ type: String, required: true }) declare readonly description: string
     @Prop({ type: String, required: true }) declare readonly accent: string
     @Prop({ type: String, required: true }) declare readonly fontFamily: string
     @Prop({ type: Boolean, default: false }) declare readonly active: boolean
+
+    mdiCheckCircle = mdiCheckCircle
 }
 </script>
 

@@ -24,7 +24,10 @@ html[data-theme-radius]
     .v-application
     .v-btn:not(.v-btn--round):not(.v-btn--fab):not(.v-btn--tile):not(.v-btn--icon):not(.v-btn--rounded):not(
         :is(._btn-group, .v-item-group, .v-btn-toggle) .v-btn
-    ),
+    ) {
+    border-radius: var(--theme-radius-control);
+}
+
 html[data-theme-radius] .v-application ._btn-group,
 html[data-theme-radius] .v-application .v-btn-toggle,
 html[data-theme-radius] .v-application .v-menu__content,

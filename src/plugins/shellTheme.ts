@@ -8,6 +8,7 @@ import {
     isValidThemeToken,
     ThemeChartPalette,
     ThemeDensity,
+    textColorOnAccent,
     ThemeFont,
     themeFonts,
 } from '@/plugins/themeTokens'
@@ -15,7 +16,10 @@ import {
 export const shellTones = ['slate', 'graphite', 'ink', 'pine', 'plum'] as const
 export type ShellTone = (typeof shellTones)[number]
 
+export const SHELL_DEFAULT_ACCENT = 'default'
+
 export interface ShellStoredTokens {
+    accent: string
     radius: number
     density: ThemeDensity
     font: ThemeFont
@@ -23,10 +27,7 @@ export interface ShellStoredTokens {
     tone: ShellTone
 }
 
-export interface ShellTokens extends ShellStoredTokens {
-    accent: string
-}
-
+export type ShellTokens = ShellStoredTokens
 export type ShellTokenName = keyof ShellTokens
 
 export const MIN_SHELL_RADIUS = 2
@@ -36,6 +37,7 @@ export const MIN_SHELL_ACCENT_CONTRAST = 4.5
 const ACCENT_LIGHTNESS_STEP = 0.01
 
 export const defaultShellStoredTokens = (): ShellStoredTokens => ({
+    accent: SHELL_DEFAULT_ACCENT,
     radius: 8,
     density: 'comfortable',
     font: 'manrope',
@@ -44,7 +46,7 @@ export const defaultShellStoredTokens = (): ShellStoredTokens => ({
 })
 
 export const shellStoredTokenNames = Object.keys(defaultShellStoredTokens()) as (keyof ShellStoredTokens)[]
-export const shellTokenNames: ShellTokenName[] = ['accent', ...shellStoredTokenNames]
+export const shellTokenNames: ShellTokenName[] = shellStoredTokenNames
 
 export const isValidShellToken = <K extends ShellTokenName>(name: K, value: unknown): value is ShellTokens[K] => {
     if (name === 'tone') return isOneOf(shellTones, value)
@@ -55,8 +57,8 @@ export const isValidShellToken = <K extends ShellTokenName>(name: K, value: unkn
             value >= MIN_SHELL_RADIUS &&
             value <= MAX_SHELL_RADIUS
         )
-    if (name === 'accent' || name === 'density' || name === 'font' || name === 'chartPalette')
-        return isValidThemeToken(name, value)
+    if (name === 'accent') return value === SHELL_DEFAULT_ACCENT || isAccentColor(value)
+    if (name === 'density' || name === 'font' || name === 'chartPalette') return isValidThemeToken(name, value)
 
     return false
 }
@@ -71,14 +73,9 @@ export const pickValidShellTokens = (source: Record<string, unknown>): Partial<S
     return picked as Partial<ShellStoredTokens>
 }
 
-export const resolveShellTokens = (
-    storedAccent: unknown,
-    storedTokens: unknown,
-    defaultAccent: string
-): ShellTokens => ({
+export const resolveShellTokens = (storedTokens: unknown): ShellTokens => ({
     ...defaultShellStoredTokens(),
     ...(isRecord(storedTokens) ? pickValidShellTokens(storedTokens) : {}),
-    accent: isAccentColor(storedAccent) ? storedAccent : defaultAccent,
 })
 
 export interface ShellPalette {
@@ -178,8 +175,7 @@ const readableOn = (color: string, background: string, lighten: boolean): string
     return result
 }
 
-export const isDefaultShellAccent = (accent: string, defaultAccent: string): boolean =>
-    !isAccentColor(accent) || accent.toLowerCase() === defaultAccent.toLowerCase()
+export const isDefaultShellAccent = (accent: string): boolean => !isAccentColor(accent)
 
 const textOnAccent = (accent: string, preferred: string): string => {
     if (contrastRatio(preferred, accent) >= MIN_SHELL_ACCENT_CONTRAST) return preferred
@@ -189,17 +185,26 @@ const textOnAccent = (accent: string, preferred: string): string => {
 
 export const shellAccentColors = (
     accent: string,
-    defaultAccent: string,
     tone: ShellTone,
     dark: boolean
 ): { accent: string; onAccent: string } => {
     const palette = shellPalette(tone, dark)
-    const base = isDefaultShellAccent(accent, defaultAccent)
-        ? shellDefaultAccent[dark ? 'dark' : 'light'].accent
-        : accent
+    const base = isDefaultShellAccent(accent) ? shellDefaultAccent[dark ? 'dark' : 'light'].accent : accent
     const readable = readableOn(base, palette.bg, dark)
 
     return { accent: readable, onAccent: textOnAccent(readable, dark ? palette.bg : '#ffffff') }
+}
+
+export const shellPrimary = (
+    tokens: ShellTokens,
+    defaultAccent: string,
+    dark: boolean
+): { color: string; text: string } => {
+    if (isDefaultShellAccent(tokens.accent)) return { color: defaultAccent, text: textColorOnAccent(defaultAccent) }
+
+    const colors = shellAccentColors(tokens.accent, tokens.tone, dark)
+
+    return { color: colors.accent, text: colors.onAccent }
 }
 
 const compactSpacing: Record<string, string> = {
@@ -219,11 +224,7 @@ export const shellCssVariableNames: string[] = [
     ...Object.keys(compactSpacing),
 ]
 
-export const shellCssVariables = (
-    tokens: ShellTokens,
-    defaultAccent: string,
-    dark: boolean
-): Record<string, string> => {
+export const shellCssVariables = (tokens: ShellTokens, dark: boolean): Record<string, string> => {
     const defaults = defaultShellStoredTokens()
     const variables: Record<string, string> = {}
 
@@ -233,8 +234,8 @@ export const shellCssVariables = (
         names.forEach((name) => (variables[`--shell-${name}`] = palette[name]))
     }
 
-    if (tokens.tone !== defaults.tone || !isDefaultShellAccent(tokens.accent, defaultAccent)) {
-        const colors = shellAccentColors(tokens.accent, defaultAccent, tokens.tone, dark)
+    if (tokens.tone !== defaults.tone || !isDefaultShellAccent(tokens.accent)) {
+        const colors = shellAccentColors(tokens.accent, tokens.tone, dark)
         variables['--shell-accent'] = colors.accent
         variables['--shell-on-accent'] = colors.onAccent
     }
@@ -248,39 +249,62 @@ export const shellCssVariables = (
 
 export interface ShellThemePreset {
     id: string
-    accent: string | null
     tokens: ShellStoredTokens
 }
 
 export const shellThemePresets: ShellThemePreset[] = [
-    { id: 'slate', accent: null, tokens: defaultShellStoredTokens() },
+    { id: 'slate', tokens: defaultShellStoredTokens() },
     {
         id: 'ink',
-        accent: '#8ea2ff',
-        tokens: { radius: 10, density: 'comfortable', font: 'manrope', chartPalette: 'soft', tone: 'ink' },
+        tokens: {
+            accent: '#8ea2ff',
+            radius: 10,
+            density: 'comfortable',
+            font: 'manrope',
+            chartPalette: 'soft',
+            tone: 'ink',
+        },
     },
     {
         id: 'pine',
-        accent: '#3fcfa4',
-        tokens: { radius: 6, density: 'comfortable', font: 'system', chartPalette: 'accessible', tone: 'pine' },
+        tokens: {
+            accent: '#3fcfa4',
+            radius: 6,
+            density: 'comfortable',
+            font: 'system',
+            chartPalette: 'accessible',
+            tone: 'pine',
+        },
     },
     {
         id: 'plum',
-        accent: '#c39bff',
-        tokens: { radius: 12, density: 'comfortable', font: 'manrope', chartPalette: 'soft', tone: 'plum' },
+        tokens: {
+            accent: '#c39bff',
+            radius: 12,
+            density: 'comfortable',
+            font: 'manrope',
+            chartPalette: 'soft',
+            tone: 'plum',
+        },
     },
     {
         id: 'graphite',
-        accent: '#58d68d',
-        tokens: { radius: 4, density: 'compact', font: 'roboto', chartPalette: 'vivid', tone: 'graphite' },
+        tokens: {
+            accent: '#58d68d',
+            radius: 4,
+            density: 'compact',
+            font: 'roboto',
+            chartPalette: 'vivid',
+            tone: 'graphite',
+        },
     },
 ]
 
-export const matchingShellPreset = (tokens: ShellTokens, defaultAccent: string): string | null => {
-    const preset = shellThemePresets.find(
-        (candidate) =>
-            (candidate.accent ?? defaultAccent).toLowerCase() === tokens.accent.toLowerCase() &&
-            shellStoredTokenNames.every((name) => candidate.tokens[name] === tokens[name])
+export const matchingShellPreset = (tokens: ShellTokens): string | null => {
+    const preset = shellThemePresets.find((candidate) =>
+        shellStoredTokenNames.every(
+            (name) => String(candidate.tokens[name]).toLowerCase() === String(tokens[name]).toLowerCase()
+        )
     )
 
     return preset?.id ?? null

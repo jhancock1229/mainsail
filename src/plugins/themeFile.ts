@@ -11,6 +11,7 @@ import {
     defaultShellStoredTokens,
     isValidShellToken,
     pickValidShellTokens,
+    SHELL_DEFAULT_ACCENT,
     ShellStoredTokens,
     shellTokenNames,
 } from '@/plugins/shellTheme'
@@ -35,7 +36,7 @@ export interface ThemeFileError {
 
 export type ThemeFileContent =
     | { interface: 'classic'; accent: string | null; tokens: ThemeStoredTokens }
-    | { interface: 'new'; accent: string | null; tokens: ShellStoredTokens }
+    | { interface: 'new'; tokens: ShellStoredTokens }
 
 export type ThemeFileResult =
     ({ ok: true; name: string | null } & ThemeFileContent) | { ok: false; error: ThemeFileError }
@@ -47,26 +48,31 @@ const fail = (error: ThemeFileError): ThemeFileResult => ({ ok: false, error })
 
 const fileTokenNames = (target: InterfaceShell): string[] => (target === 'new' ? shellTokenNames : tokenNames)
 
-const isValidFileToken = (target: InterfaceShell, name: string, value: unknown): boolean =>
-    target === 'new'
+const isValidFileToken = (target: InterfaceShell, name: string, value: unknown): boolean => {
+    if (name === 'accent') return isAccentColor(value)
+
+    return target === 'new'
         ? isValidShellToken(name as (typeof shellTokenNames)[number], value)
         : isValidThemeToken(name as (typeof tokenNames)[number], value)
+}
 
-export const exportThemeFile = (
-    target: InterfaceShell,
-    accent: string,
-    tokens: ThemeStoredTokens | ShellStoredTokens,
-    name?: string
-): string => {
+export const exportThemeFile = (content: ThemeFileContent, name?: string): string => {
     const file: Record<string, unknown> = {
         format: THEME_FILE_FORMAT,
         version: THEME_FILE_VERSION,
-        interface: target,
+        interface: content.interface,
     }
     if (name) file.name = name.slice(0, MAX_THEME_NAME_LENGTH)
 
-    const values: Record<string, unknown> = { ...tokens, accent: accent.toLowerCase() }
-    file.tokens = Object.fromEntries(fileTokenNames(target).map((key) => [key, values[key]]))
+    const accent = content.interface === 'new' ? content.tokens.accent : content.accent
+    const values: Record<string, unknown> = { ...content.tokens, accent: accent?.toLowerCase() }
+    const customAccent = isAccentColor(accent)
+
+    file.tokens = Object.fromEntries(
+        fileTokenNames(content.interface)
+            .filter((key) => key !== 'accent' || customAccent)
+            .map((key) => [key, values[key]])
+    )
 
     return JSON.stringify(file, null, 4)
 }
@@ -117,8 +123,11 @@ export const parseThemeFile = (text: string, expected?: InterfaceShell): ThemeFi
             ok: true,
             name,
             interface: 'new',
-            accent,
-            tokens: { ...defaultShellStoredTokens(), ...pickValidShellTokens(fileTokens) },
+            tokens: {
+                ...defaultShellStoredTokens(),
+                ...pickValidShellTokens(fileTokens),
+                accent: accent ?? SHELL_DEFAULT_ACCENT,
+            },
         }
 
     return {

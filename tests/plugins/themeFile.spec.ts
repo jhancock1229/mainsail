@@ -12,6 +12,7 @@ const classicTokens: ThemeStoredTokens = {
     chartPalette: 'accessible',
 }
 const shellTokens: ShellStoredTokens = {
+    accent: '#8855ee',
     radius: 10,
     density: 'compact',
     font: 'system',
@@ -23,7 +24,7 @@ const shellFile = {
     format: 'mainsail-theme',
     version: 1,
     interface: 'new',
-    tokens: { accent: '#8855ee', ...shellTokens },
+    tokens: { ...shellTokens },
 }
 
 const errorOf = (file: unknown, expected?: 'new' | 'classic') => {
@@ -35,7 +36,7 @@ const errorOf = (file: unknown, expected?: 'new' | 'classic') => {
 
 describe('exportThemeFile and parseThemeFile', () => {
     it('round-trips a theme of the classic interface', () => {
-        const text = exportThemeFile('classic', '#8855EE', classicTokens, 'My theme')
+        const text = exportThemeFile({ interface: 'classic', accent: '#8855EE', tokens: classicTokens }, 'My theme')
 
         expect(parseThemeFile(text)).toEqual({
             ok: true,
@@ -47,21 +48,38 @@ describe('exportThemeFile and parseThemeFile', () => {
     })
 
     it('round-trips a theme of the new interface', () => {
-        const text = exportThemeFile('new', '#8855EE', shellTokens)
+        const text = exportThemeFile({ interface: 'new', tokens: { ...shellTokens, accent: '#8855EE' } })
 
         expect(JSON.parse(text)).toEqual(shellFile)
-        expect(parseThemeFile(text, 'new')).toEqual({
+        expect(parseThemeFile(text, 'new')).toEqual({ ok: true, name: null, interface: 'new', tokens: shellTokens })
+    })
+
+    it('leaves a default accent out of the file, so the theme looks the same on any instance', () => {
+        const shell = exportThemeFile({ interface: 'new', tokens: { ...shellTokens, accent: 'default' } })
+        const classic = exportThemeFile({ interface: 'classic', accent: null, tokens: classicTokens })
+
+        expect(JSON.parse(shell).tokens).not.toHaveProperty('accent')
+        expect(JSON.parse(classic).tokens).not.toHaveProperty('accent')
+        expect(parseThemeFile(shell)).toEqual({
             ok: true,
             name: null,
             interface: 'new',
-            accent: '#8855ee',
-            tokens: shellTokens,
+            tokens: { ...shellTokens, accent: 'default' },
+        })
+        expect(parseThemeFile(classic)).toMatchObject({ ok: true, interface: 'classic', accent: null })
+    })
+
+    it('does not accept the word for the default accent in a file', () => {
+        expect(errorOf({ ...shellFile, tokens: { ...shellFile.tokens, accent: 'default' } })).toEqual({
+            code: 'invalidValue',
+            key: 'accent',
+            value: '"default"',
         })
     })
 
     it('exports nothing but the tokens of the chosen interface', () => {
         const mixed = { ...classicTokens, ...shellTokens, extra: 'body{}' } as unknown as ShellStoredTokens
-        const file = JSON.parse(exportThemeFile('new', '#8855ee', mixed))
+        const file = JSON.parse(exportThemeFile({ interface: 'new', tokens: mixed }))
 
         expect(Object.keys(file.tokens).sort()).toEqual(['accent', 'chartPalette', 'density', 'font', 'radius', 'tone'])
     })
@@ -84,7 +102,6 @@ describe('exportThemeFile and parseThemeFile', () => {
             ok: true,
             name: null,
             interface: 'new',
-            accent: null,
             tokens: { ...defaultShellStoredTokens(), tone: 'ink' },
         })
     })
