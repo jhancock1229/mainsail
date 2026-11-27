@@ -3,6 +3,25 @@
         <v-card flat>
             <v-card-text>
                 <settings-row
+                    :title="$t('Settings.UiSettingsTab.InterfaceShell')"
+                    :sub-title="$t('Settings.UiSettingsTab.InterfaceShellDescription')">
+                    <v-select
+                        v-model="interfaceShell"
+                        :items="interfaceShells"
+                        class="mt-0 interface-shell-select"
+                        hide-details
+                        outlined
+                        dense />
+                </settings-row>
+                <v-divider class="my-2" />
+                <settings-row
+                    :title="$t('Settings.UiSettingsTab.SpoolTracker')"
+                    :sub-title="$t('Settings.UiSettingsTab.SpoolTrackerDescription')"
+                    :dynamic-slot-width="true">
+                    <v-switch v-model="spoolTrackerEnabled" hide-details class="mt-0 spool-tracker-switch" />
+                </settings-row>
+                <v-divider class="my-2" />
+                <settings-row
                     :title="$t('Settings.UiSettingsTab.Mode')"
                     :sub-title="$t('Settings.UiSettingsTab.ModeDescription')">
                     <v-select v-model="mode" :items="modes" class="mt-0" hide-details outlined dense />
@@ -342,6 +361,8 @@
 </template>
 
 <script lang="ts">
+import { DEFAULT_INTERFACE_SHELL, InterfaceShell } from '@/plugins/shellNavigation'
+import { resolveSpoolTrackerSettings } from '@/plugins/spoolTracker'
 import Component from 'vue-class-component'
 import { Mixins, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
@@ -361,6 +382,29 @@ export default class SettingsUiSettingsTab extends Mixins(BaseMixin, ThemeMixin)
     mdiTimerOutline = mdiTimerOutline
 
     defaultBigThumbnailBackground = defaultBigThumbnailBackground
+
+    get interfaceShells(): { text: string; value: InterfaceShell }[] {
+        return [
+            { text: this.$t('Settings.UiSettingsTab.InterfaceShellNew').toString(), value: 'new' },
+            { text: this.$t('Settings.UiSettingsTab.InterfaceShellClassic').toString(), value: 'classic' },
+        ]
+    }
+
+    get interfaceShell(): InterfaceShell {
+        return this.$store.state.gui.uiSettings.interfaceShell === 'classic' ? 'classic' : DEFAULT_INTERFACE_SHELL
+    }
+
+    set interfaceShell(newVal: InterfaceShell) {
+        this.$store.dispatch('gui/saveSetting', { name: 'uiSettings.interfaceShell', value: newVal })
+    }
+
+    get spoolTrackerEnabled(): boolean {
+        return resolveSpoolTrackerSettings(this.$store.state.gui.spoolTracker).enabled
+    }
+
+    set spoolTrackerEnabled(newVal: boolean) {
+        this.$store.dispatch('gui/saveSetting', { name: 'spoolTracker.enabled', value: newVal })
+    }
 
     get mode() {
         return this.$store.state.gui.uiSettings.mode

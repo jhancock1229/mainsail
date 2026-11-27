@@ -43,6 +43,7 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
             cooldownGcode: this.$store.getters['gui/presets/getCooldownGcode'],
             confirmOnCoolDown: this.$store.state.gui.uiSettings.confirmOnCoolDown ?? false,
             settingsTabs: commandPaletteBus.settingsTabs,
+            interfaceShell: commandPaletteBus.switchableShell ?? undefined,
             t: (key, values) => this.$t(key, values).toString(),
         })
     }

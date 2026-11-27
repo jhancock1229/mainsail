@@ -4,15 +4,13 @@ import type { PrinterEventSeverity } from '@/plugins/printerEvents'
 const VOLUME = 0.12
 const SILENCE = 0.0001
 const ATTACK_SECONDS = 0.02
-// how long a suspended audio context gets to start running
 const RESUME_TIMEOUT_MS = 500
 
 type AudioContextConstructor = typeof AudioContext
 
 let audioContext: AudioContext | null = null
 
-// Browsers suspend audio until the user interacted with the page. The clock of a suspended context stands
-// still: tones scheduled on it are not heard, and would all play at once when the context starts later.
+// tones scheduled on a suspended context all play at once when the browser starts it later
 const isRunning = (context: AudioContext): boolean => context.state === 'running'
 
 const ensureRunning = async (context: AudioContext): Promise<boolean> => {
@@ -29,7 +27,6 @@ const ensureRunning = async (context: AudioContext): Promise<boolean> => {
     return isRunning(context)
 }
 
-// Plays the sound of a severity on an audio context. Resolves to false when the browser does not let it play.
 export const playSoundOn = async (context: AudioContext, severity: PrinterEventSeverity): Promise<boolean> => {
     if (!(await ensureRunning(context))) return false
 
@@ -54,7 +51,6 @@ export const playSoundOn = async (context: AudioContext, severity: PrinterEventS
     return true
 }
 
-// Plays a short synthesized sound, so no audio files are needed.
 export const playNotificationSound = async (severity: PrinterEventSeverity): Promise<boolean> => {
     try {
         const AudioContextClass: AudioContextConstructor | undefined =

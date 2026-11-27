@@ -16,8 +16,6 @@ import {
     partitionPendingEvents,
 } from '@/plugins/printerEvents'
 
-// These events are told after a short delay, if they still hold then (see isEventStillCurrent): a failed
-// print is often followed by the Klipper shutdown that caused it, and a pause can be a timelapse frame.
 const DELAYED_EVENTS: PrinterEventName[] = ['printFailed', 'printPaused']
 const SETTLE_DELAY_MS = 1500
 interface PendingEvent {
@@ -25,19 +23,14 @@ interface PendingEvent {
     timer: number
 }
 
-// Klipper's message arrives a moment after the state
 const KLIPPER_MESSAGE_POLL_MS = 250
 const KLIPPER_MESSAGE_MAX_WAIT_MS = 5000
 
-// Watches the printer state and tells the user about events, according to the notification rules.
-// It is only mounted while the GUI is connected and initialized: the state it sees first is the baseline.
 @Component
 export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
     previousSnapshot: PrinterSnapshot | null = null
-    // when the events were last told (only events with at least one channel)
     lastFired: Partial<Record<PrinterEventName, number>> = {}
     timers: number[] = []
-    // delayed events that wait for their confirmation
     pending: PendingEvent[] = []
 
     get snapshot(): PrinterSnapshot {
@@ -57,12 +50,10 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         const detected = detectPrinterEvents(this.previousSnapshot, current)
         this.previousSnapshot = current
 
-        // a pending event whose state ended is obsolete, also when the same state comes back later
         const { kept, cancelled } = partitionPendingEvents(this.pending, current)
         cancelled.forEach((entry) => window.clearTimeout(entry.timer))
         this.pending = kept
 
-        // a silent event must not hide the events that follow from it
         const audible = detected.filter((event) => this.getEventChannels(event.name).length > 0)
         const now = Date.now()
         const events = dropFollowUpEvents(audible, this.lastFired, now)
@@ -94,7 +85,6 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
 
     confirmEvent(event: PrinterEvent): void {
         if (!isEventStillCurrent(event.name, this.snapshot)) return
-        // its cause may have been told in the meantime, e.g. the Klipper shutdown that failed the print
         if (dropFollowUpEvents([event], this.lastFired, Date.now()).length === 0) return
 
         this.tellEvent(event)
@@ -135,7 +125,6 @@ export default class TheEventNotifier extends Mixins(EventNotificationsMixin) {
         this.sendEventNotification('klipperError', [this.explainInOneLine(this.klipperMessage)])
     }
 
-    // the message of the print, or of Klipper when it stopped the print before the print got a message
     printFailedMessage(): string | null {
         const message: string = this.$store.state.printer.print_stats?.message ?? ''
 

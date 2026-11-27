@@ -1,11 +1,21 @@
-// helpers for the browser tests against the simulated printer (demo/mock-moonraker.mjs)
-
-// Chrome reports this harmless layout notice as an error when panels appear or disappear
+// Chrome reports this harmless layout notice as an error
 Cypress.on('uncaught:exception', (error) => !error.message.includes('ResizeObserver loop'))
 
-export const demo = (command: string) => cy.request(`${Cypress.env('demoUrl')}/${command}`)
+const demoRequest = (command: string) => cy.request(`${Cypress.env('demoUrl')}/${command}`)
 
-// checks the titles of the dashboard panels in one column, top to bottom (retried until it passes)
+export const demo = (command: string) => {
+    const request = demoRequest(command)
+
+    return command === 'reset' ? demoRequest('classic') : request
+}
+
+export const openShell = (path = '/', seed: string[] = []) => {
+    demoRequest('reset')
+    seed.forEach((command) => demoRequest(command))
+    cy.visit(path)
+    cy.get('.shell .shell-rail', { timeout: 15000 })
+}
+
 export const columnPanels = (column: number, check: (titles: string[]) => void) =>
     cy
         .get('.v-main .row')

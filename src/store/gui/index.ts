@@ -30,6 +30,8 @@ import { heightmap } from '@/store/gui/heightmap'
 import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
 import { defaultStoredThemeTokens } from '@/plugins/themeTokens'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
+import { getDefaultSpoolTrackerSettings } from '@/plugins/spoolTracker'
+import { DEFAULT_INTERFACE_SHELL } from '@/plugins/shellNavigation'
 
 export const getDefaultState = (): GuiState => {
     return {
@@ -209,7 +211,9 @@ export const getDefaultState = (): GuiState => {
             dashboardHistoryLimit: 5,
             hideOtherInstances: false,
             tokens: defaultStoredThemeTokens(),
+            interfaceShell: DEFAULT_INTERFACE_SHELL,
         },
+        spoolTracker: getDefaultSpoolTrackerSettings(),
         view: {
             afc: {
                 hiddenExtruders: [],

@@ -119,7 +119,6 @@ export default class WebrtcGo2rtc extends Mixins(BaseMixin, WebcamMixin) {
     }
 
     get expanded(): boolean {
-        // only the webcam panel of the dashboard can be collapsed (same rule as the other streamers)
         if (this.page !== null && this.page !== 'dashboard') return true
 
         return this.$store.getters['gui/getPanelExpand']('webcam-panel', this.viewport) ?? false

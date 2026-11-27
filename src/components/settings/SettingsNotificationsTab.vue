@@ -228,7 +228,6 @@ export default class SettingsNotificationsTab extends Mixins(EventNotificationsM
         })
     }
 
-    // explains what happens to browser notifications this browser cannot show
     get browserHint(): string | null {
         if (this.browserStatus === 'granted') return null
         if (!this.events.some((event) => event.rule.browser)) return null
@@ -244,7 +243,6 @@ export default class SettingsNotificationsTab extends Mixins(EventNotificationsM
         const enabled = value === true
         this.$store.dispatch('gui/saveSetting', { name: `alerts.events.${name}.${channel}`, value: enabled })
 
-        // the permission is only asked for when the user wants browser notifications
         if (channel === 'browser' && enabled) this.requestBrowserPermission()
     }
 
@@ -260,7 +258,7 @@ export default class SettingsNotificationsTab extends Mixins(EventNotificationsM
                     )
                 })
             } catch {
-                // the status below tells what happened
+                // the status read below reports a failure
             }
         }
 

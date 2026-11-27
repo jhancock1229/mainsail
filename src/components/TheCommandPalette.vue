@@ -188,7 +188,7 @@ interface IndexedSection {
 }
 
 const PIN_SHORTCUT = 'alt+p'
-// the start print dialog focuses itself after it opened (two ticks), the print button gets the focus after that
+// the start print dialog focuses itself two ticks after it opened
 const START_PRINT_FOCUS_DELAY = 100
 
 @Component({
@@ -206,9 +206,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 
     show = false
     query = ''
-    // the selection is a command, its position in the list can change while the palette is open
     selectedId: string | null = null
-    // search term the current selection was made for
     selectedQuery = ''
     confirming: PaletteCommand | null = null
     pointerPosition = ''
@@ -216,7 +214,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     showStartPrint = false
 
     get sections(): PaletteSection[] {
-        // nothing to compute while the palette is closed
         if (!this.show) return []
 
         return searchPaletteCommands(this.paletteCommands, this.query, {
@@ -253,7 +250,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         return this.confirming?.danger ? 'error' : 'primary'
     }
 
-    // the file as the start print dialog needs it, with the metadata that is loaded while the dialog is open
     get printFile(): FileStateGcodefile | null {
         if (this.printFilename === null) return null
 
@@ -283,11 +279,8 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 
     @Watch('flatResults')
     onResultsChanged(): void {
-        // typing selects the best match
         if (this.query !== this.selectedQuery) return this.selectFirst()
 
-        // The list changed by itself (e.g. the print finished). Without the command that was selected nothing is
-        // selected, so Enter cannot run the command that moved into its place.
         this.selectedId = keepSelection(this.flatResults, this.selectedId)
     }
 
@@ -302,7 +295,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     }
 
     mounted(): void {
-        // capture phase, so the shortcut also works while a dialog or an input handles its own keys
         window.addEventListener('keydown', this.onGlobalKeydown, true)
     }
 
@@ -368,7 +360,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         }
         if (event.key !== 'Enter') return
 
-        // a held Enter key must not confirm, and Enter on the cancel button cancels
         event.preventDefault()
         if (event.repeat) return
         if ((event.target as HTMLElement | null)?.closest('.command-palette__back')) return this.back()
@@ -390,11 +381,9 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     }
 
     focusInput(): void {
-        // the dialog content is rendered after the next tick
         this.$nextTick(() => window.setTimeout(() => this.input?.focus(), 0))
     }
 
-    // a click on anything but the search field must not take the focus away from it, or the keys stop working
     keepFocus(event: MouseEvent): void {
         if (event.target !== this.input) event.preventDefault()
     }
@@ -407,8 +396,7 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
     }
 
     hover(index: number, event: MouseEvent): void {
-        // browsers also send mousemove when the list scrolls below a resting pointer, which must not steal the
-        // selection from the keyboard
+        // browsers also send mousemove when the list scrolls below a resting pointer
         const position = `${event.screenX},${event.screenY}`
         if (position === this.pointerPosition) return
 
@@ -434,7 +422,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         this.focusInput()
     }
 
-    // the start print dialog of Mainsail is the confirmation, it also has the spool and timelapse options
     startPrint(filename: string): void {
         this.printFilename = filename
         if (this.printFile === null) {
@@ -443,7 +430,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
             return
         }
 
-        // the dialog exists after the next render; its print button gets the focus, so Enter starts the print
         this.$nextTick(() => {
             this.showStartPrint = true
             window.setTimeout(() => {
@@ -469,7 +455,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
         const command = this.confirming
         if (command === null) return
 
-        // the printer state can have changed while the confirmation was shown
         const current = this.paletteCommands.find((entry) => entry.id === command.id)
         if (!current || current.disabledReason !== null) {
             this.$toast.error(current?.disabledReason ?? this.$t('CommandPalette.NotAvailable').toString())
@@ -494,6 +479,9 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
                 break
             case 'settings':
                 EventBus.$emit(OPEN_SETTINGS_TAB, run.tab)
+                break
+            case 'setting':
+                this.$store.dispatch('gui/saveSetting', { name: run.name, value: run.value })
                 break
             case 'gcode':
                 run.scripts.forEach((script) => {
@@ -640,7 +628,6 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
 </style>
 
 <style>
-/* near the top of the window, like a spotlight search */
 .v-dialog.command-palette:not(.v-dialog--fullscreen) {
     align-self: flex-start;
     margin-top: 12vh;

@@ -11,7 +11,6 @@ const cardState = (objectName: string) => card(objectName).find('.temperature-ca
 const preset = (objectName: string, label: string) =>
     card(objectName).contains('.temperature-card__presets .v-chip', label)
 
-// checks which cards are shown, in their order on the page (retried until it passes)
 const cardOrder = (check: (objectNames: string[]) => void) =>
     cy
         .get('.temperature-panel')
@@ -53,7 +52,6 @@ describe('Temperature cards', () => {
         card(CHAMBER).find('.temperature-card__target').should('not.exist')
         card(CHAMBER).find('.temperature-card__presets').should('not.exist')
 
-        // the mock serves the temperature history, so every sparkline has a line right away
         cy.get('.temperature-card .temperature-sparkline__line').should(($lines) => {
             expect($lines).to.have.length(5)
             $lines.each((_, line) => expect(line.getAttribute('d')).to.match(/^M[\d.]+,[\d.]+ L/))
@@ -63,7 +61,6 @@ describe('Temperature cards', () => {
     })
 
     it('sets a target with one tap on a preset and switches the heater off again', () => {
-        // the presets of the user plus off
         card(EXTRUDER)
             .find('.temperature-card__presets .v-chip')
             .should(($chips) =>
@@ -83,7 +80,6 @@ describe('Temperature cards', () => {
         card(EXTRUDER).find('.temperature-card__power > div').should('have.attr', 'style').and('include', '100%')
         cardState(BED).should('have.attr', 'data-state', 'off')
 
-        // hot and without a target reads as cooling, not as off
         card(EXTRUDER)
             .find('.temperature-card__temperature')
             .should(($temperature) => expect(parseFloat($temperature.text().replace(/\s/g, ''))).to.be.above(45))
@@ -93,7 +89,6 @@ describe('Temperature cards', () => {
     })
 
     it('starts heating from room temperature when a print starts right after a reset', () => {
-        // the idle past in the temperature history must not be simulated on the printer that just got a target
         demo('reset')
         demo('print')
         cy.visit('/')
@@ -142,7 +137,6 @@ describe('Temperature cards', () => {
     })
 
     it('keeps the full chart below the cards, lets it be collapsed and remembers that', () => {
-        // open by default, so a chart that was enabled before the cards existed does not disappear
         cy.get('.temperature-panel .echarts').should('be.visible')
         cy.get('.temperature-panel__chart-toggle').should('have.attr', 'aria-expanded', 'true').click()
         cy.get('.temperature-panel .echarts').should('not.exist')
@@ -154,7 +148,6 @@ describe('Temperature cards', () => {
         cy.get('.temperature-panel__chart-toggle').click()
         cy.get('.temperature-panel .echarts').should('be.visible')
 
-        // the existing option still removes the chart completely
         openSettings()
         toggleCheckbox('Show Chart')
         cy.get('.temperature-panel__chart-toggle').should('not.exist')
@@ -167,7 +160,6 @@ describe('Temperature cards', () => {
         cy.get('.temperature-panel-table').should('contain', 'Extruder').and('contain', 'Chamber')
         cy.get('.temperature-card').should('not.exist')
         cy.get('.temperature-panel .echarts').should('be.visible')
-        // the options of the cards are only offered for the cards
         menu().find('.temperature-settings-cards__card').should('not.exist')
 
         cy.reload()
@@ -267,13 +259,11 @@ describe('Temperature cards', () => {
                 expect(bounds.left).to.be.at.least(panel.left)
                 expect(bounds.right).to.be.at.most(panel.right)
                 expect(bounds.width).to.be.at.least(150)
-                // nothing is cut off inside a card
                 expect(element.scrollWidth).to.be.at.most(element.clientWidth)
             })
         })
         cy.document().should((doc) => expect(doc.documentElement.scrollWidth).to.be.at.most(400))
 
-        // heaters get the full width, plain sensors share a row
         card(EXTRUDER).should(($card) => expect($card[0].getBoundingClientRect().width).to.be.greaterThan(300))
         card(CHAMBER).should(($chamber) => {
             const mcu = Cypress.$(`.temperature-card[data-object="${MCU}"]`)[0].getBoundingClientRect()

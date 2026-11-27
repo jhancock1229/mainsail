@@ -124,8 +124,6 @@ export default class KlippyStatePanel extends Mixins(BaseMixin) {
     mdiDownload = mdiDownload
     mdiPower = mdiPower
 
-    // Mainsail asks Klipper for its state again and again while it is not ready, and the message is empty in
-    // between: the last one is kept, so the panel does not jump between the message and the loader
     lastKlippyMessage: string | null = null
 
     get currentKlippyMessage(): string | null {
@@ -136,7 +134,6 @@ export default class KlippyStatePanel extends Mixins(BaseMixin) {
         return this.currentKlippyMessage ?? this.lastKlippyMessage
     }
 
-    // plain-language explanation of the message, while Klipper is in error or shutdown
     get explanation(): ErrorExplanation | null {
         if (!resolveAlertSettings(this.$store.state.gui.alerts).explainErrors) return null
         if (!isKlipperFault(this.klipperState)) return null
@@ -144,7 +141,6 @@ export default class KlippyStatePanel extends Mixins(BaseMixin) {
         return explainError(this.klippy_message, { klipperState: this.klipperState })
     }
 
-    // these are offered by the explanation, so they are not repeated in the button row below it
     get suggestedActions(): ErrorActionId[] {
         return this.explanation?.actions ?? []
     }

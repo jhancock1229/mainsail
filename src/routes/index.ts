@@ -137,6 +137,11 @@ const routes: AppRoute[] = [
     },
 ]
 
+const shellOnlyPaths = ['/print/:tab?', '/tune/:tab?', '/fix/:tab?', '/machine/:tab?', '/settings/:tab?']
+shellOnlyPaths.forEach((path) => {
+    routes.push({ title: null, component: null, alwaysShow: false, showInNavi: false, path })
+})
+
 export default routes
 
 export interface AppRoute {
