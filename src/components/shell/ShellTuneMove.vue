@@ -1,6 +1,6 @@
 <template>
     <div class="sh-columns sh-columns--755">
-        <section :aria-label="$t('Shell.Move.Title')" class="sh-col sh-col--gap-16 shell-move">
+        <section :aria-label="$t('Shell.Move.Title')" data-section="move" class="sh-col sh-col--gap-16 shell-move">
             <h2 class="sh-h2">{{ $t('Shell.Move.Title') }}</h2>
             <div class="shell-move__position">
                 <div v-for="axis in position" :key="axis.name" :class="'shell-move__axis--' + axis.name">
@@ -97,7 +97,7 @@
             <div v-if="hint" class="shell-move__hint">{{ hint }}</div>
         </section>
 
-        <section :aria-label="$t('Shell.Move.GoToLabel')" class="sh-col sh-col--gap-12 shell-goto">
+        <section :aria-label="$t('Shell.Move.GoToLabel')" data-section="goto" class="sh-col sh-col--gap-12 shell-goto">
             <h2 v-if="targets" class="sh-h2">{{ $t('Shell.Move.GoTo') }}</h2>
             <button
                 v-for="place in availablePlaces"
@@ -128,7 +128,7 @@
             </div>
         </section>
 
-        <section :aria-label="$t('Shell.Move.FirstLayer')" class="sh-col shell-offset">
+        <section :aria-label="$t('Shell.Move.FirstLayer')" data-section="first-layer" class="sh-col shell-offset">
             <h2 class="sh-h2">{{ $t('Shell.Move.FirstLayer') }}</h2>
             <div class="shell-offset__value">
                 {{ offsetText }}

@@ -8,13 +8,13 @@
             :label="$t('Shell.Pages.print')"
             @input="goTo('print', $event)" />
         <div class="sh-columns sh-columns--1">
-            <div v-if="tab === 'files'" class="sh-host">
+            <div v-if="tab === 'files'" data-section="files" class="sh-host">
                 <gcodefiles-panel />
             </div>
-            <div v-else-if="tab === 'queue'" class="sh-host">
+            <div v-else-if="tab === 'queue'" data-section="queue" class="sh-host">
                 <jobqueue-panel />
             </div>
-            <div v-else-if="tab === 'preview'" class="sh-host shell-print__viewer">
+            <div v-else-if="tab === 'preview'" data-section="preview" class="sh-host shell-print__viewer">
                 <viewer-page />
             </div>
             <section v-else class="sh-col">

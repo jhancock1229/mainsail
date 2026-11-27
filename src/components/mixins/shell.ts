@@ -2,8 +2,8 @@ import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import {
-    getShellPage,
-    isShellTabAvailable,
+    offeredShellTabs,
+    resolveShellLayout,
     resolveShellLocation,
     ShellAvailability,
     ShellLocation,
@@ -18,6 +18,8 @@ import {
     resolveShellHomeState,
     ShellHomeState,
 } from '@/plugins/shellStatus'
+import { hiddenShellTabs, KioskSettings } from '@/plugins/kiosk'
+import { kioskModeFor } from '@/plugins/kioskSession'
 
 @Component
 export default class ShellMixin extends Mixins(BaseMixin) {
@@ -31,7 +33,23 @@ export default class ShellMixin extends Mixins(BaseMixin) {
             klipperObjects: Object.keys(this.$store.state.printer.configfile?.settings ?? {}),
             registeredDirectories: this.$store.state.server.registered_directories ?? [],
             farm: this.$store.getters['farm/countPrinters'] > 0,
+            printerObjects: Object.keys(this.$store.state.printer ?? {}),
+            hidden: this.shellTouchMode ? hiddenShellTabs(this.shellKioskSettings) : [],
         }
+    }
+
+    get shellKioskSettings(): KioskSettings {
+        return this.$store.getters['gui/getKioskSettings']
+    }
+
+    get shellTouchMode(): boolean {
+        return kioskModeFor(this.shellKioskSettings).active
+    }
+
+    get shellCompact(): boolean {
+        const layout = resolveShellLayout({ width: this.$vuetify.breakpoint.width, touchMode: this.shellTouchMode })
+
+        return layout === 'compact'
     }
 
     get printFilename(): string {
@@ -107,7 +125,7 @@ export default class ShellMixin extends Mixins(BaseMixin) {
     }
 
     availableShellTabs(page: ShellPageId): ShellTab[] {
-        return getShellPage(page).tabs.filter((tab) => isShellTabAvailable(tab, this.shellAvailability))
+        return offeredShellTabs(page, this.shellAvailability)
     }
 
     goTo(page: ShellPageId, tab: string | null = null): void {

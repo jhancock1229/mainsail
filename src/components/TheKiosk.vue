@@ -1,10 +1,12 @@
 <template>
     <div>
-        <template v-if="kioskActive">
-            <kiosk-bottom-bar @more="showMore = true" />
-            <kiosk-more-sheet v-model="showMore" />
+        <template v-if="classicShell">
+            <template v-if="kioskActive">
+                <kiosk-bottom-bar @more="showMore = true" />
+                <kiosk-more-sheet v-model="showMore" />
+            </template>
+            <kiosk-suggestion v-else-if="kioskMode.suggest" />
         </template>
-        <kiosk-suggestion v-else-if="kioskMode.suggest" />
         <kiosk-pin-dialog />
     </div>
 </template>
@@ -14,11 +16,21 @@ import Component from 'vue-class-component'
 import { Mixins, Watch } from 'vue-property-decorator'
 import { NavigationGuardNext, Route } from 'vue-router'
 import KioskMixin from '@/components/mixins/kiosk'
+import ShellMixin from '@/components/mixins/shell'
 import KioskBottomBar from '@/components/kiosk/KioskBottomBar.vue'
 import KioskMoreSheet from '@/components/kiosk/KioskMoreSheet.vue'
 import KioskPinDialog from '@/components/kiosk/KioskPinDialog.vue'
 import KioskSuggestion from '@/components/kiosk/KioskSuggestion.vue'
-import { classifyRequest, KIOSK_CONFIG_PAGE, parseKioskUrlParam, routeRule } from '@/plugins/kiosk'
+import {
+    classifyRequest,
+    KioskAction,
+    KioskActionRule,
+    parseKioskUrlParam,
+    routeRule,
+    shellLocationRule,
+    shellLockKey,
+} from '@/plugins/kiosk'
+import { resolveInterfaceShell, resolveShellLocation } from '@/plugins/shellNavigation'
 import {
     authorizeKioskAction,
     kioskSession,
@@ -27,22 +39,40 @@ import {
     updateKioskScreen,
 } from '@/plugins/kioskSession'
 
+interface RouteGate {
+    rule: KioskActionRule
+    key: string | null
+    action: KioskAction | null
+}
+
+const CLASSIC_CONFIG_ROUTE = 'machine'
+const SHELL_ACTIONS: Record<string, KioskAction> = { settings: 'settings', 'machine/config': 'configEdit' }
+
 @Component({
     components: { KioskBottomBar, KioskMoreSheet, KioskPinDialog, KioskSuggestion },
 })
-export default class TheKiosk extends Mixins(KioskMixin) {
+export default class TheKiosk extends Mixins(KioskMixin, ShellMixin) {
     showMore = false
     removeRouteGuard: (() => void) | null = null
-    unlockedRoute: string | null = null
+    unlockedKey: string | null = null
+    allowedPath: string | null = null
 
-    get currentRouteRule(): string {
-        return this.kioskActive ? routeRule(this.$route.name, this.kioskSettings) : 'allow'
+    get classicShell(): boolean {
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell) === 'classic'
     }
 
-    @Watch('currentRouteRule', { immediate: true })
-    onCurrentRouteRuleChanged(rule: string): void {
-        if (rule === 'allow') return
-        if (rule === 'pin' && this.unlockedRoute === this.$route.name) return
+    get currentGate(): RouteGate {
+        return this.gateFor(this.$route)
+    }
+
+    @Watch('currentGate', { immediate: true })
+    onCurrentGateChanged(gate: RouteGate): void {
+        if (gate.rule === 'allow') {
+            this.allowedPath = this.$route.path
+            return
+        }
+        if (gate.rule === 'pin' && this.allowedPath === this.$route.path) this.unlockedKey = gate.key
+        if (gate.rule === 'pin' && this.unlockedKey === gate.key) return
 
         this.$router.replace('/')
     }
@@ -85,20 +115,37 @@ export default class TheKiosk extends Mixins(KioskMixin) {
         return authorizeKioskAction(action, this.kioskSettings, this.kioskBlocked)
     }
 
-    async guardRoute(to: Route, from: Route, next: NavigationGuardNext): Promise<void> {
-        const rule = this.kioskActive ? routeRule(to.name, this.kioskSettings) : 'allow'
-        if (to.name !== this.unlockedRoute) this.unlockedRoute = null
-        if (rule === 'allow') return next()
+    gateFor(route: Route): RouteGate {
+        const open: RouteGate = { rule: 'allow', key: null, action: null }
+        if (!this.kioskActive) return open
 
-        const stay = (): void => next(from.name ? false : '/')
-        if (rule === 'block') {
-            if (to.name === KIOSK_CONFIG_PAGE) this.kioskBlocked('configEdit')
+        if (this.classicShell) {
+            const rule = routeRule(route.name, this.kioskSettings)
+
+            return { rule, key: route.name ?? null, action: route.name === CLASSIC_CONFIG_ROUTE ? 'configEdit' : null }
+        }
+
+        const location = resolveShellLocation(route.path, this.shellAvailability)
+        const action = SHELL_ACTIONS[shellLockKey(location)] ?? null
+
+        return { rule: shellLocationRule(location, this.kioskSettings), key: shellLockKey(location), action }
+    }
+
+    async guardRoute(to: Route, from: Route, next: NavigationGuardNext): Promise<void> {
+        const gate = this.gateFor(to)
+        const unlocked = gate.rule === 'pin' && gate.key === this.unlockedKey
+        if (!unlocked) this.unlockedKey = null
+        if (gate.rule === 'allow' || unlocked) return next()
+
+        const stay = (): void => next(from.matched.length ? false : '/')
+        if (gate.rule === 'block') {
+            if (gate.action !== null) this.kioskBlocked(gate.action)
             return stay()
         }
 
-        if (!(await requestKioskPin('configEdit'))) return stay()
+        if (!(await requestKioskPin(gate.action ?? 'configEdit'))) return stay()
 
-        this.unlockedRoute = to.name ?? null
+        this.unlockedKey = gate.key
         next()
     }
 }

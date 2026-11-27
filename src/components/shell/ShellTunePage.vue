@@ -22,10 +22,10 @@
             v-else-if="tab === 'extruder'"
             class="sh-columns"
             :class="filamentSystem ? 'sh-columns--2' : 'sh-columns--1'">
-            <div class="sh-host shell-tune__extruder">
+            <div data-section="extruder" class="sh-host shell-tune__extruder">
                 <extruder-control-panel />
             </div>
-            <div v-if="filamentSystem" class="sh-host">
+            <div v-if="filamentSystem" data-section="filament" class="sh-host">
                 <spoolman-panel v-if="hasSpoolman" />
                 <afc-panel v-if="hasAfc" />
                 <mmu-panel v-if="hasMmu" />
@@ -33,10 +33,10 @@
         </div>
 
         <div v-else-if="tab === 'bed-level'" class="sh-columns" :class="hasBedMesh ? 'sh-columns--2' : 'sh-columns--1'">
-            <div v-if="hasBedMesh" class="sh-host">
+            <div v-if="hasBedMesh" data-section="mesh" class="sh-host">
                 <heightmap-chart-panel />
             </div>
-            <div class="sh-host shell-tune__bed">
+            <div data-section="level" class="sh-host shell-tune__bed">
                 <div v-if="levelTools.length" class="shell-tune__tools">
                     <h2 class="sh-h2">{{ $t('Shell.Tune.LevelTools') }}</h2>
                     <button
@@ -58,10 +58,10 @@
         </div>
 
         <div v-else-if="tab === 'heater-tuning'" class="sh-columns sh-columns--2">
-            <div class="sh-host">
+            <div data-section="heaters" class="sh-host">
                 <temperature-panel />
             </div>
-            <section :aria-label="$t('Shell.Tune.Pid.Title')" class="sh-col sh-col--scroll">
+            <section :aria-label="$t('Shell.Tune.Pid.Title')" data-section="pid" class="sh-col sh-col--scroll">
                 <h2 class="sh-h2">{{ $t('Shell.Tune.Pid.Title') }}</h2>
                 <p class="sh-note">{{ $t('Shell.Tune.Pid.Help') }}</p>
                 <template v-if="canPid">
@@ -97,7 +97,10 @@
         </div>
 
         <div v-else-if="tab === 'resonance'" class="sh-columns sh-columns--2">
-            <section :aria-label="$t('Shell.Tune.Resonance.Title')" class="sh-col sh-col--scroll">
+            <section
+                :aria-label="$t('Shell.Tune.Resonance.Title')"
+                data-section="resonance"
+                class="sh-col sh-col--scroll">
                 <h2 class="sh-h2">{{ $t('Shell.Tune.Resonance.Title') }}</h2>
                 <div v-if="shaper.length" class="shell-tune__shaper">
                     <div v-for="axis in shaper" :key="axis.axis">
@@ -120,7 +123,7 @@
                 </template>
                 <p v-else class="sh-note sh-muted">{{ $t('Shell.Tune.Resonance.NoSensor') }}</p>
             </section>
-            <section class="sh-col">
+            <section data-section="resonance-help" class="sh-col">
                 <h2 class="sh-h2">{{ $t('Shell.Tune.Resonance.AboutTitle') }}</h2>
                 <p class="sh-note">{{ $t('Shell.Tune.Resonance.About') }}</p>
                 <p class="sh-note sh-muted">{{ $t('Shell.Tune.Resonance.Results') }}</p>
@@ -131,10 +134,13 @@
         </div>
 
         <div v-else-if="tab === 'limits'" class="sh-columns sh-columns--2">
-            <div class="sh-host">
+            <div data-section="limits" class="sh-host">
                 <machine-settings-panel />
             </div>
-            <section :aria-label="$t('Panels.ToolheadControlPanel.SpeedFactor')" class="sh-col">
+            <section
+                :aria-label="$t('Panels.ToolheadControlPanel.SpeedFactor')"
+                data-section="speed"
+                class="sh-col shell-tune__speed">
                 <h2 class="sh-h2">{{ $t('Shell.Tune.SpeedTitle') }}</h2>
                 <p class="sh-note">{{ $t('Shell.Tune.SpeedHelp') }}</p>
                 <tool-slider
@@ -153,7 +159,7 @@
         </div>
 
         <div v-else class="sh-columns sh-columns--1">
-            <div class="sh-host shell-tune__macros">
+            <div data-section="macros" class="sh-host shell-tune__macros">
                 <macros-panel />
                 <macrogroup-panel v-for="group in macrogroups" :key="group.id" :panel-id="group.id" />
                 <p v-if="!hasMacros" class="sh-note">{{ $t('Shell.Tune.NoMacros') }}</p>

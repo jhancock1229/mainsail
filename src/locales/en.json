@@ -692,7 +692,8 @@
                 "restart": "Enter the PIN to restart or power off",
                 "settings": "Enter the PIN to open the settings"
             },
-            "RecoveryOtherDevice": "Open Mainsail on a device that is not in touch mode, for example a computer. Under Settings > Touch & kiosk > Change PIN, \"Forgot the PIN?\" resets it.",
+            "RecoveryAutoApplied": "This screen enters touch mode by itself, so clearing its browser data is not enough. Use a larger screen, such as a computer or tablet, or delete the key \"kiosk.pin\" in the namespace \"mainsail\" of the Moonraker database.",
+            "RecoveryOtherDevice": "Open Mainsail on a device that is not in touch mode, for example a computer. In the settings under Touch & kiosk > Change PIN, \"Forgot the PIN?\" resets it.",
             "RecoveryReset": "You can reset the PIN here. Protected actions are open to everyone until a new PIN is set.",
             "RecoveryThisDevice": "If this is your only device: delete the key \"kiosk.pin\" in the namespace \"mainsail\" of the Moonraker database, or clear this site's data in the browser and reset the PIN in the settings.",
             "ResetPin": "Reset PIN",
@@ -1632,10 +1633,10 @@
         "KioskTab": {
             "ActionDescriptions": {
                 "cancelPrint": "The cancel button and CANCEL_PRINT.",
-                "configEdit": "The Machine page with the configuration files, and SAVE_CONFIG.",
+                "configEdit": "The configuration files (the Machine page in the classic interface) and SAVE_CONFIG.",
                 "deleteFile": "Deleting files and directories.",
                 "restart": "Klipper and firmware restart, restarting or stopping services, host reboot and shutdown, switching power devices off.",
-                "settings": "This dialog. Always asks for the PIN once one is set."
+                "settings": "The interface settings. Always ask for the PIN once one is set."
             },
             "Actions": "Actions",
             "ActionsDescription": "Applies in touch mode only. The emergency stop is never restricted.",
@@ -1647,7 +1648,9 @@
             "ChoosePin": "Choose a PIN",
             "Enable": "Touch mode on this screen",
             "EnableDescription": "Large touch targets, a bottom bar instead of the side menu and one dashboard panel at a time. Remembered in this browser only, so other devices keep the regular interface.",
+            "EnableDescriptionShell": "Uses the small-screen layout at any width and applies the rules below to this screen. Remembered in this browser only, so other devices are not affected.",
             "Kiosk": "Touch & kiosk",
+            "LockoutWarning": "With a PIN and \"Switch to touch mode automatically\", a phone or small printer screen cannot leave touch mode without the PIN, not even after its browser data is cleared. A forgotten PIN can then only be reset from a larger screen, such as a computer or tablet.",
             "Pages": "Pages",
             "PagesDescription": "Unticked pages cannot be opened in touch mode. The dashboard is always available.",
             "Panels": "Dashboard panels",
@@ -1668,6 +1671,8 @@
                 "pin": "Require PIN"
             },
             "SetPin": "Set PIN",
+            "ShellPages": "Pages and tabs",
+            "ShellPagesDescription": "Unticked pages and tabs are not offered in touch mode. Home and Settings are always there; Settings follow the rule under Actions.",
             "SmallScreenOptions": {
                 "apply": "Switch to touch mode automatically",
                 "off": "Do nothing",
@@ -1675,6 +1680,7 @@
             },
             "SmallScreens": "Small touch screens",
             "SmallScreensDescription": "What happens on a phone or a small printer screen that has not chosen yet.",
+            "SmallScreensDescriptionShell": "Phones and small printer screens always get the small-screen layout. This decides whether touch mode, with the rules below, also starts by itself on them. The suggestion is only shown in the classic interface.",
             "ThisScreen": "This screen",
             "UrlHint": "A kiosk browser can start in touch mode with this address:"
         },
@@ -2039,6 +2045,18 @@
             "Add": "Add a camera",
             "None": "No camera is set up"
         },
+        "Compact": {
+            "Pages": {
+                "fix": "Fix",
+                "home": "Home",
+                "machine": "Machine",
+                "print": "Print",
+                "settings": "Settings",
+                "tune": "Tune"
+            },
+            "Sections": "Sections of this page",
+            "Stop": "Stop"
+        },
         "Duration": {
             "Hours": "{hours} h {minutes} min",
             "LessThanMinute": "< 1 min",
@@ -2211,6 +2229,32 @@
             "Search": "Search or run"
         },
         "SaveConfig": "Save config and restart",
+        "Sections": {
+            "camera": "Camera",
+            "console": "Console",
+            "content": "Settings",
+            "endstops": "Endstops",
+            "extruder": "Extruder",
+            "filament": "Filament",
+            "first-layer": "First layer",
+            "goto": "Go to",
+            "heat": "Heat",
+            "heaters": "Heaters",
+            "job": "Print",
+            "level": "Leveling",
+            "limits": "Limits",
+            "mesh": "Bed mesh",
+            "move": "Move",
+            "pid": "PID",
+            "problem": "Problem",
+            "ready": "Get ready",
+            "resonance": "Resonance",
+            "resonance-help": "About resonance",
+            "sections": "All settings",
+            "speed": "Speed",
+            "start": "Start",
+            "status": "What is wrong"
+        },
         "Settings": {
             "Status": "Changes are saved as you make them"
         },

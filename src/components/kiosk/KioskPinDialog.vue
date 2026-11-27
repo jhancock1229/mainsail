@@ -22,7 +22,7 @@
                     <div v-if="showRecovery" class="kiosk-pin-dialog__recovery text-body-2 mt-2">
                         <template v-if="kioskActive">
                             <p class="mb-2">{{ $t('Kiosk.Pin.RecoveryOtherDevice') }}</p>
-                            <p class="mb-2">{{ $t('Kiosk.Pin.RecoveryThisDevice') }}</p>
+                            <p class="mb-2">{{ recoveryThisDevice }}</p>
                         </template>
                         <template v-else>
                             <p class="mb-2">{{ $t('Kiosk.Pin.RecoveryReset') }}</p>
@@ -49,6 +49,7 @@ import { Mixins, Ref, Watch } from 'vue-property-decorator'
 import { mdiLockOutline } from '@mdi/js'
 import KioskMixin from '@/components/mixins/kiosk'
 import KioskPinPad from '@/components/kiosk/KioskPinPad.vue'
+import { canRecoverOnSmallScreen } from '@/plugins/kiosk'
 import { kioskPinLockout, kioskSession, settleKioskPin, submitKioskPin } from '@/plugins/kioskSession'
 
 const MS_PER_SECOND = 1000
@@ -76,6 +77,12 @@ export default class KioskPinDialog extends Mixins(KioskMixin) {
 
     get lockoutSeconds(): number {
         return Math.ceil(kioskPinLockout(this.now) / MS_PER_SECOND)
+    }
+
+    get recoveryThisDevice(): string {
+        const key = canRecoverOnSmallScreen(this.kioskSettings) ? 'RecoveryThisDevice' : 'RecoveryAutoApplied'
+
+        return this.$t(`Kiosk.Pin.${key}`).toString()
     }
 
     get message(): string {

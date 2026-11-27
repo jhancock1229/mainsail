@@ -1,6 +1,6 @@
 <template>
     <div class="sh-columns sh-columns--755">
-        <section :aria-label="$t('Shell.Error.Title')" class="sh-col sh-col--scroll shell-error">
+        <section :aria-label="$t('Shell.Error.Title')" data-section="problem" class="sh-col sh-col--scroll shell-error">
             <h2 class="sh-h2">{{ $t('Shell.Error.Title') }}</h2>
             <klippy-state-panel v-if="klipperState !== 'ready'" class="shell-error__klippy" />
             <template v-else>
@@ -23,7 +23,7 @@
             <router-link to="/fix/status" class="sh-link">{{ $t('Shell.Error.More') }}</router-link>
         </section>
 
-        <section :aria-label="viewLabel" class="sh-col">
+        <section :aria-label="viewLabel" data-section="view" class="sh-col shell-view">
             <div class="sh-row shell-error__head">
                 <h2 class="sh-h2">{{ viewLabel }}</h2>
                 <shell-tabs v-model="view" :tabs="views" :label="$t('Shell.Print.View')" small />
@@ -32,7 +32,7 @@
             <shell-camera v-else />
         </section>
 
-        <section :aria-label="$t('Shell.Heat.Title')" class="sh-col sh-col--gap-16">
+        <section :aria-label="$t('Shell.Heat.Title')" data-section="heat" class="sh-col sh-col--gap-16 shell-side">
             <shell-heat v-if="klipperState === 'ready'" />
             <div v-if="klipperState === 'ready'" class="sh-rule" />
             <shell-events />
@@ -42,7 +42,8 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Watch } from 'vue-property-decorator'
+import { shellCompactState } from '@/plugins/shellCompactState'
 import ShellPrintMixin from '@/components/mixins/shellPrint'
 import ShellTabs, { ShellTabItem } from '@/components/shell/ShellTabs.vue'
 import ShellCamera from '@/components/shell/ShellCamera.vue'
@@ -59,6 +60,10 @@ import { ErrorExplanation, explainError } from '@/plugins/errorExplainer'
 export default class ShellHomeError extends Mixins(ShellPrintMixin) {
     view = 'console'
 
+    get requestedView(): string | null {
+        return shellCompactState.homeView
+    }
+
     get views(): ShellTabItem[] {
         return ['console', 'camera'].map((id) => ({ id, label: this.$t(`Shell.Print.Views.${id}`).toString() }))
     }
@@ -69,6 +74,11 @@ export default class ShellHomeError extends Mixins(ShellPrintMixin) {
 
     get printExplanation(): ErrorExplanation | null {
         return explainError(String(this.printStats.message ?? ''), { klipperState: this.klipperState })
+    }
+
+    @Watch('requestedView', { immediate: true })
+    onRequestedView(view: string | null): void {
+        if (view !== null) this.view = view
     }
 
     clearJob(): void {

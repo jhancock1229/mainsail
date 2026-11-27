@@ -9,6 +9,15 @@ export const demo = (command: string) => {
     return command === 'reset' ? demoRequest('classic') : request
 }
 
+// Stubbed after the page has loaded: a page served by the service worker does not run Cypress' before-load hooks.
+// The app looks at the screen again on every resize.
+export const useTouchScreen = () => {
+    cy.window().then((win) => {
+        Object.defineProperty(win.navigator, 'maxTouchPoints', { value: 5, configurable: true })
+        win.dispatchEvent(new Event('resize'))
+    })
+}
+
 export const openShell = (path = '/', seed: string[] = []) => {
     demoRequest('reset')
     seed.forEach((command) => demoRequest(command))

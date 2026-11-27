@@ -6,6 +6,7 @@ import {
     mdiDipSwitch,
     mdiFileDocumentEditOutline,
     mdiFire,
+    mdiGestureTap,
     mdiGrid,
     mdiKeyboardOutline,
     mdiMenu,
@@ -37,6 +38,7 @@ const tabs: Record<string, { icon: string; titleKey: string }> = {
     heightmap: { icon: mdiGrid, titleKey: 'Settings.HeightmapTab.Heightmap' },
     notifications: { icon: mdiBellOutline, titleKey: 'Settings.NotificationsTab.Notifications' },
     'command-palette': { icon: mdiKeyboardOutline, titleKey: 'Settings.CommandPaletteTab.CommandPalette' },
+    kiosk: { icon: mdiGestureTap, titleKey: 'Settings.KioskTab.Kiosk' },
     timelapse: { icon: mdiTimelapse, titleKey: 'Settings.TimelapseTab.Timelapse' },
 }
 

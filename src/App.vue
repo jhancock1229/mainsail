@@ -55,7 +55,7 @@ import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 import TheKiosk from '@/components/TheKiosk.vue'
 import KioskMixin from '@/components/mixins/kiosk'
 import TheShell from '@/components/shell/TheShell.vue'
-import { classicPathFor, InterfaceShell, isClassicForced, resolveInterfaceShell } from '@/plugins/shellNavigation'
+import { classicPathFor, InterfaceShell, resolveInterfaceShell } from '@/plugins/shellNavigation'
 import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 
 @Component({
@@ -140,8 +140,6 @@ export default class App extends Mixins(BaseMixin, ThemeMixin, KioskMixin) {
         return resolveDarkMode(this.mode, this.systemPrefersDark)
     }
 
-    widthAtLoad = window.innerWidth
-
     get interfaceReady(): boolean {
         return this.socketIsConnected && this.guiIsReady
     }
@@ -149,7 +147,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin, KioskMixin) {
     get interfaceShell(): InterfaceShell {
         if (!this.interfaceReady) return 'classic'
 
-        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell, this.widthAtLoad)
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell)
     }
 
     get classicRedirect(): string | null {
@@ -270,7 +268,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin, KioskMixin) {
     @Watch('interfaceShell', { immediate: true })
     interfaceShellChanged(shell: InterfaceShell): void {
         document.documentElement.classList.toggle('shell-new', shell === 'new')
-        commandPaletteBus.switchableShell = isClassicForced(this.widthAtLoad) ? null : shell
+        commandPaletteBus.switchableShell = shell
     }
 
     @Watch('classicRedirect', { immediate: true })
@@ -470,6 +468,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin, KioskMixin) {
 @import './assets/styles/utils.css';
 @import './assets/styles/updateManager.css';
 @import './assets/styles/shell.css';
+@import './assets/styles/shell-compact.css';
 
 :root {
     --app-height: 100%;

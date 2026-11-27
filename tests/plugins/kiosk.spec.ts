@@ -22,6 +22,11 @@ import {
     routeRule,
     swipeDirection,
     verifyPin,
+    canRecoverOnSmallScreen,
+    exposedShellPages,
+    hiddenShellTabs,
+    shellLocationRule,
+    shellLockKey,
 } from '@/plugins/kiosk'
 
 const settingsWith = (overrides: Record<string, unknown>) => resolveKioskSettings(overrides)
@@ -143,6 +148,7 @@ describe('resolveKioskSettings', () => {
         expect(settings.bottomBar).toEqual(['console', 'dashboard'])
         expect(settings.hiddenPages).toEqual(['machine'])
         expect(settings.hiddenPanels).toEqual(['miniconsole'])
+        expect(settings.hiddenShell).toEqual([])
         expect(settings.actions.cancelPrint).toBe('pin')
         expect(settings.actions.deleteFile).toBe('allow')
         expect(settings.actions.restart).toBe('allow')
@@ -331,6 +337,75 @@ describe('pages', () => {
     it('never blocks the dashboard or an unnamed route', () => {
         expect(routeRule('dashboard', settingsWith({ hiddenPages: ['dashboard'] }))).toBe('allow')
         expect(routeRule(undefined, settingsWith({ hiddenPages: ['history'] }))).toBe('allow')
+    })
+})
+
+describe('pages of the new interface', () => {
+    const at = (page: string, tab: string | null = null) => ({ page, tab })
+    const shellPages = ['home', 'print', 'tune', 'fix', 'machine', 'settings']
+
+    it('allows everything by default', () => {
+        const settings = getDefaultKioskSettings()
+
+        expect(shellLocationRule(at('tune', 'move'), settings)).toBe('allow')
+        expect(shellLocationRule(at('machine', 'config'), settings)).toBe('allow')
+        expect(shellLocationRule(at('settings', 'general'), settings)).toBe('allow')
+        expect(exposedShellPages(shellPages, settings)).toEqual(shellPages)
+        expect(hiddenShellTabs(settings)).toEqual([])
+    })
+
+    it('blocks a hidden page with all its tabs, and a single hidden tab', () => {
+        const settings = settingsWith({ hiddenShell: ['machine', 'tune/resonance'] })
+
+        expect(shellLocationRule(at('machine', 'history'), settings)).toBe('block')
+        expect(shellLocationRule(at('tune', 'resonance'), settings)).toBe('block')
+        expect(shellLocationRule(at('tune', 'move'), settings)).toBe('allow')
+        expect(exposedShellPages(shellPages, settings)).toEqual(['home', 'print', 'tune', 'fix', 'settings'])
+        expect(hiddenShellTabs(settings)).toEqual(['tune/resonance'])
+    })
+
+    it('never blocks home', () => {
+        expect(shellLocationRule(at('home'), settingsWith({ hiddenShell: ['home'] }))).toBe('allow')
+        expect(exposedShellPages(shellPages, settingsWith({ hiddenShell: ['home'] }))).toContain('home')
+    })
+
+    it('guards the config files like config editing', () => {
+        expect(shellLocationRule(at('machine', 'config'), settingsWith({ actions: { configEdit: 'pin' }, pin }))).toBe(
+            'pin'
+        )
+        expect(shellLocationRule(at('machine', 'system'), settingsWith({ actions: { configEdit: 'pin' }, pin }))).toBe(
+            'allow'
+        )
+
+        const blocked = settingsWith({ actions: { configEdit: 'block' } })
+        expect(shellLocationRule(at('machine', 'config'), blocked)).toBe('block')
+        expect(hiddenShellTabs(blocked)).toEqual(['machine/config'])
+    })
+
+    it('guards the settings page like the settings', () => {
+        expect(shellLocationRule(at('settings', 'general'), settingsWith({ pin }))).toBe('pin')
+        expect(shellLocationRule(at('settings', 'kiosk'), settingsWith({ actions: { settings: 'block' } }))).toBe(
+            'block'
+        )
+        expect(exposedShellPages(shellPages, settingsWith({ actions: { settings: 'block' } }))).not.toContain(
+            'settings'
+        )
+        expect(exposedShellPages(shellPages, settingsWith({ pin }))).toContain('settings')
+    })
+
+    it('cannot hide the settings page through the page list', () => {
+        expect(shellLocationRule(at('settings', 'general'), settingsWith({ hiddenShell: ['settings'] }))).toBe('allow')
+    })
+
+    it('keeps the settings unlocked while moving between their tabs, and a tab only for itself', () => {
+        expect(shellLockKey(at('settings', 'general'))).toBe(shellLockKey(at('settings', 'kiosk')))
+        expect(shellLockKey(at('machine', 'config'))).not.toBe(shellLockKey(at('machine', 'system')))
+    })
+
+    it('knows that a screen which enters touch mode by itself cannot recover by clearing its data', () => {
+        expect(canRecoverOnSmallScreen(settingsWith({ smallScreens: 'apply' }))).toBe(false)
+        expect(canRecoverOnSmallScreen(settingsWith({ smallScreens: 'suggest' }))).toBe(true)
+        expect(canRecoverOnSmallScreen(settingsWith({ smallScreens: 'off' }))).toBe(true)
     })
 })
 

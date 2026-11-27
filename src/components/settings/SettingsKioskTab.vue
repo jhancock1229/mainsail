@@ -5,7 +5,7 @@
                 <div class="text-overline text--secondary">{{ $t('Settings.KioskTab.ThisScreen') }}</div>
                 <settings-row
                     :title="$t('Settings.KioskTab.Enable')"
-                    :sub-title="$t('Settings.KioskTab.EnableDescription')"
+                    :sub-title="enableDescription"
                     :dynamic-slot-width="true">
                     <v-switch
                         :input-value="kioskActive"
@@ -23,7 +23,7 @@
                 <div class="text-caption text--secondary mb-2">{{ $t('Settings.KioskTab.AllScreensDescription') }}</div>
                 <settings-row
                     :title="$t('Settings.KioskTab.SmallScreens')"
-                    :sub-title="$t('Settings.KioskTab.SmallScreensDescription')"
+                    :sub-title="smallScreensDescription"
                     :mobile-second-row="true">
                     <v-select
                         v-model="smallScreens"
@@ -34,52 +34,84 @@
                         attach
                         class="kiosk-small-screens" />
                 </settings-row>
-                <v-divider class="my-2" />
-                <settings-row
-                    :title="$t('Settings.KioskTab.BottomBar')"
-                    :sub-title="$t('Settings.KioskTab.BottomBarDescription', { max: bottomBarMax })"
-                    :mobile-second-row="true">
-                    <v-select
-                        v-model="bottomBar"
-                        :items="bottomBarItems"
-                        item-text="title"
-                        item-value="name"
-                        multiple
-                        small-chips
-                        hide-details
-                        outlined
-                        dense
-                        attach
-                        class="kiosk-bottom-bar-select" />
-                </settings-row>
-                <v-divider class="my-2" />
-                <div class="kiosk-section-title mt-3">{{ $t('Settings.KioskTab.Pages') }}</div>
-                <div class="kiosk-section-subtitle">{{ $t('Settings.KioskTab.PagesDescription') }}</div>
-                <div class="d-flex flex-wrap kiosk-pages">
-                    <v-checkbox
-                        v-for="page in hideablePages"
-                        :key="page.name"
-                        :input-value="!kioskSettings.hiddenPages.includes(page.name)"
-                        :label="page.title"
-                        :data-page="page.name"
-                        hide-details
-                        class="kiosk-exposure-checkbox mt-2"
-                        @change="setExposed('hiddenPages', page.name, $event)" />
-                </div>
-                <v-divider class="my-4" />
-                <div class="kiosk-section-title">{{ $t('Settings.KioskTab.Panels') }}</div>
-                <div class="kiosk-section-subtitle">{{ $t('Settings.KioskTab.PanelsDescription') }}</div>
-                <div class="d-flex flex-wrap kiosk-panels">
-                    <v-checkbox
-                        v-for="panel in hideablePanels"
-                        :key="panel.name"
-                        :input-value="!kioskSettings.hiddenPanels.includes(panel.name)"
-                        :label="panel.title"
-                        :data-panel="panel.name"
-                        hide-details
-                        class="kiosk-exposure-checkbox mt-2"
-                        @change="setExposed('hiddenPanels', panel.name, $event)" />
-                </div>
+                <v-alert v-if="lockoutRisk" dense text type="warning" class="mt-3 mb-0 kiosk-lockout-warning">
+                    {{ $t('Settings.KioskTab.LockoutWarning') }}
+                </v-alert>
+                <template v-if="newShell">
+                    <v-divider class="my-4" />
+                    <div class="kiosk-section-title">{{ $t('Settings.KioskTab.ShellPages') }}</div>
+                    <div class="kiosk-section-subtitle">{{ $t('Settings.KioskTab.ShellPagesDescription') }}</div>
+                    <div v-for="page in shellExposure" :key="page.id" class="kiosk-shell-page">
+                        <v-checkbox
+                            :input-value="page.exposed"
+                            :label="page.title"
+                            :data-shell="page.id"
+                            hide-details
+                            class="kiosk-shell-checkbox mt-2"
+                            @change="setShellExposed(page.id, $event)" />
+                        <div v-if="page.tabs.length > 1" class="d-flex flex-wrap kiosk-shell-tabs">
+                            <v-checkbox
+                                v-for="tab in page.tabs"
+                                :key="tab.id"
+                                :input-value="tab.exposed"
+                                :label="tab.title"
+                                :data-shell="tab.id"
+                                :disabled="!page.exposed"
+                                hide-details
+                                dense
+                                class="kiosk-exposure-checkbox mt-1"
+                                @change="setShellExposed(tab.id, $event)" />
+                        </div>
+                    </div>
+                </template>
+                <template v-else>
+                    <v-divider class="my-2" />
+                    <settings-row
+                        :title="$t('Settings.KioskTab.BottomBar')"
+                        :sub-title="$t('Settings.KioskTab.BottomBarDescription', { max: bottomBarMax })"
+                        :mobile-second-row="true">
+                        <v-select
+                            v-model="bottomBar"
+                            :items="bottomBarItems"
+                            item-text="title"
+                            item-value="name"
+                            multiple
+                            small-chips
+                            hide-details
+                            outlined
+                            dense
+                            attach
+                            class="kiosk-bottom-bar-select" />
+                    </settings-row>
+                    <v-divider class="my-2" />
+                    <div class="kiosk-section-title mt-3">{{ $t('Settings.KioskTab.Pages') }}</div>
+                    <div class="kiosk-section-subtitle">{{ $t('Settings.KioskTab.PagesDescription') }}</div>
+                    <div class="d-flex flex-wrap kiosk-pages">
+                        <v-checkbox
+                            v-for="page in hideablePages"
+                            :key="page.name"
+                            :input-value="!kioskSettings.hiddenPages.includes(page.name)"
+                            :label="page.title"
+                            :data-page="page.name"
+                            hide-details
+                            class="kiosk-exposure-checkbox mt-2"
+                            @change="setExposed('hiddenPages', page.name, $event)" />
+                    </div>
+                    <v-divider class="my-4" />
+                    <div class="kiosk-section-title">{{ $t('Settings.KioskTab.Panels') }}</div>
+                    <div class="kiosk-section-subtitle">{{ $t('Settings.KioskTab.PanelsDescription') }}</div>
+                    <div class="d-flex flex-wrap kiosk-panels">
+                        <v-checkbox
+                            v-for="panel in hideablePanels"
+                            :key="panel.name"
+                            :input-value="!kioskSettings.hiddenPanels.includes(panel.name)"
+                            :label="panel.title"
+                            :data-panel="panel.name"
+                            hide-details
+                            class="kiosk-exposure-checkbox mt-2"
+                            @change="setExposed('hiddenPanels', panel.name, $event)" />
+                    </div>
+                </template>
                 <v-divider class="my-4" />
                 <div class="kiosk-section-title">{{ $t('Settings.KioskTab.Actions') }}</div>
                 <div class="kiosk-section-subtitle mb-2">{{ $t('Settings.KioskTab.ActionsDescription') }}</div>
@@ -161,10 +193,21 @@ import {
     kioskActions,
     KioskSmallScreens,
     kioskSmallScreenOptions,
+    canRecoverOnSmallScreen,
     PIN_MAX_LENGTH,
     PIN_MIN_LENGTH,
 } from '@/plugins/kiosk'
 import { createPinSalt, requestKioskPin, setKioskDeviceMode } from '@/plugins/kioskSession'
+import { resolveInterfaceShell, shellPages, shellTabKey } from '@/plugins/shellNavigation'
+
+interface ShellExposure {
+    id: string
+    title: string
+    exposed: boolean
+    tabs: { id: string; title: string; exposed: boolean }[]
+}
+
+const FIXED_SHELL_PAGES = ['home', 'settings']
 
 interface ActionRow {
     name: KioskAction
@@ -187,6 +230,43 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
 
     get kioskUrl(): string {
         return `${window.location.origin}/?kiosk=1`
+    }
+
+    get newShell(): boolean {
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell) === 'new'
+    }
+
+    get enableDescription(): string {
+        const key = this.newShell ? 'EnableDescriptionShell' : 'EnableDescription'
+
+        return this.$t(`Settings.KioskTab.${key}`).toString()
+    }
+
+    get smallScreensDescription(): string {
+        const key = this.newShell ? 'SmallScreensDescriptionShell' : 'SmallScreensDescription'
+
+        return this.$t(`Settings.KioskTab.${key}`).toString()
+    }
+
+    get lockoutRisk(): boolean {
+        return this.kioskHasPin && !canRecoverOnSmallScreen(this.kioskSettings)
+    }
+
+    get shellExposure(): ShellExposure[] {
+        const hidden = this.kioskSettings.hiddenShell
+
+        return shellPages
+            .filter((page) => !FIXED_SHELL_PAGES.includes(page.id))
+            .map((page) => ({
+                id: page.id,
+                title: this.$t(`Shell.Pages.${page.id}`).toString(),
+                exposed: !hidden.includes(page.id),
+                tabs: page.tabs.map((tab) => ({
+                    id: shellTabKey(page.id, tab.id),
+                    title: this.$t(`Shell.Tabs.${page.id}.${tab.id}`).toString(),
+                    exposed: !hidden.includes(shellTabKey(page.id, tab.id)),
+                })),
+            }))
     }
 
     get smallScreens(): KioskSmallScreens {
@@ -269,6 +349,13 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
         this.save(list, hidden)
     }
 
+    setShellExposed(id: string, exposed: boolean): void {
+        const hidden = this.kioskSettings.hiddenShell.filter((entry) => entry !== id)
+        if (!exposed) hidden.push(id)
+
+        this.save('hiddenShell', hidden)
+    }
+
     setRule(action: KioskAction, rule: KioskActionRule): void {
         this.save(`actions.${action}`, rule)
     }
@@ -320,6 +407,10 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
 .kiosk-exposure-checkbox {
     width: 50%;
     min-width: 160px;
+}
+
+.kiosk-shell-tabs {
+    padding-left: 32px;
 }
 
 .kiosk-url-hint code {

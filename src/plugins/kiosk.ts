@@ -17,6 +17,7 @@ export interface KioskSettings {
     bottomBar: string[]
     hiddenPages: string[]
     hiddenPanels: string[]
+    hiddenShell: string[]
     actions: Record<KioskAction, KioskActionRule>
     pin: KioskPinRecord | null
 }
@@ -37,12 +38,15 @@ export const PIN_MAX_ATTEMPTS = 5
 export const PIN_LOCKOUT_MS = 30_000
 export const SWIPE_MIN_DISTANCE = 60
 export const SWIPE_MAX_SLOPE = 0.5
+export const SWIPE_IGNORED_TARGETS =
+    '.v-slider, input, textarea, canvas, video, .v-data-table, .v-tabs, .cm-editor, .v-window .v-window'
 
 export const getDefaultKioskSettings = (): KioskSettings => ({
     smallScreens: 'suggest',
     bottomBar: ['dashboard', 'gcodefiles', 'console', 'webcam'],
     hiddenPages: [],
     hiddenPanels: [],
+    hiddenShell: [],
     actions: {
         cancelPrint: 'allow',
         restart: 'allow',
@@ -88,6 +92,7 @@ export const resolveKioskSettings = (raw: unknown): KioskSettings => {
         bottomBar: stringList(raw.bottomBar, defaults.bottomBar),
         hiddenPages: stringList(raw.hiddenPages, defaults.hiddenPages),
         hiddenPanels: stringList(raw.hiddenPanels, defaults.hiddenPanels),
+        hiddenShell: stringList(raw.hiddenShell, defaults.hiddenShell),
         actions,
         pin: resolvePinRecord(raw.pin),
     }
@@ -219,6 +224,42 @@ export const routeRule = (routeName: string | null | undefined, settings: KioskS
 
     return 'allow'
 }
+
+const SHELL_HOME_PAGE = 'home'
+const SHELL_SETTINGS_PAGE = 'settings'
+const SHELL_CONFIG_TAB = 'machine/config'
+
+export const shellLocationRule = (
+    location: { page: string; tab: string | null },
+    settings: KioskSettings
+): KioskActionRule => {
+    if (location.page === SHELL_HOME_PAGE) return 'allow'
+    if (location.page === SHELL_SETTINGS_PAGE) return effectiveActionRule('settings', settings)
+    if (settings.hiddenShell.includes(location.page)) return 'block'
+
+    const tab = `${location.page}/${location.tab}`
+    if (settings.hiddenShell.includes(tab)) return 'block'
+    if (tab === SHELL_CONFIG_TAB) return effectiveActionRule('configEdit', settings)
+
+    return 'allow'
+}
+
+export const shellLockKey = (location: { page: string; tab: string | null }): string => {
+    return location.page === SHELL_SETTINGS_PAGE ? location.page : `${location.page}/${location.tab}`
+}
+
+export const exposedShellPages = (pages: string[], settings: KioskSettings): string[] => {
+    return pages.filter((page) => shellLocationRule({ page, tab: null }, settings) !== 'block')
+}
+
+export const hiddenShellTabs = (settings: KioskSettings): string[] => {
+    const hidden = settings.hiddenShell.filter((entry) => entry.includes('/'))
+    if (effectiveActionRule('configEdit', settings) === 'block') hidden.push(SHELL_CONFIG_TAB)
+
+    return hidden
+}
+
+export const canRecoverOnSmallScreen = (settings: KioskSettings): boolean => settings.smallScreens !== 'apply'
 
 export const kioskPanelSequence = (columns: string[][], hiddenPanels: string[]): string[] => {
     const rows = Math.max(0, ...columns.map((column) => column.length))

@@ -46,15 +46,11 @@ import { Mixins, Ref, Watch } from 'vue-property-decorator'
 import DashboardMixin from '@/components/mixins/dashboard'
 import KioskMixin from '@/components/mixins/kiosk'
 import { getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
-import { kioskPanelSequence, resolveOpenPanel, swipeDirection } from '@/plugins/kiosk'
+import { kioskPanelSequence, resolveOpenPanel, SWIPE_IGNORED_TARGETS, swipeDirection } from '@/plugins/kiosk'
 import { kioskSession } from '@/plugins/kioskSession'
 import { GuiStateLayoutoption } from '@/store/gui/types'
 
 const TABS_HEIGHT = 48
-// a horizontal drag on these belongs to the control (or to the tabs inside a panel), not to the panel navigation
-const SWIPE_IGNORED_TARGETS =
-    '.v-slider, input, textarea, canvas, video, .v-data-table, .v-tabs, .cm-editor, .v-window .v-window'
-
 @Component
 export default class KioskDashboardFrame extends Mixins(DashboardMixin, KioskMixin) {
     @Ref() readonly panelContainer!: HTMLElement

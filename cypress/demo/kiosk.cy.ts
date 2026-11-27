@@ -1,4 +1,4 @@
-import { demo } from './support'
+import { demo, useTouchScreen } from './support'
 
 const PIN = '4821'
 
@@ -9,10 +9,9 @@ const openKiosk = (path = '/?kiosk=1') => {
 
 const openTouchPhone = () => {
     cy.viewport(400, 850)
-    cy.visit('/', {
-        onBeforeLoad: (win) => Object.defineProperty(win.navigator, 'maxTouchPoints', { value: 5 }),
-    })
+    cy.visit('/')
     cy.contains('.panel-toolbar', 'Standby', { timeout: 15000 })
+    useTouchScreen()
 }
 
 const openKioskSettings = () => {

@@ -9,7 +9,10 @@
             @input="goTo('fix', $event)" />
 
         <div v-if="tab === 'status'" class="sh-columns sh-columns--2">
-            <section :aria-label="$t('Shell.Error.Title')" class="sh-col sh-col--scroll shell-fix__status">
+            <section
+                :aria-label="$t('Shell.Error.Title')"
+                data-section="status"
+                class="sh-col sh-col--scroll shell-fix__status">
                 <h2 class="sh-h2">{{ $t('Shell.Fix.WhatIsWrong') }}</h2>
                 <klippy-state-panel v-if="klipperState !== 'ready'" />
                 <error-explainer v-else-if="printExplanation" :explanation="printExplanation" color="error" />
@@ -39,20 +42,20 @@
                     </button>
                 </div>
             </section>
-            <div class="sh-host">
+            <div data-section="endstops" class="sh-host">
                 <endstop-panel v-if="klipperState === 'ready'" />
                 <p v-else class="sh-note">{{ $t('Shell.Fix.EndstopsLater') }}</p>
             </div>
         </div>
 
         <div v-else-if="tab === 'console'" class="sh-columns sh-columns--1">
-            <div class="sh-host shell-fix__console">
+            <div data-section="console" class="sh-host shell-fix__console">
                 <console-page />
             </div>
         </div>
 
         <div v-else class="sh-columns sh-columns--1">
-            <div class="sh-host">
+            <div data-section="logs" class="sh-host">
                 <logfiles-panel />
             </div>
         </div>
