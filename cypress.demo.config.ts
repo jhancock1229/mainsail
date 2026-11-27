@@ -10,6 +10,7 @@ export default defineConfig({
         viewportWidth: 1500,
         viewportHeight: 1100,
         video: false,
+        downloadsFolder: 'dist-demo/downloads',
         env: {
             demoUrl: `http://localhost:${demoPort}/demo`,
         },

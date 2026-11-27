@@ -93,6 +93,49 @@ describe('buildPaletteCommands', () => {
         })
     })
 
+    it('lists the dashboard layouts and the layout editor', () => {
+        const commands = buildPaletteCommands(
+            createContext({
+                dashboardLayouts: [
+                    { id: 'default', name: 'Everyday', active: true },
+                    { id: 'farm', name: 'Farm glance', active: false },
+                ],
+            })
+        )
+
+        expect(byId(commands, 'dashboard-layout:farm')).toMatchObject({
+            group: 'navigation',
+            run: { type: 'dashboard-layout', id: 'farm' },
+            disabledReason: null,
+        })
+        expect(byId(commands, 'dashboard-layout:default').subtitle).not.toBe('')
+        expect(byId(commands, 'dashboard-layout-edit').run).toEqual({ type: 'dashboard-layout-edit' })
+    })
+
+    it('lists the Home layouts of the new interface and its editor', () => {
+        const commands = buildPaletteCommands(
+            createContext({
+                homeLayouts: [
+                    { id: 'default', name: 'Everyday', active: true },
+                    { id: 'workshop', name: 'Workshop', active: false },
+                ],
+            })
+        )
+
+        expect(byId(commands, 'home-layout:workshop')).toMatchObject({
+            group: 'navigation',
+            run: { type: 'home-layout', id: 'workshop' },
+        })
+        expect(byId(commands, 'home-layout-edit').run).toEqual({ type: 'home-layout-edit' })
+        expect(commands.some((command) => command.id.startsWith('dashboard-layout'))).toBe(false)
+    })
+
+    it('has no layout commands when no layouts are given', () => {
+        const commands = buildPaletteCommands(createContext())
+
+        expect(commands.some((command) => command.id.startsWith('dashboard-layout'))).toBe(false)
+    })
+
     it('gives sidebar links with the same target their own ids', () => {
         const commands = buildPaletteCommands(
             createContext({

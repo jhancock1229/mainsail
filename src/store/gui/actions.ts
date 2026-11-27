@@ -1,7 +1,16 @@
 import Vue from 'vue'
 import { ActionTree } from 'vuex'
 import { GuiState, GuiStateDashboard, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
-import { DashboardLayoutState, getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
+import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
+import {
+    columnLimits,
+    getActiveColumnKeys,
+    getAllColumnKeys,
+    isDashboardViewport,
+    mergeUnavailablePanels,
+} from '@/plugins/dashboardNamedLayouts'
+import { dashboardLayoutActions } from '@/store/gui/dashboardLayoutActions'
+import { shellHomeActions } from '@/store/gui/shellHomeActions'
 import { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 import { RootState } from '@/store/types'
 import { getDefaultState } from './index'
@@ -451,15 +460,26 @@ export const actions: ActionTree<GuiState, RootState> = {
         payload: { layoutState: DashboardLayoutState; viewport: string; column: number; value: GuiStateLayoutoption[] }
     ) {
         const layoutName = payload.column ? `${payload.viewport}Layout${payload.column}` : `${payload.viewport}Layout`
+        const shown = getters['getPanels'](
+            payload.viewport,
+            payload.column,
+            false,
+            payload.layoutState
+        ) as GuiStateLayoutoption[]
+        const edited = mergeUnavailablePanels(
+            getters['getDashboardLayout'](layoutName, payload.layoutState),
+            shown.map((panel) => panel.name),
+            payload.value
+        )
 
         if (payload.layoutState === 'idle') {
-            dispatch('saveSetting', { name: `dashboard.${layoutName}`, value: payload.value })
+            dispatch('saveSetting', { name: `dashboard.${layoutName}`, value: edited })
             return
         }
 
-        const customLayouts = state.dashboard.stateLayouts?.[payload.layoutState] ?? {}
-        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
-            let value = payload.value
+        const customLayouts = (state.dashboard.stateLayouts?.[payload.layoutState] ?? {}) as Record<string, unknown>
+        getActiveColumnKeys(payload.viewport, state.dashboard.columns).forEach((layoutKey) => {
+            let value = edited
             if (layoutKey !== layoutName) {
                 if (Array.isArray(customLayouts[layoutKey])) return
 
@@ -476,7 +496,17 @@ export const actions: ActionTree<GuiState, RootState> = {
     resetStateLayout({ commit, dispatch, state }, payload: { layoutState: DashboardLayoutState; viewport: string }) {
         const layoutState = payload.layoutState
 
-        getViewportLayoutKeys(payload.viewport).forEach((layoutKey) => {
+        if (layoutState === 'idle' && isDashboardViewport(payload.viewport)) {
+            dispatch('setDashboardColumnCount', {
+                viewport: payload.viewport,
+                count: columnLimits[payload.viewport].default,
+            })
+            if (state.dashboard.columns?.[payload.viewport] !== undefined) {
+                dispatch('deleteSettingKey', `dashboard.columns.${payload.viewport}`)
+            }
+        }
+
+        ;(getAllColumnKeys(payload.viewport) as GuiStateDashboardLayoutKey[]).forEach((layoutKey) => {
             if (layoutState === 'idle') {
                 dispatch('resetLayout', layoutKey)
                 return
@@ -491,6 +521,9 @@ export const actions: ActionTree<GuiState, RootState> = {
             })
         })
     },
+
+    ...dashboardLayoutActions,
+    ...shellHomeActions,
 
     updateGcodeviewerCache({ dispatch, state }, payload) {
         const klipperCache = state.gcodeViewer.klipperCache as Record<string, unknown>

@@ -18,7 +18,7 @@
 <script lang="ts">
 import Component from 'vue-class-component'
 import { Mixins, Prop } from 'vue-property-decorator'
-import DashboardMixin from '@/components/mixins/dashboard'
+import DashboardLayoutsMixin from '@/components/mixins/dashboardLayouts'
 import SettingsDashboardSortable from '@/components/settings/Dashboard/Sortable.vue'
 import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 
@@ -27,11 +27,11 @@ import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
         SettingsDashboardSortable,
     },
 })
-export default class SettingsDashboardTabMobile extends Mixins(DashboardMixin) {
+export default class SettingsDashboardTabMobile extends Mixins(DashboardLayoutsMixin) {
     @Prop({ type: String, required: false, default: 'idle' }) declare readonly layoutState: DashboardLayoutState
 
     resetLayout() {
-        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'mobile' })
+        this.editDashboardLayout('resetStateLayout', { layoutState: this.layoutState, viewport: 'mobile' })
     }
 }
 </script>

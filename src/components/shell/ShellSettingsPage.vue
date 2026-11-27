@@ -49,6 +49,7 @@ import SettingsNotificationsTab from '@/components/settings/SettingsNotification
 import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
 import SettingsMiscellaneousTab from '@/components/settings/SettingsMiscellaneousTab.vue'
 import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue'
+import SettingsHomeTab from '@/components/settings/SettingsHomeTab.vue'
 
 @Component({
     components: {
@@ -69,6 +70,7 @@ import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue
         SettingsNavigationTab,
         SettingsNotificationsTab,
         SettingsHeightmapTab,
+        SettingsHomeTab,
         SettingsCommandPaletteTab,
     },
 })

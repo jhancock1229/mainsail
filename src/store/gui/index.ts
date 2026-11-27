@@ -135,6 +135,15 @@ export const getDefaultState = (): GuiState => {
                 printing: {},
                 error: {},
             },
+            desktopLayout3: [],
+            widescreenLayout4: [],
+            columns: {},
+            panelDensity: {},
+            namedLayouts: {
+                active: 'default',
+                items: {},
+            },
+            showLayoutBar: true,
         },
         editor: {
             escToClose: true,
@@ -212,6 +221,11 @@ export const getDefaultState = (): GuiState => {
             interfaceShell: DEFAULT_INTERFACE_SHELL,
         },
         spoolTracker: getDefaultSpoolTrackerSettings(),
+        shellHome: {
+            active: 'default',
+            showMenu: true,
+            items: {},
+        },
         view: {
             afc: {
                 hiddenExtruders: [],

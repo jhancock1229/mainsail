@@ -1,6 +1,6 @@
 <template>
     <div class="shell-home-print">
-        <div class="sh-columns sh-columns--757" :class="{ 'sh-columns--ruled-bottom': active }">
+        <div :class="block ? 'sh-block-host' : ['sh-columns sh-columns--757', { 'sh-columns--ruled-bottom': active }]">
             <section :aria-label="$t('Shell.Print.Title')" class="sh-col sh-col--gap-16 shell-job">
                 <h2 class="sh-h2">{{ $t('Shell.Print.Title') }}</h2>
                 <div class="shell-job__percent">
@@ -81,7 +81,7 @@
                 </div>
             </section>
 
-            <section :aria-label="viewLabel" class="sh-col shell-view">
+            <section v-if="!block" :aria-label="viewLabel" class="sh-col shell-view">
                 <div class="sh-row shell-view__head">
                     <h2 class="sh-h2">{{ viewLabel }}</h2>
                     <shell-tabs v-model="view" :tabs="views" :label="$t('Shell.Print.View')" small />
@@ -90,7 +90,7 @@
                 <shell-console v-else />
             </section>
 
-            <section :aria-label="$t('Shell.Heat.Title')" class="sh-col sh-col--gap-16">
+            <section v-if="!block" :aria-label="$t('Shell.Heat.Title')" class="sh-col sh-col--gap-16">
                 <shell-heat />
                 <div class="sh-rule" />
                 <shell-spool printing />
@@ -99,7 +99,7 @@
             </section>
         </div>
 
-        <footer v-if="active" :aria-label="$t('Shell.Print.While')" class="shell-while">
+        <footer v-if="active && !block" :aria-label="$t('Shell.Print.While')" class="shell-while">
             <div class="shell-while__label">{{ $t('Shell.Print.While') }}</div>
             <button type="button" class="sh-btn sh-btn--56" data-action="nudge" @click="goTo('tune', 'move')">
                 {{ $t('Shell.Print.Nudge') }}
@@ -133,7 +133,7 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Prop } from 'vue-property-decorator'
 import { mdiStopCircleOutline } from '@mdi/js'
 import ShellPrintMixin from '@/components/mixins/shellPrint'
 import ShellTabs, { ShellTabItem } from '@/components/shell/ShellTabs.vue'
@@ -172,6 +172,8 @@ interface JobFact {
     },
 })
 export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
+    @Prop({ type: String, default: '' }) declare readonly block: string
+
     mdiStopCircleOutline = mdiStopCircleOutline
 
     view = 'camera'

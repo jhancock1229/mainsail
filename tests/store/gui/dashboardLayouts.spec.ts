@@ -243,6 +243,26 @@ describe('gui/saveStateLayout', () => {
         expect(dispatch).toHaveBeenCalledWith('saveSetting', { name: 'dashboard.mobileLayout', value })
     })
 
+    it('keeps the place and the hidden state of a panel that cannot be shown right now', () => {
+        const state = createState()
+        const context = { dispatch: vi.fn(), state, getters: createGetters(state, ['webcam', 'toolhead-control']) }
+        const value = [
+            { name: 'toolhead-control', visible: true },
+            { name: 'webcam', visible: true },
+        ]
+        ;(actions.saveStateLayout as AnyFn)(context, { layoutState: 'idle', viewport: 'mobile', column: 0, value })
+
+        expect(context.dispatch).toHaveBeenCalledWith('saveSetting', {
+            name: 'dashboard.mobileLayout',
+            value: [
+                { name: 'toolhead-control', visible: true },
+                { name: 'temperature', visible: true },
+                { name: 'miniconsole', visible: false },
+                { name: 'webcam', visible: true },
+            ],
+        })
+    })
+
     it('saves a state layout under stateLayouts and pins the other columns of the viewport', () => {
         const state = createState()
         const value = [{ name: 'webcam', visible: true }]

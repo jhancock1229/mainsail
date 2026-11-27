@@ -2,7 +2,7 @@ import Vue from 'vue'
 import { getDefaultState } from './index'
 import { MutationTree } from 'vuex'
 import { GuiState, GuiStateDashboard, GuiStateDashboardLayoutKey, GuiStateLayoutoption } from '@/store/gui/types'
-import { setDataDeep } from '@/plugins/helpers'
+import { isRecord, setDataDeep } from '@/plugins/helpers'
 
 export const mutations: MutationTree<GuiState> = {
     reset(state) {
@@ -81,6 +81,25 @@ export const mutations: MutationTree<GuiState> = {
         ]
         layoutArray.splice(payload.index, 1)
         Vue.set(state.dashboard, payload.layoutname, layoutArray)
+    },
+
+    replaceSetting(state, payload: { name: string; value: unknown }) {
+        const keys = payload.name.split('.')
+        let target = state as unknown as Record<string, unknown>
+        keys.slice(0, -1).forEach((key) => {
+            if (!isRecord(target[key])) Vue.set(target, key, {})
+            target = target[key] as Record<string, unknown>
+        })
+        Vue.set(target, keys[keys.length - 1], payload.value)
+    },
+
+    deleteSetting(state, payload: { name: string }) {
+        const keys = payload.name.split('.')
+        let target: unknown = state
+        keys.slice(0, -1).forEach((key) => {
+            target = isRecord(target) ? target[key] : undefined
+        })
+        if (isRecord(target)) Vue.delete(target, keys[keys.length - 1])
     },
 
     deleteStateLayout(state, payload: { layoutState: 'printing' | 'error'; layoutKey: GuiStateDashboardLayoutKey }) {

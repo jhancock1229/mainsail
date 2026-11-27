@@ -1,6 +1,6 @@
 <template>
-    <div class="sh-columns sh-columns--755">
-        <section :aria-label="$t('Shell.Idle.Start')" class="sh-col shell-start">
+    <div :class="block ? 'sh-block-host' : 'sh-columns sh-columns--755'">
+        <section v-if="shows('start')" :aria-label="$t('Shell.Idle.Start')" class="sh-col shell-start">
             <div class="sh-row shell-start__head">
                 <h2 class="sh-h2">{{ $t('Shell.Idle.Start') }}</h2>
                 <button
@@ -37,7 +37,10 @@
             </router-link>
         </section>
 
-        <section :aria-label="$t('Shell.Idle.GetReady')" class="sh-col sh-col--gap-12 shell-ready">
+        <section
+            v-if="shows('ready')"
+            :aria-label="$t('Shell.Idle.GetReady')"
+            class="sh-col sh-col--gap-12 shell-ready">
             <h2 class="sh-h2">{{ $t('Shell.Idle.GetReady') }}</h2>
             <template v-if="presets.length">
                 <div class="sh-row">
@@ -84,10 +87,12 @@
             </button>
         </section>
 
-        <section :aria-label="$t('Shell.Idle.CameraAndLast')" class="sh-col shell-last">
-            <h2 class="sh-h2">{{ $t('Shell.Print.Views.camera') }}</h2>
-            <shell-camera />
-            <shell-spool />
+        <section v-if="shows('last')" :aria-label="$t('Shell.Idle.CameraAndLast')" class="sh-col shell-last">
+            <template v-if="!block">
+                <h2 class="sh-h2">{{ $t('Shell.Print.Views.camera') }}</h2>
+                <shell-camera />
+                <shell-spool />
+            </template>
             <template v-if="lastJob">
                 <h2 class="sh-h2">{{ $t('Shell.Idle.LastPrint') }}</h2>
                 <div class="shell-last__name text-truncate">{{ shortName(lastJob.filename) }}</div>
@@ -116,7 +121,7 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins, Ref } from 'vue-property-decorator'
+import { Mixins, Prop, Ref } from 'vue-property-decorator'
 import { mdiSnowflake } from '@mdi/js'
 import ShellMixin from '@/components/mixins/shell'
 import ShellCamera from '@/components/shell/ShellCamera.vue'
@@ -142,6 +147,8 @@ const MS_PER_SECOND = 1000
 
 @Component({ components: { ConfirmationDialog, ShellCamera, ShellSpool, StartPrintDialog } })
 export default class ShellHomeIdle extends Mixins(ShellMixin) {
+    @Prop({ type: String, default: '' }) declare readonly block: string
+
     mdiSnowflake = mdiSnowflake
 
     showStartDialog = false
@@ -204,6 +211,10 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
         const time = sameDay ? this.formatTime(end) : `${this.formatDate(end)} ${this.formatTime(end)}`
 
         return [this.$t(key, { time }).toString(), this.formatDuration(job.total_duration)].join(' · ')
+    }
+
+    shows(section: string): boolean {
+        return this.block === '' || this.block === section
     }
 
     shortName(filename: string): string {

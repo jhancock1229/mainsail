@@ -55,6 +55,8 @@ export const settingsTabNames = [
     'timelapse',
 ]
 
+export const shellOnlySettingsTabNames = ['home']
+
 export const shellPages: ShellPage[] = [
     { id: 'home', path: '/', tabs: [] },
     {
@@ -101,7 +103,9 @@ export const shellPages: ShellPage[] = [
     {
         id: 'settings',
         path: '/settings',
-        tabs: settingsTabNames.map((id) => (id === 'timelapse' ? { id, moonrakerComponent: 'timelapse' } : { id })),
+        tabs: [...settingsTabNames, ...shellOnlySettingsTabNames].map((id) =>
+            id === 'timelapse' ? { id, moonrakerComponent: 'timelapse' } : { id }
+        ),
     },
 ]
 
@@ -216,6 +220,10 @@ export const shellFeatures: ShellFeature[] = [
     { id: 'home:speed-and-flow', place: 'home', steps: 2 },
     { id: 'home:print-timeline', place: 'home' },
     { id: 'home:error-explainer', place: 'home' },
+    { id: 'home:layout-menu', place: 'home' },
+    { id: 'home:switch-layout', place: 'home', steps: 2 },
+    { id: 'home:edit-layout', place: 'home', steps: 2 },
+    { id: 'home:macros-block', place: 'home' },
 
     ...onPage('print', 'files', ['route:gcodefiles', 'print:upload', 'print:start-file', 'print:add-to-queue']),
     ...onPage('print', 'queue', ['print:job-queue']),
@@ -260,6 +268,7 @@ export const shellFeatures: ShellFeature[] = [
 
     ...settingsTabNames.map((name): ShellFeature => ({ id: `settings:${name}`, place: 'settings', tab: name })),
     { id: 'settings:interface-shell', place: 'settings', tab: 'ui-settings' },
+    ...onPage('settings', 'home', ['settings:home', 'settings:home-layouts', 'settings:while-it-prints']),
 ]
 
 export const featureClicks = (feature: ShellFeature): number => {
