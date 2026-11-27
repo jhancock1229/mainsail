@@ -87,6 +87,7 @@ export default class ShellHomeBlock extends Mixins(ShellHomeLayoutsMixin) {
         return {
             ['shell-block--' + this.id]: true,
             'shell-block--grows': this.grows,
+            'shell-block--tabbed': this.tabbed,
             'shell-block--scrolls': getHomeBlock(this.id).scrolls,
         }
     }
@@ -113,6 +114,10 @@ export default class ShellHomeBlock extends Mixins(ShellHomeLayoutsMixin) {
 .shell-block--grows {
     flex: 1 1 0;
     overflow: hidden;
+}
+
+.shell-block--tabbed ::v-deep .sh-h2 {
+    display: none;
 }
 
 .shell-block--scrolls {

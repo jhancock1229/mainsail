@@ -7,7 +7,7 @@
                 :title="$t('Shell.Home.Layouts')"
                 :description="$t('Shell.Home.LayoutsDescription')"
                 @switch="switchHomeLayout"
-                @rename="renameLayout"
+                @rename="renameHomeLayout"
                 @create="createHomeLayout"
                 @delete="deleteLayout"
                 @export="exportHomeLayout"
@@ -73,10 +73,6 @@ export default class SettingsHomeTab extends Mixins(ShellHomeLayoutsMixin) {
         this.$store.dispatch('gui/saveSetting', { name: 'shellHome.showMenu', value: newVal })
     }
 
-    renameLayout(payload: { id: string; name: string }): void {
-        this.$store.dispatch('gui/renameHomeLayout', payload)
-    }
-
     deleteLayout(id: string): void {
         this.$store.dispatch('gui/deleteHomeLayout', id)
     }
@@ -87,7 +83,7 @@ export default class SettingsHomeTab extends Mixins(ShellHomeLayoutsMixin) {
         if (swapWith !== -1) actions[swapWith] = actions[position]
         actions[position] = action
 
-        this.$store.dispatch('gui/saveHomeActions', actions)
+        this.saveHomeChange('saveHomeActions', actions)
     }
 }
 </script>

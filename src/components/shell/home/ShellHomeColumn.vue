@@ -55,7 +55,7 @@ export default class ShellHomeColumn extends Mixins(ShellHomeLayoutsMixin) {
     }
 
     get activeHeading(): string {
-        return getHomeBlock(this.active).ownHeading ? '' : this.homeBlockLabel(this.active)
+        return this.homeBlockLabel(this.active)
     }
 
     get label(): string {

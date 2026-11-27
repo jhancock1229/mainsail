@@ -70,8 +70,24 @@ export default class DashboardLayoutsMixin extends DashboardMixin {
         return resolvePanelDensity(name, this.$store.state.gui.dashboard.panelDensity)
     }
 
+    async editDashboardLayout(action: string, payload: unknown): Promise<void> {
+        const applied = await this.$store.dispatch('gui/editDashboardLayout', { action, payload })
+        if (!applied) this.$toast.info(this.$t('Dashboard.Layouts.ChangedElsewhere').toString())
+    }
+
+    renameDashboardLayout(payload: { id: string; name: string }): void {
+        const otherNames = this.dashboardLayouts
+            .filter((layout) => layout.id !== payload.id)
+            .map((layout) => layout.name)
+
+        this.$store.dispatch('gui/renameDashboardLayout', {
+            id: payload.id,
+            name: uniqueLayoutName(payload.name, otherNames),
+        })
+    }
+
     cyclePanelDensity(name: string): void {
-        this.$store.dispatch('gui/setDashboardPanelDensity', {
+        this.editDashboardLayout('setDashboardPanelDensity', {
             name,
             density: nextPanelDensity(name, this.getPanelDensity(name)),
         })

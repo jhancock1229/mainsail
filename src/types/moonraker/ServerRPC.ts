@@ -7,6 +7,15 @@
  */
 export interface ServerRPC {
     /**
+     * Read an item from the Moonraker database. Without a key the whole namespace is returned.
+     */
+    'server.database.get_item': (params: { namespace: string; key?: string }) => Promise<{
+        namespace: string
+        key: string | null
+        value: unknown
+    }>
+
+    /**
      * Identify the client connection to Moonraker.
      * This should be called immediately after the websocket connection is established.
      */

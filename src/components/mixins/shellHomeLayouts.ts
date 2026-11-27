@@ -88,8 +88,22 @@ export default class ShellHomeLayoutsMixin extends Mixins(ShellMixin) {
         return this.$t(whileActionLabels[id]).toString()
     }
 
+    async saveHomeChange(action: string, payload: unknown): Promise<void> {
+        const result = await this.$store.dispatch(`gui/${action}`, payload)
+        if (result === 'stale') this.$toast.info(this.$t('Dashboard.Layouts.ChangedElsewhere').toString())
+    }
+
     saveHomeArrangement(state: HomeLayoutState, columns: HomeArrangement | null): void {
-        if (columns !== null) this.$store.dispatch('gui/saveHomeArrangement', { state, columns })
+        if (columns !== null) this.saveHomeChange('saveHomeArrangement', { state, columns })
+    }
+
+    renameHomeLayout(payload: { id: string; name: string }): void {
+        const otherNames = this.homeLayouts.filter((layout) => layout.id !== payload.id).map((layout) => layout.name)
+
+        this.$store.dispatch('gui/renameHomeLayout', {
+            id: payload.id,
+            name: uniqueLayoutName(payload.name, otherNames),
+        })
     }
 
     switchHomeLayout(id: string): void {

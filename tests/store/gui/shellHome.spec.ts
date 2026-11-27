@@ -56,7 +56,7 @@ describe('Home layouts in the store', () => {
         const store = createStore()
         const saved = await store.dispatch('gui/saveHomeArrangement', { state: 'idle', columns: customIdle })
 
-        expect(saved).toBe(true)
+        expect(saved).toBe('saved')
         expect(active(store)?.layout.states.idle).toEqual(customIdle)
         expect(active(store)?.layout.states.printing).toEqual(defaultHomeArrangement('printing'))
         expect(emit).toHaveBeenCalledWith(
@@ -70,18 +70,18 @@ describe('Home layouts in the store', () => {
         const tooTall = [customIdle[0], { mode: 'split', blocks: ['start', 'macros', 'spool'] }, customIdle[2]]
         const noJob = defaultHomeArrangement('idle')
 
-        expect(await store.dispatch('gui/saveHomeArrangement', { state: 'idle', columns: tooTall })).toBe(false)
-        expect(await store.dispatch('gui/saveHomeArrangement', { state: 'printing', columns: noJob })).toBe(false)
+        expect(await store.dispatch('gui/saveHomeArrangement', { state: 'idle', columns: tooTall })).toBe('invalid')
+        expect(await store.dispatch('gui/saveHomeArrangement', { state: 'printing', columns: noJob })).toBe('invalid')
         expect(emit).not.toHaveBeenCalled()
     })
 
     it('saves four different actions and refuses anything else', async () => {
         const store = createStore()
 
-        expect(await store.dispatch('gui/saveHomeActions', ['macros', 'speed', 'console', 'limits'])).toBe(true)
+        expect(await store.dispatch('gui/saveHomeActions', ['macros', 'speed', 'console', 'limits'])).toBe('saved')
         expect(active(store)?.layout.actions).toEqual(['macros', 'speed', 'console', 'limits'])
-        expect(await store.dispatch('gui/saveHomeActions', ['macros', 'macros', 'console', 'limits'])).toBe(false)
-        expect(await store.dispatch('gui/saveHomeActions', ['macros'])).toBe(false)
+        expect(await store.dispatch('gui/saveHomeActions', ['macros', 'macros', 'console', 'limits'])).toBe('invalid')
+        expect(await store.dispatch('gui/saveHomeActions', ['macros'])).toBe('invalid')
         expect(active(store)?.layout.actions).toEqual(['macros', 'speed', 'console', 'limits'])
     })
 
@@ -140,6 +140,15 @@ describe('Home layouts in the store', () => {
         await store.dispatch('gui/renameHomeLayout', { id: 'gone', name: 'Nope' })
 
         expect(layoutNames(store)).toEqual(['Everyday'])
+    })
+
+    it('numbers a new name that another layout already has', async () => {
+        const store = createStore()
+        const id = await store.dispatch('gui/createHomeLayout', { name: 'Workshop', activate: false })
+        await store.dispatch('gui/renameHomeLayout', { id: 'default', name: 'workshop' })
+        await store.dispatch('gui/renameHomeLayout', { id, name: 'Workshop' })
+
+        expect(layoutNames(store)).toEqual(['workshop 2', 'Workshop'])
     })
 
     it('never deletes the last layout and switches away from a deleted active one', async () => {

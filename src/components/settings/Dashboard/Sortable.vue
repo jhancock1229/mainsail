@@ -39,7 +39,7 @@ import Component from 'vue-class-component'
 import { Mixins, Prop } from 'vue-property-decorator'
 import draggable from 'vuedraggable'
 import { mdiInformation, mdiLock } from '@mdi/js'
-import DashboardMixin from '@/components/mixins/dashboard'
+import DashboardLayoutsMixin from '@/components/mixins/dashboardLayouts'
 import SettingsDashboardSortableItem from '@/components/settings/Dashboard/SortableItem.vue'
 import { GuiStateLayoutoption } from '@/store/gui/types'
 import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
@@ -47,7 +47,7 @@ import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 @Component({
     components: { SettingsDashboardSortableItem, draggable },
 })
-export default class SettingsDashboardSortable extends Mixins(DashboardMixin) {
+export default class SettingsDashboardSortable extends Mixins(DashboardLayoutsMixin) {
     /**
      * Icons
      */
@@ -76,7 +76,7 @@ export default class SettingsDashboardSortable extends Mixins(DashboardMixin) {
     }
 
     saveLayout(value: GuiStateLayoutoption[]): void {
-        this.$store.dispatch('gui/saveStateLayout', {
+        this.editDashboardLayout('saveStateLayout', {
             layoutState: this.layoutState,
             viewport: this.viewportName,
             column: this.column,

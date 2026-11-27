@@ -157,7 +157,7 @@ export default class PageDashboard extends Mixins(DashboardLayoutsMixin) {
     }
 
     saveColumn(column: DashboardColumn, value: Array<GuiStateLayoutoption | undefined>): void {
-        this.$store.dispatch('gui/saveStateLayout', {
+        this.editDashboardLayout('saveStateLayout', {
             layoutState: this.shownLayoutState,
             viewport: this.viewport,
             column: column.number,

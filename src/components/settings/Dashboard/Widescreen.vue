@@ -41,7 +41,7 @@ export default class SettingsDashboardTabWidescreen extends Mixins(DashboardLayo
     }
 
     resetLayout() {
-        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'widescreen' })
+        this.editDashboardLayout('resetStateLayout', { layoutState: this.layoutState, viewport: 'widescreen' })
     }
 }
 </script>

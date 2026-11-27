@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { GuiState, GuiStateLayoutoption } from '@/store/gui/types'
 import { RootState } from '@/store/types'
 import { getDefaultSnapshot } from './dashboardLayoutDefaults'
+import { getDefaultState } from './index'
+import { inOrder, isSameSetting, readStoredSetting, withStoredValues } from './layoutSync'
 import {
     DashboardLayoutSnapshot,
     MAX_NAMED_LAYOUTS,
@@ -53,7 +55,127 @@ const materializeActiveLayout = ({ dispatch, state }: Context, named: NamedLayou
     dispatch('replaceSetting', { name: 'dashboard.namedLayouts.active', value: named.activeId })
 }
 
+type SyncResult = 'unchanged' | 'updated' | 'active-changed'
+
+const syncDashboard = async ({ commit, state }: Context): Promise<SyncResult> => {
+    const stored = await readStoredSetting('dashboard')
+    if (stored === null) return 'unchanged'
+
+    const fresh = withStoredValues(getDefaultState().dashboard, stored.value)
+    if (isSameSetting(fresh, state.dashboard)) return 'unchanged'
+
+    const activeBefore = resolveNamedLayouts(state.dashboard.namedLayouts).activeId
+    commit('replaceSetting', { name: 'dashboard', value: fresh })
+
+    return resolveNamedLayouts(fresh.namedLayouts).activeId === activeBefore ? 'updated' : 'active-changed'
+}
+
+const switchLayout = async (context: Context, id: string): Promise<void> => {
+    await syncDashboard(context)
+
+    const { dispatch, state } = context
+    const named = resolveNamedLayouts(state.dashboard.namedLayouts)
+    if (id === named.activeId || !named.layouts.some((layout) => layout.id === id)) return
+
+    const fallback = getDefaultSnapshot()
+    const outgoing = named.layouts.find((layout) => layout.id === named.activeId)
+    dispatch('replaceSetting', {
+        name: `${ITEMS_KEY}.${named.activeId}`,
+        value: {
+            name: outgoing?.name ?? '',
+            order: outgoing?.order ?? 0,
+            snapshot: captureSnapshot(state.dashboard, fallback),
+        },
+    })
+
+    const incoming = getStoredSnapshot(state.dashboard.namedLayouts, id, fallback)
+    dispatch('replaceSetting', { name: 'dashboard.namedLayouts.active', value: id })
+    applySnapshot(context, incoming)
+}
+
+const createLayout = async (
+    context: Context,
+    payload: { name: string; snapshot?: DashboardLayoutSnapshot; sourceId?: string; activate?: boolean }
+): Promise<string | null> => {
+    await syncDashboard(context)
+
+    const { dispatch, state } = context
+    const named = resolveNamedLayouts(state.dashboard.namedLayouts)
+    const requestedName = sanitizeLayoutName(payload.name)
+    if (requestedName === '' || named.layouts.length >= MAX_NAMED_LAYOUTS) return null
+
+    materializeActiveLayout(context, named)
+
+    const fallback = getDefaultSnapshot()
+    const copiesStored = payload.sourceId !== undefined && payload.sourceId !== named.activeId
+    const snapshot =
+        payload.snapshot ??
+        (copiesStored
+            ? getStoredSnapshot(state.dashboard.namedLayouts, payload.sourceId ?? '', fallback)
+            : captureSnapshot(state.dashboard, fallback))
+
+    const id = uuidv4()
+    dispatch('replaceSetting', {
+        name: `${ITEMS_KEY}.${id}`,
+        value: {
+            name: uniqueLayoutName(
+                requestedName,
+                named.layouts.map((layout) => layout.name)
+            ),
+            order: Math.max(...named.layouts.map((layout) => layout.order)) + 1,
+            snapshot,
+        },
+    })
+
+    if (payload.activate ?? true) await switchLayout(context, id)
+
+    return id
+}
+
+const renameLayout = async (context: Context, payload: { id: string; name: string }): Promise<void> => {
+    await syncDashboard(context)
+
+    const { dispatch, state } = context
+    const named = resolveNamedLayouts(state.dashboard.namedLayouts)
+    const requestedName = sanitizeLayoutName(payload.name)
+    if (requestedName === '' || !named.layouts.some((layout) => layout.id === payload.id)) return
+
+    const otherNames = named.layouts.filter((layout) => layout.id !== payload.id).map((layout) => layout.name)
+
+    materializeActiveLayout(context, named)
+    dispatch('saveSetting', {
+        name: `${ITEMS_KEY}.${payload.id}.name`,
+        value: uniqueLayoutName(requestedName, otherNames),
+    })
+}
+
+const deleteLayout = async (context: Context, id: string): Promise<void> => {
+    await syncDashboard(context)
+
+    const { dispatch, state } = context
+    const named = resolveNamedLayouts(state.dashboard.namedLayouts)
+    const index = named.layouts.findIndex((layout) => layout.id === id)
+    if (index === -1 || named.layouts.length < 2) return
+
+    if (id === named.activeId) {
+        const next = named.layouts[index + 1] ?? named.layouts[index - 1]
+        await switchLayout(context, next.id)
+    }
+
+    dispatch('deleteSettingKey', `${ITEMS_KEY}.${id}`)
+}
+
 export const dashboardLayoutActions: ActionTree<GuiState, RootState> = {
+    editDashboardLayout(context, edit: { action: string; payload: unknown }): Promise<boolean> {
+        return inOrder(async () => {
+            if ((await syncDashboard(context)) === 'active-changed') return false
+
+            await context.dispatch(edit.action, edit.payload)
+
+            return true
+        })
+    },
+
     replaceSetting({ commit }, payload: { name: string; value: unknown }) {
         commit('replaceSetting', payload)
         Vue.$socket.emit('server.database.post_item', {
@@ -69,84 +191,22 @@ export const dashboardLayoutActions: ActionTree<GuiState, RootState> = {
     },
 
     switchDashboardLayout(context, id: string) {
-        const { dispatch, state } = context
-        const named = resolveNamedLayouts(state.dashboard.namedLayouts)
-        if (id === named.activeId || !named.layouts.some((layout) => layout.id === id)) return
-
-        const fallback = getDefaultSnapshot()
-        const outgoing = named.layouts.find((layout) => layout.id === named.activeId)
-        dispatch('replaceSetting', {
-            name: `${ITEMS_KEY}.${named.activeId}`,
-            value: {
-                name: outgoing?.name ?? '',
-                order: outgoing?.order ?? 0,
-                snapshot: captureSnapshot(state.dashboard, fallback),
-            },
-        })
-
-        const incoming = getStoredSnapshot(state.dashboard.namedLayouts, id, fallback)
-        dispatch('replaceSetting', { name: 'dashboard.namedLayouts.active', value: id })
-        applySnapshot(context, incoming)
+        return inOrder(() => switchLayout(context, id))
     },
 
     createDashboardLayout(
         context,
         payload: { name: string; snapshot?: DashboardLayoutSnapshot; sourceId?: string; activate?: boolean }
-    ): string | null {
-        const { dispatch, state } = context
-        const named = resolveNamedLayouts(state.dashboard.namedLayouts)
-        const requestedName = sanitizeLayoutName(payload.name)
-        if (requestedName === '' || named.layouts.length >= MAX_NAMED_LAYOUTS) return null
-
-        materializeActiveLayout(context, named)
-
-        const fallback = getDefaultSnapshot()
-        const copiesStored = payload.sourceId !== undefined && payload.sourceId !== named.activeId
-        const snapshot =
-            payload.snapshot ??
-            (copiesStored
-                ? getStoredSnapshot(state.dashboard.namedLayouts, payload.sourceId ?? '', fallback)
-                : captureSnapshot(state.dashboard, fallback))
-
-        const id = uuidv4()
-        dispatch('replaceSetting', {
-            name: `${ITEMS_KEY}.${id}`,
-            value: {
-                name: uniqueLayoutName(
-                    requestedName,
-                    named.layouts.map((layout) => layout.name)
-                ),
-                order: Math.max(...named.layouts.map((layout) => layout.order)) + 1,
-                snapshot,
-            },
-        })
-
-        if (payload.activate ?? true) dispatch('switchDashboardLayout', id)
-
-        return id
+    ): Promise<string | null> {
+        return inOrder(() => createLayout(context, payload))
     },
 
     renameDashboardLayout(context, payload: { id: string; name: string }) {
-        const { dispatch, state } = context
-        const named = resolveNamedLayouts(state.dashboard.namedLayouts)
-        const name = sanitizeLayoutName(payload.name)
-        if (name === '' || !named.layouts.some((layout) => layout.id === payload.id)) return
-
-        materializeActiveLayout(context, named)
-        dispatch('saveSetting', { name: `${ITEMS_KEY}.${payload.id}.name`, value: name })
+        return inOrder(() => renameLayout(context, payload))
     },
 
-    deleteDashboardLayout({ dispatch, state }, id: string) {
-        const named = resolveNamedLayouts(state.dashboard.namedLayouts)
-        const index = named.layouts.findIndex((layout) => layout.id === id)
-        if (index === -1 || named.layouts.length < 2) return
-
-        if (id === named.activeId) {
-            const next = named.layouts[index + 1] ?? named.layouts[index - 1]
-            dispatch('switchDashboardLayout', next.id)
-        }
-
-        dispatch('deleteSettingKey', `${ITEMS_KEY}.${id}`)
+    deleteDashboardLayout(context, id: string) {
+        return inOrder(() => deleteLayout(context, id))
     },
 
     setDashboardColumnCount({ dispatch, state }, payload: { viewport: string; count: number }) {

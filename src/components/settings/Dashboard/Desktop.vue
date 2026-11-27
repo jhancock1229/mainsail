@@ -39,7 +39,7 @@ export default class SettingsDashboardTabDesktop extends Mixins(DashboardLayouts
     }
 
     resetLayout() {
-        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'desktop' })
+        this.editDashboardLayout('resetStateLayout', { layoutState: this.layoutState, viewport: 'desktop' })
     }
 }
 </script>

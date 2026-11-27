@@ -38,7 +38,7 @@ export default class SettingsDashboardTabTablet extends Mixins(DashboardLayoutsM
     }
 
     resetLayout() {
-        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.layoutState, viewport: 'tablet' })
+        this.editDashboardLayout('resetStateLayout', { layoutState: this.layoutState, viewport: 'tablet' })
     }
 }
 </script>

@@ -5,7 +5,7 @@
         :title="$t('Dashboard.Layouts.Layouts')"
         :description="$t('Dashboard.Layouts.Description')"
         @switch="switchDashboardLayout"
-        @rename="renameLayout"
+        @rename="renameDashboardLayout"
         @create="createDashboardLayout"
         @delete="deleteLayout"
         @export="exportLayout"
@@ -22,10 +22,6 @@ import NamedLayoutList from '@/components/layouts/NamedLayoutList.vue'
     components: { NamedLayoutList },
 })
 export default class SettingsDashboardLayouts extends Mixins(DashboardLayoutsMixin) {
-    renameLayout(payload: { id: string; name: string }): void {
-        this.$store.dispatch('gui/renameDashboardLayout', payload)
-    }
-
     deleteLayout(id: string): void {
         this.$store.dispatch('gui/deleteDashboardLayout', id)
     }

@@ -371,6 +371,21 @@ describe('Dashboard layouts', () => {
             columnPanels(2, (titles) => expect(titles).to.deep.equal(['Temperatures', 'Console']))
         })
 
+        it('reloads instead of saving when another window switched the layout', () => {
+            openSeeded('named')
+            switchTo('Calibration')
+            columns().should('have.length', 3)
+            demo('layouts/named')
+
+            startEdit()
+            slot('toolhead-control').find('.dashboard-slot__visibility').click()
+            cy.contains('.v-toast', 'switched in another window')
+            columns().should('have.length', 2)
+            finishEdit()
+            switcher().should('contain', 'Everyday')
+            columnPanels(1, (titles) => expect(titles).to.include('Toolhead'))
+        })
+
         it('survives corrupt layout settings', () => {
             openSeeded('corrupt')
 

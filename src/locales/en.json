@@ -277,6 +277,7 @@
     "Dashboard": {
         "Layouts": {
             "Active": "Active",
+            "ChangedElsewhere": "The layout was switched in another window. It was loaded again and nothing was changed.",
             "ColumnDivider": "Width of columns {left} and {right}",
             "Columns": "Columns",
             "ColumnsDescription": "Number of columns on this screen size and how the width is shared between them. Drag a divider to resize.",
@@ -2116,6 +2117,7 @@
             "Remove": "Remove",
             "RemoveBlock": "Remove {name}",
             "Reset": "Reset this screen",
+            "ResetQuestion": "Put the {state} screen of \"{name}\" back to the default? Your arrangement of this screen is lost.",
             "Room": "Room used at 1280 × 720",
             "RoomTabs": "Room used by the tallest tab",
             "Screen": "Screen",

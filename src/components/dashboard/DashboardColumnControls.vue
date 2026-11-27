@@ -56,11 +56,11 @@ export default class DashboardColumnControls extends Mixins(DashboardLayoutsMixi
     }
 
     setColumnCount(count: number): void {
-        this.$store.dispatch('gui/setDashboardColumnCount', { viewport: this.layoutViewport, count })
+        this.editDashboardLayout('setDashboardColumnCount', { viewport: this.layoutViewport, count })
     }
 
     setColumnWidths(widths: number[]): void {
-        this.$store.dispatch('gui/setDashboardColumnWidths', { viewport: this.layoutViewport, widths })
+        this.editDashboardLayout('setDashboardColumnWidths', { viewport: this.layoutViewport, widths })
     }
 }
 </script>

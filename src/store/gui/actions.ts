@@ -7,6 +7,7 @@ import {
     getActiveColumnKeys,
     getAllColumnKeys,
     isDashboardViewport,
+    mergeUnavailablePanels,
 } from '@/plugins/dashboardNamedLayouts'
 import { dashboardLayoutActions } from '@/store/gui/dashboardLayoutActions'
 import { shellHomeActions } from '@/store/gui/shellHomeActions'
@@ -459,15 +460,26 @@ export const actions: ActionTree<GuiState, RootState> = {
         payload: { layoutState: DashboardLayoutState; viewport: string; column: number; value: GuiStateLayoutoption[] }
     ) {
         const layoutName = payload.column ? `${payload.viewport}Layout${payload.column}` : `${payload.viewport}Layout`
+        const shown = getters['getPanels'](
+            payload.viewport,
+            payload.column,
+            false,
+            payload.layoutState
+        ) as GuiStateLayoutoption[]
+        const edited = mergeUnavailablePanels(
+            getters['getDashboardLayout'](layoutName, payload.layoutState),
+            shown.map((panel) => panel.name),
+            payload.value
+        )
 
         if (payload.layoutState === 'idle') {
-            dispatch('saveSetting', { name: `dashboard.${layoutName}`, value: payload.value })
+            dispatch('saveSetting', { name: `dashboard.${layoutName}`, value: edited })
             return
         }
 
         const customLayouts = (state.dashboard.stateLayouts?.[payload.layoutState] ?? {}) as Record<string, unknown>
         getActiveColumnKeys(payload.viewport, state.dashboard.columns).forEach((layoutKey) => {
-            let value = payload.value
+            let value = edited
             if (layoutKey !== layoutName) {
                 if (Array.isArray(customLayouts[layoutKey])) return
 

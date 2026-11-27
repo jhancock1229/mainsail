@@ -10,7 +10,7 @@
                 type="button"
                 class="sh-btn sh-btn--44 sh-btn--quiet shell-home-editor__reset"
                 :disabled="isDefault"
-                @click="reset">
+                @click="showResetDialog = true">
                 {{ $t('Shell.Home.Reset') }}
             </button>
             <button type="button" class="sh-btn sh-btn--44 sh-btn--strong shell-home-editor__done" @click="done">
@@ -153,6 +153,14 @@
                 </v-list>
             </v-menu>
         </footer>
+        <confirmation-dialog
+            v-model="showResetDialog"
+            :icon="mdiRestore"
+            :title="$t('Shell.Home.Reset')"
+            :text="$t('Shell.Home.ResetQuestion', { state: stateLabel(editState), name: activeHomeLayoutName })"
+            :action-button-text="$t('Shell.Home.Reset')"
+            :cancel-button-text="$t('Buttons.Cancel')"
+            @action="reset" />
     </div>
 </template>
 
@@ -160,7 +168,8 @@
 import Component from 'vue-class-component'
 import { Mixins } from 'vue-property-decorator'
 import draggable from 'vuedraggable'
-import { mdiChevronDown, mdiClose, mdiDragVertical } from '@mdi/js'
+import { mdiChevronDown, mdiClose, mdiDragVertical, mdiRestore } from '@mdi/js'
+import ConfirmationDialog from '@/components/dialogs/ConfirmationDialog.vue'
 import ShellHomeLayoutsMixin from '@/components/mixins/shellHomeLayouts'
 import ShellTabs, { ShellTabItem } from '@/components/shell/ShellTabs.vue'
 import { shellHomeEdit, stopShellHomeEdit } from '@/plugins/shellHomeEdit'
@@ -192,11 +201,14 @@ interface BlockOption {
     fits: boolean
 }
 
-@Component({ components: { draggable, ShellTabs } })
+@Component({ components: { ConfirmationDialog, draggable, ShellTabs } })
 export default class ShellHomeEditor extends Mixins(ShellHomeLayoutsMixin) {
     mdiChevronDown = mdiChevronDown
     mdiClose = mdiClose
     mdiDragVertical = mdiDragVertical
+    mdiRestore = mdiRestore
+
+    showResetDialog = false
 
     allActions = whileActions
 
@@ -217,7 +229,7 @@ export default class ShellHomeEditor extends Mixins(ShellHomeLayoutsMixin) {
     }
 
     get stateTabs(): ShellTabItem[] {
-        return homeLayoutStates.map((id) => ({ id, label: this.$t(`Shell.Home.States.${id}`).toString() }))
+        return homeLayoutStates.map((id) => ({ id, label: this.stateLabel(id) }))
     }
 
     get gridClasses(): Record<string, boolean> {
@@ -238,6 +250,10 @@ export default class ShellHomeEditor extends Mixins(ShellHomeLayoutsMixin) {
 
     beforeDestroy(): void {
         stopShellHomeEdit()
+    }
+
+    stateLabel(state: HomeLayoutState): string {
+        return this.$t(`Shell.Home.States.${state}`).toString()
     }
 
     isRequired(id: HomeBlockId): boolean {
@@ -304,11 +320,11 @@ export default class ShellHomeEditor extends Mixins(ShellHomeLayoutsMixin) {
         if (swapWith !== -1) actions[swapWith] = actions[position]
         actions[position] = action
 
-        this.$store.dispatch('gui/saveHomeActions', actions)
+        this.saveHomeChange('saveHomeActions', actions)
     }
 
     reset(): void {
-        this.$store.dispatch('gui/resetHomeArrangement', this.editState)
+        this.saveHomeChange('resetHomeArrangement', this.editState)
     }
 
     done(): void {

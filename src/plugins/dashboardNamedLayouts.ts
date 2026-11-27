@@ -334,13 +334,48 @@ export const getStoredSnapshot = (
     return normalizeSnapshot(isRecord(item) ? item.snapshot : undefined, fallback)
 }
 
+const isKnownPanelName = (name: string): boolean => {
+    return allDashboardPanels.includes(name) || /^macrogroup_[A-Za-z0-9_-]{1,64}$/.test(name)
+}
+
+const exportablePanels = (
+    panels: DashboardColumnPanels,
+    columns: DashboardLayoutSnapshot['columns']
+): DashboardColumnPanels => {
+    const result: DashboardColumnPanels = {}
+
+    dashboardViewports.forEach((viewport) => {
+        const active = getActiveColumnKeys(viewport, columns)
+        getAllColumnKeys(viewport).forEach((key) => {
+            if (panels[key] === undefined) return
+
+            result[key] = active.includes(key) ? panels[key].filter((panel) => isKnownPanelName(panel.name)) : []
+        })
+    })
+
+    return result
+}
+
 export const serializeLayoutExport = (name: string, snapshot: DashboardLayoutSnapshot): string => {
+    const density: Record<string, PanelDensity> = {}
+    Object.keys(snapshot.density)
+        .filter(isKnownPanelName)
+        .forEach((panel) => (density[panel] = snapshot.density[panel]))
+
     return JSON.stringify(
         {
             format: LAYOUT_EXPORT_FORMAT,
             version: LAYOUT_EXPORT_VERSION,
             name,
-            layout: snapshot,
+            layout: {
+                panels: exportablePanels(snapshot.panels, snapshot.columns),
+                stateLayouts: {
+                    printing: exportablePanels(snapshot.stateLayouts.printing, snapshot.columns),
+                    error: exportablePanels(snapshot.stateLayouts.error, snapshot.columns),
+                },
+                columns: snapshot.columns,
+                density,
+            },
         },
         null,
         2
@@ -381,10 +416,6 @@ const expectKeys = (
     if (unknown !== undefined) throw new ImportFailure('invalid-structure', prefix + unknown)
 
     return value
-}
-
-const isKnownPanelName = (name: string): boolean => {
-    return allDashboardPanels.includes(name) || /^macrogroup_[A-Za-z0-9_-]{1,64}$/.test(name)
 }
 
 const validateImportColumns = (raw: unknown): void => {
@@ -490,4 +521,77 @@ const densityHeightFactors: Record<PanelDensity, number> = { compact: 0.7, norma
 
 export const applyDensityToHeight = (height: number, density: PanelDensity): number => {
     return Math.round(height * densityHeightFactors[density])
+}
+
+export const mergeUnavailablePanels = (
+    stored: GuiStateLayoutoption[],
+    shownNames: string[],
+    edited: GuiStateLayoutoption[]
+): GuiStateLayoutoption[] => {
+    const editedNames = edited.map((panel) => panel.name)
+    const result = [...edited]
+    let anchor = -1
+
+    stored.forEach((panel) => {
+        const position = result.findIndex((entry) => entry.name === panel.name)
+        if (position !== -1) {
+            anchor = position
+            return
+        }
+        if (shownNames.includes(panel.name) || editedNames.includes(panel.name)) return
+
+        anchor += 1
+        result.splice(anchor, 0, { ...panel })
+    })
+
+    return result
+}
+
+const withoutPanel = (columns: unknown, name: string): { value: Record<string, unknown>; changed: boolean } => {
+    const value: Record<string, unknown> = {}
+    let changed = false
+    if (!isRecord(columns)) return { value, changed }
+
+    Object.keys(columns).forEach((key) => {
+        const list = columns[key]
+        if (!Array.isArray(list)) {
+            value[key] = list
+            return
+        }
+
+        value[key] = list.filter((entry) => !isRecord(entry) || entry.name !== name)
+        changed = changed || (value[key] as unknown[]).length !== list.length
+    })
+
+    return { value, changed }
+}
+
+export const removePanelFromSnapshot = (snapshot: unknown, name: string): Record<string, unknown> | null => {
+    if (!isRecord(snapshot)) return null
+
+    const result: Record<string, unknown> = { ...snapshot }
+    let changed = false
+
+    const panels = withoutPanel(snapshot.panels, name)
+    if (panels.changed) result.panels = panels.value
+    changed = changed || panels.changed
+
+    if (isRecord(snapshot.stateLayouts)) {
+        const stateLayouts: Record<string, unknown> = { ...snapshot.stateLayouts }
+        Object.keys(stateLayouts).forEach((layoutState) => {
+            const columns = withoutPanel(stateLayouts[layoutState], name)
+            if (columns.changed) stateLayouts[layoutState] = columns.value
+            changed = changed || columns.changed
+        })
+        result.stateLayouts = stateLayouts
+    }
+
+    if (isRecord(snapshot.density) && name in snapshot.density) {
+        const density = { ...snapshot.density }
+        delete density[name]
+        result.density = density
+        changed = true
+    }
+
+    return changed ? result : null
 }

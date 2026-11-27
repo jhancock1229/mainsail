@@ -12,7 +12,6 @@ export interface HomeBlock {
     requiredIn: HomeLayoutState[]
     height: number
     grows: boolean
-    ownHeading: boolean
     scrolls: boolean
 }
 
@@ -85,7 +84,6 @@ export const homeBlocks: HomeBlock[] = [
         requiredIn: [],
         height: 260,
         grows: true,
-        ownHeading: true,
         scrolls: false,
     },
     {
@@ -94,17 +92,15 @@ export const homeBlocks: HomeBlock[] = [
         requiredIn: [],
         height: 440,
         grows: false,
-        ownHeading: true,
         scrolls: false,
     },
-    { id: 'last', states: ['idle'], requiredIn: [], height: 156, grows: false, ownHeading: true, scrolls: false },
+    { id: 'last', states: ['idle'], requiredIn: [], height: 156, grows: false, scrolls: false },
     {
         id: 'job',
         states: ['printing', 'finished'],
         requiredIn: ['printing', 'finished'],
         height: 495,
         grows: true,
-        ownHeading: true,
         scrolls: false,
     },
     {
@@ -113,15 +109,14 @@ export const homeBlocks: HomeBlock[] = [
         requiredIn: ['error'],
         height: 300,
         grows: true,
-        ownHeading: true,
         scrolls: true,
     },
-    { id: 'camera', states: everyState, requiredIn: [], height: 174, grows: true, ownHeading: false, scrolls: false },
-    { id: 'console', states: everyState, requiredIn: [], height: 214, grows: true, ownHeading: false, scrolls: false },
-    { id: 'heat', states: everyState, requiredIn: [], height: 156, grows: false, ownHeading: true, scrolls: false },
-    { id: 'spool', states: everyState, requiredIn: [], height: 172, grows: false, ownHeading: true, scrolls: false },
-    { id: 'events', states: afterStart, requiredIn: [], height: 96, grows: true, ownHeading: true, scrolls: false },
-    { id: 'macros', states: everyState, requiredIn: [], height: 190, grows: true, ownHeading: true, scrolls: false },
+    { id: 'camera', states: everyState, requiredIn: [], height: 174, grows: true, scrolls: false },
+    { id: 'console', states: everyState, requiredIn: [], height: 214, grows: true, scrolls: false },
+    { id: 'heat', states: everyState, requiredIn: [], height: 156, grows: false, scrolls: false },
+    { id: 'spool', states: everyState, requiredIn: [], height: 172, grows: false, scrolls: false },
+    { id: 'events', states: afterStart, requiredIn: [], height: 96, grows: true, scrolls: false },
+    { id: 'macros', states: everyState, requiredIn: [], height: 190, grows: true, scrolls: false },
 ]
 
 export const whileActions: WhileActionId[] = [

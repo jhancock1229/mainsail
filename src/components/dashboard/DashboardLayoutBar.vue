@@ -204,7 +204,7 @@ export default class DashboardLayoutBar extends Mixins(DashboardLayoutsMixin) {
     }
 
     resetLayout(): void {
-        this.$store.dispatch('gui/resetStateLayout', { layoutState: this.editState, viewport: this.layoutViewport })
+        this.editDashboardLayout('resetStateLayout', { layoutState: this.editState, viewport: this.layoutViewport })
     }
 }
 </script>

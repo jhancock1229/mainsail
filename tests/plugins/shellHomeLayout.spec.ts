@@ -383,6 +383,34 @@ describe('export and import', () => {
         })
     })
 
+    it('imports its own export of every stored layout, repaired ones included', () => {
+        const stored = resolveHomeLayouts({
+            items: {
+                a: { name: 'Repaired', layout: { states: { idle: 'broken', printing: [] }, actions: 7 } },
+                b: {
+                    name: 'Too tall',
+                    layout: {
+                        states: {
+                            idle: [
+                                { mode: 'split', blocks: ['start'] },
+                                { mode: 'split', blocks: ['ready', 'spool', 'heat', 'unknown'] },
+                                { mode: 'split', blocks: ['camera'] },
+                            ],
+                        },
+                    },
+                },
+            },
+        })
+
+        stored.layouts.forEach((entry) => {
+            expect(parseHomeLayoutImport(serializeHomeLayout(entry.name, entry.layout))).toEqual({
+                ok: true,
+                name: entry.name,
+                layout: entry.layout,
+            })
+        })
+    })
+
     it('builds a safe file name', () => {
         expect(homeLayoutFilename('Farm glance!')).toBe('mainsail-home-farm-glance.json')
         expect(homeLayoutFilename('../..')).toBe('mainsail-home-layout.json')

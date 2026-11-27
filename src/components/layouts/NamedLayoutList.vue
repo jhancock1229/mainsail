@@ -84,7 +84,7 @@
             :initial-name="dialogInitialName"
             @confirm="confirmDialog"
             @close="dialogMode = null" />
-        <v-dialog :value="deleteTarget !== null" max-width="420" @click:outside="deleteTarget = null">
+        <v-dialog :value="deleteTarget !== null" max-width="420" @input="onDeleteDialogInput">
             <v-card v-if="deleteTarget !== null" class="layout-list__delete-dialog">
                 <v-card-title class="text-h6">{{ $t('Dashboard.Layouts.Delete') }}</v-card-title>
                 <v-card-text>{{ $t('Dashboard.Layouts.DeleteQuestion', { name: deleteTarget.name }) }}</v-card-text>
@@ -185,6 +185,10 @@ export default class NamedLayoutList extends Mixins(BaseMixin) {
         }
 
         this.$emit('create', { name, sourceId: target.id, activate: this.dialogMode === 'new' })
+    }
+
+    onDeleteDialogInput(open: boolean): void {
+        if (!open) this.deleteTarget = null
     }
 
     confirmDelete(): void {

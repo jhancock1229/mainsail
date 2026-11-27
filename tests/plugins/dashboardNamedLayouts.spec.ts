@@ -3,6 +3,8 @@ import {
     COLUMN_WIDTH_UNITS,
     applyDensityToHeight,
     layoutExportFilename,
+    mergeUnavailablePanels,
+    removePanelFromSnapshot,
     DashboardLayoutSnapshot,
     LAYOUT_EXPORT_FORMAT,
     MIN_COLUMN_WIDTH_UNITS,
@@ -501,5 +503,119 @@ describe('layout export and import', () => {
         const data2 = exported()
         data2.layout.density = { 'not a panel': 'compact' }
         expect(importOf(data2)).toMatchObject({ ok: false, error: 'unknown-panel' })
+    })
+})
+
+describe('exporting what the app itself stored', () => {
+    it('imports its own export when the stored layout holds a panel that no longer exists', () => {
+        const stored = normalizeSnapshot(
+            {
+                panels: {
+                    ...fallback.panels,
+                    desktopLayout1: [panel('zoffset'), panel('toolhead-control')],
+                    desktopLayout2: [panel('temperature'), panel('tools', false)],
+                },
+                stateLayouts: {
+                    printing: { desktopLayout1: [panel('zoffset')], desktopLayout2: [panel('temperature')] },
+                },
+                density: { miniconsole: 'expanded' },
+            },
+            fallback
+        )
+        const result = parseLayoutImport(serializeLayoutExport('Old', stored), fallback)
+
+        expect(result).toMatchObject({ ok: true })
+        if (!result.ok) return
+        expect(result.snapshot.panels.desktopLayout1).toEqual([panel('toolhead-control')])
+        expect(result.snapshot.panels.desktopLayout2).toEqual([panel('temperature')])
+        expect(result.snapshot.stateLayouts.printing.desktopLayout1).toEqual([])
+    })
+
+    it('imports its own export when panels are left in a column the layout no longer has', () => {
+        const stored = normalizeSnapshot(
+            {
+                panels: { ...fallback.panels, desktopLayout3: [panel('webcam')] },
+                columns: { desktop: { count: 2, widths: [10, 14] } },
+            },
+            fallback
+        )
+        const result = parseLayoutImport(serializeLayoutExport('Shrunk', stored), fallback)
+
+        expect(result).toMatchObject({ ok: true })
+        if (result.ok) expect(result.snapshot.panels.desktopLayout3).toEqual([])
+    })
+})
+
+describe('mergeUnavailablePanels', () => {
+    const stored = [panel('webcam'), panel('temperature', false), panel('toolhead-control'), panel('macros')]
+
+    it('returns the edited list when every stored panel was shown', () => {
+        const edited = [panel('macros'), panel('webcam')]
+
+        expect(mergeUnavailablePanels(stored, ['webcam', 'temperature', 'toolhead-control', 'macros'], edited)).toEqual(
+            edited
+        )
+    })
+
+    it('keeps a panel that could not be shown, hidden state included, behind the panel it followed', () => {
+        const edited = [panel('macros'), panel('webcam'), panel('toolhead-control')]
+
+        expect(mergeUnavailablePanels(stored, ['webcam', 'toolhead-control', 'macros'], edited)).toEqual([
+            panel('macros'),
+            panel('webcam'),
+            panel('temperature', false),
+            panel('toolhead-control'),
+        ])
+    })
+
+    it('keeps it in front when it was first or when the panel before it left the column', () => {
+        expect(mergeUnavailablePanels([panel('temperature'), panel('webcam')], ['webcam'], [panel('webcam')])).toEqual([
+            panel('temperature'),
+            panel('webcam'),
+        ])
+        expect(mergeUnavailablePanels(stored, ['webcam', 'toolhead-control', 'macros'], [panel('macros')])).toEqual([
+            panel('temperature', false),
+            panel('macros'),
+        ])
+    })
+
+    it('keeps several unavailable panels in their stored order', () => {
+        const result = mergeUnavailablePanels(stored, ['macros'], [panel('macros')])
+
+        expect(result.map((entry) => entry.name)).toEqual(['webcam', 'temperature', 'toolhead-control', 'macros'])
+    })
+
+    it('does not bring back a panel that the edit already contains', () => {
+        const edited = [panel('temperature'), panel('webcam')]
+
+        expect(mergeUnavailablePanels(stored, ['webcam'], edited).map((entry) => entry.name)).toEqual([
+            'temperature',
+            'toolhead-control',
+            'macros',
+            'webcam',
+        ])
+    })
+})
+
+describe('removePanelFromSnapshot', () => {
+    it('removes the panel from every column, printer state and the sizes', () => {
+        const snapshot = {
+            panels: { desktopLayout3: [panel('macrogroup_a'), panel('webcam')], mobileLayout: [panel('webcam')] },
+            stateLayouts: { printing: { widescreenLayout4: [panel('macrogroup_a')] } },
+            density: { macrogroup_a: 'compact', webcam: 'compact' },
+        }
+
+        expect(removePanelFromSnapshot(snapshot, 'macrogroup_a')).toEqual({
+            panels: { desktopLayout3: [panel('webcam')], mobileLayout: [panel('webcam')] },
+            stateLayouts: { printing: { widescreenLayout4: [] } },
+            density: { webcam: 'compact' },
+        })
+        expect(snapshot.panels.desktopLayout3).toHaveLength(2)
+    })
+
+    it('returns null when there is nothing to remove or nothing usable stored', () => {
+        expect(removePanelFromSnapshot({ panels: { mobileLayout: [panel('webcam')] } }, 'macrogroup_a')).toBeNull()
+        expect(removePanelFromSnapshot('broken', 'macrogroup_a')).toBeNull()
+        expect(removePanelFromSnapshot(undefined, 'macrogroup_a')).toBeNull()
     })
 })

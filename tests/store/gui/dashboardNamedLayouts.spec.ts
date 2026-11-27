@@ -192,6 +192,15 @@ describe('named dashboard layouts', () => {
         expect(activeId(store)).toBe('default')
     })
 
+    it('numbers a new name that another layout already has', async () => {
+        const store = createStore()
+        const id = await store.dispatch('gui/createDashboardLayout', { name: 'Calibration', activate: false })
+        await store.dispatch('gui/renameDashboardLayout', { id: 'default', name: 'calibration' })
+        await store.dispatch('gui/renameDashboardLayout', { id, name: 'Calibration' })
+
+        expect(layoutNames(store)).toEqual(['calibration 2', 'Calibration'])
+    })
+
     it('never deletes the last layout', async () => {
         const store = createStore()
         await store.dispatch('gui/deleteDashboardLayout', 'default')
@@ -244,12 +253,7 @@ describe('dashboard columns', () => {
     it('adds an empty column and stores it under the next key', async () => {
         const store = createStore()
         await store.dispatch('gui/setDashboardColumnCount', { viewport: 'desktop', count: 3 })
-        await store.dispatch('gui/saveStateLayout', {
-            layoutState: 'idle',
-            viewport: 'desktop',
-            column: 3,
-            value: [panel('miniconsole')],
-        })
+        await store.dispatch('gui/saveSetting', { name: 'dashboard.desktopLayout3', value: [panel('miniconsole')] })
 
         expect(store.state.gui.dashboard.columns?.desktop).toEqual({ count: 3, widths: [8, 8, 8] })
         expect(store.state.gui.dashboard.desktopLayout3).toEqual([panel('miniconsole')])
@@ -317,12 +321,7 @@ describe('dashboard columns', () => {
     it('resets the columns of a viewport together with its idle layout', async () => {
         const store = createStore()
         await store.dispatch('gui/setDashboardColumnCount', { viewport: 'desktop', count: 3 })
-        await store.dispatch('gui/saveStateLayout', {
-            layoutState: 'idle',
-            viewport: 'desktop',
-            column: 3,
-            value: [panel('miniconsole')],
-        })
+        await store.dispatch('gui/saveSetting', { name: 'dashboard.desktopLayout3', value: [panel('miniconsole')] })
         await store.dispatch('gui/resetStateLayout', { layoutState: 'idle', viewport: 'desktop' })
 
         const defaults = getDefaultState().dashboard
@@ -330,5 +329,79 @@ describe('dashboard columns', () => {
         expect(store.state.gui.dashboard.desktopLayout1).toEqual(defaults.desktopLayout1)
         expect(store.state.gui.dashboard.desktopLayout2).toEqual(defaults.desktopLayout2)
         expect(store.state.gui.dashboard.desktopLayout3).toEqual([])
+    })
+})
+
+describe('deleting a macro group', () => {
+    const run = async (prepare: (state: GuiState) => void) => {
+        const { actions: macroActions } = await import('@/store/gui/macros/actions')
+        const state = getDefaultState()
+        prepare(state)
+        const dispatch = vi.fn()
+        const commit = vi.fn()
+        ;(macroActions.groupDelete as (...args: unknown[]) => unknown)(
+            { commit, dispatch, rootState: { gui: state } },
+            'g1'
+        )
+
+        return { commit, dispatch }
+    }
+
+    it('removes its panel from the added columns, the panel sizes and the stored layouts', async () => {
+        const { commit, dispatch } = await run((state) => {
+            state.dashboard.desktopLayout3 = [panel('macrogroup_g1'), panel('webcam')]
+            state.dashboard.stateLayouts.printing = { widescreenLayout4: [panel('macrogroup_g1')] }
+            state.dashboard.panelDensity = { macrogroup_g1: 'compact' }
+            state.dashboard.namedLayouts = {
+                active: 'a',
+                items: {
+                    a: { name: 'A', order: 0 },
+                    b: {
+                        name: 'B',
+                        order: 1,
+                        snapshot: { panels: { widescreenLayout4: [panel('macrogroup_g1'), panel('macros')] } },
+                    },
+                    c: { name: 'C', order: 2, snapshot: { panels: { mobileLayout: [panel('webcam')] } } },
+                },
+            }
+        })
+
+        expect(commit).toHaveBeenCalledWith(
+            'gui/deleteFromDashboardLayout',
+            { layoutname: 'desktopLayout3', index: 0 },
+            { root: true }
+        )
+        expect(dispatch).toHaveBeenCalledWith(
+            'gui/updateSettings',
+            { keyName: 'dashboard.desktopLayout3', newVal: [panel('webcam')] },
+            { root: true }
+        )
+        expect(dispatch).toHaveBeenCalledWith(
+            'gui/saveSetting',
+            { name: 'dashboard.stateLayouts.printing.widescreenLayout4', value: [] },
+            { root: true }
+        )
+        expect(dispatch).toHaveBeenCalledWith('gui/deleteSettingKey', 'dashboard.panelDensity.macrogroup_g1', {
+            root: true,
+        })
+        expect(dispatch).toHaveBeenCalledWith(
+            'gui/replaceSetting',
+            {
+                name: 'dashboard.namedLayouts.items.b',
+                value: { name: 'B', order: 1, snapshot: { panels: { widescreenLayout4: [panel('macros')] } } },
+            },
+            { root: true }
+        )
+        expect(dispatch).not.toHaveBeenCalledWith(
+            'gui/replaceSetting',
+            expect.objectContaining({ name: 'dashboard.namedLayouts.items.c' }),
+            { root: true }
+        )
+    })
+
+    it('writes nothing to the dashboard when the group has no panel anywhere', async () => {
+        const { dispatch } = await run(() => {})
+
+        expect(dispatch).not.toHaveBeenCalled()
     })
 })
