@@ -302,7 +302,7 @@ export default class ShellHomeIdle extends Mixins(ShellMixin) {
     align-items: center;
     gap: 16px;
     padding: 0 16px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-line);
     background: var(--shell-surface);
     color: var(--shell-text);

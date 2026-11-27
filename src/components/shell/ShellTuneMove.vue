@@ -353,7 +353,7 @@ export default class ShellTuneMove extends Mixins(BaseMixin, ControlMixin, Zoffs
 .shell-move__step {
     min-height: 44px;
     min-width: 56px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-border);
     background: transparent;
     color: var(--shell-text);

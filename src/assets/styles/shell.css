@@ -76,6 +76,12 @@ html.shell-new {
     --shell-strong-text: #232832;
     --shell-track: #3a4250;
     --shell-bar: #e6edf3;
+    --shell-radius: 8px;
+    --shell-pad-x: 28px;
+    --shell-pad-y: 22px;
+    --shell-gap: 14px;
+    --shell-control: 52px;
+    --shell-control-large: 56px;
     overflow: hidden;
     scrollbar-color: #566174 #232832;
 }
@@ -165,7 +171,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
     letter-spacing: 0;
     text-transform: none;
     font-weight: 500;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
 }
 
 .shell-new .theme--dark.v-card,
@@ -199,7 +205,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 .shell-new .v-dialog,
 .shell-new .v-menu__content,
 .shell-new .v-card {
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
 }
 
 .shell-new .v-dialog > .v-card,
@@ -297,10 +303,10 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 
 .sh-col {
     background: var(--shell-bg);
-    padding: 22px 28px;
+    padding: var(--shell-pad-y) var(--shell-pad-x);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--shell-gap);
     min-height: 0;
     min-width: 0;
 }
@@ -351,8 +357,8 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 }
 
 .sh-btn {
-    min-height: 52px;
-    border-radius: 8px;
+    min-height: var(--shell-control);
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-border);
     background: var(--shell-surface);
     color: var(--shell-text);
@@ -426,7 +432,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 }
 
 .sh-btn--56 {
-    min-height: 56px;
+    min-height: var(--shell-control-large);
 }
 
 .sh-tabs {
@@ -438,7 +444,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 .sh-tab {
     min-height: 44px;
     padding: 0 16px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 0;
     background: transparent;
     color: var(--shell-text-2);
@@ -493,7 +499,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 .sh-box {
     flex: 1 1 auto;
     min-height: 0;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     overflow: hidden;
 }
 
@@ -515,7 +521,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 22px 28px;
+    padding: var(--shell-pad-y) var(--shell-pad-x);
     background: var(--shell-bg);
 }
 
@@ -528,7 +534,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
     background: transparent !important;
     box-shadow: none !important;
     border: 1px solid var(--shell-line);
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     margin-bottom: 16px !important;
 }
 
@@ -577,7 +583,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 
 .sh-host .v-alert,
 .sh-col .v-alert {
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
 }
 
 .sh-flat.panel.v-card {
@@ -589,7 +595,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 }
 
 .sh-page__tabs {
-    padding: 0 28px 14px;
+    padding: 0 var(--shell-pad-x) 14px;
     overflow-x: auto;
     scrollbar-width: none;
 }
@@ -622,7 +628,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 .sh-input {
     min-height: 44px;
     width: 100%;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-border);
     background: var(--shell-surface);
     color: var(--shell-text);
@@ -677,7 +683,7 @@ html.shell-new.theme--light ::-webkit-scrollbar-thumb {
 @media (max-width: 1199px) {
     .sh-col,
     .sh-host {
-        padding: 20px;
+        padding: min(20px, var(--shell-pad-y)) min(20px, var(--shell-pad-x));
     }
 
     .shell .shell-heat__value,

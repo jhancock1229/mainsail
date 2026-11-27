@@ -37,6 +37,7 @@ export interface ShellAvailability {
 
 export const settingsTabNames = [
     'general',
+    'appearance',
     'ui-settings',
     'dashboard',
     'webcams',

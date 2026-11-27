@@ -162,7 +162,7 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
 
 .shell-rail__link {
     padding: 12px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     text-decoration: none;
     font-size: 15px;
     line-height: 1.5;
@@ -191,7 +191,7 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
 .shell-rail__tools ::v-deep .v-btn {
     width: 40px !important;
     height: 40px !important;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     color: var(--shell-muted);
 }
 
@@ -230,7 +230,7 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
 
 .shell-rail__search {
     min-height: 44px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-border);
     background: var(--shell-surface);
     color: var(--shell-muted);
@@ -253,7 +253,7 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
 
 .shell-rail__stop {
     min-height: 48px;
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
     border: 1px solid var(--shell-danger);
     background: transparent;
     color: var(--shell-danger);

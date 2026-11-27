@@ -43,6 +43,7 @@ const sparklineColor = (objectName: string) =>
 const emberFile = {
     format: 'mainsail-theme',
     version: 1,
+    interface: 'classic',
     name: 'Ember',
     tokens: {
         accent: '#e2622a',
@@ -140,10 +141,14 @@ describe('Theming system', () => {
         resetButton('tint').click()
         cy.get('.v-application').should('have.css', 'background-color', 'rgb(18, 18, 18)')
 
-        select('.appearance-font', 'Monospace')
+        cy.get(`${dialog} .appearance-font`).click()
+        cy.get('.menuable__content__active .v-list-item').should('have.length', 5)
+        cy.get('.menuable__content__active').should('contain', 'Manrope').and('not.contain', 'Monospace')
+        cy.get('body').type('{esc}')
+        select('.appearance-font', 'Manrope')
         cy.get('.v-application')
             .should('have.css', 'font-family')
-            .and('match', /Roboto Mono/)
+            .and('match', /^.?Manrope/)
         resetButton('font').click()
         cy.get('.v-application')
             .should('have.css', 'font-family')
@@ -204,6 +209,10 @@ describe('Theming system', () => {
             .should('contain', 'not a valid value for "font"')
             .invoke('text')
             .should('not.match', /AppearanceTab|ImportErrors/)
+        stockLook()
+
+        importFile(JSON.stringify({ ...emberFile, interface: 'new', tokens: { accent: '#e2622a', tone: 'ink' } }))
+        cy.get(`${dialog} .appearance-import-message`).should('contain', 'made for the other interface')
         stockLook()
 
         importFile('.panel { display: none }', 'custom.css')

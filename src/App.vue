@@ -52,11 +52,21 @@ import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
 import {
+    isDefaultShellAccent,
+    resolveShellTokens,
+    shellAccentColors,
+    shellCssVariableNames,
+    shellCssVariables,
+    ShellTokens,
+} from '@/plugins/shellTheme'
+import {
+    defaultThemeTokens,
     resolveThemeTokens,
     textColorOnAccent,
     themeCssVariables,
     themeRootAttributeNames,
     themeRootAttributes,
+    ThemeChartPalette,
     ThemeTokens,
 } from '@/plugins/themeTokens'
 import TheShell from '@/components/shell/TheShell.vue'
@@ -178,22 +188,45 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return textColorOnAccent(this.primaryColor)
     }
 
+    get defaultAccent(): string {
+        return this.theme?.colorPrimary ?? defaultPrimaryColor
+    }
+
     get themeTokens(): ThemeTokens {
-        return resolveThemeTokens(
-            this.primaryColor,
-            this.$store.state.gui.uiSettings.tokens,
-            this.theme?.colorPrimary ?? defaultPrimaryColor
-        )
+        if (this.interfaceShell === 'new') return defaultThemeTokens(this.primaryColor)
+
+        return resolveThemeTokens(this.primaryColor, this.$store.state.gui.uiSettings.tokens, this.defaultAccent)
     }
 
     get themeAttributes(): Record<string, string> {
         return themeRootAttributes(this.themeTokens)
     }
 
+    get shellTokens(): ShellTokens {
+        return resolveShellTokens(this.primaryColor, this.$store.state.gui.uiSettings.shellTokens, this.defaultAccent)
+    }
+
+    get shellVariables(): Record<string, string> {
+        if (this.interfaceShell !== 'new') return {}
+
+        return shellCssVariables(this.shellTokens, this.defaultAccent, this.darkMode)
+    }
+
+    get appliedPrimary(): string {
+        if (this.interfaceShell !== 'new' || isDefaultShellAccent(this.primaryColor, this.defaultAccent))
+            return this.primaryColor
+
+        return shellAccentColors(this.primaryColor, this.defaultAccent, this.shellTokens.tone, this.darkMode).accent
+    }
+
+    get chartPalette(): ThemeChartPalette {
+        return this.interfaceShell === 'new' ? this.shellTokens.chartPalette : this.themeTokens.chartPalette
+    }
+
     get chartPaletteState(): string {
         const series: { name: string }[] = this.$store.state.printer?.tempHistory?.series ?? []
 
-        return [this.themeTokens.chartPalette, this.darkMode, ...series.map((serie) => serie.name)].join('|')
+        return [this.chartPalette, this.darkMode, ...series.map((serie) => serie.name)].join('|')
     }
 
     get cssVars(): { [key: string]: string } {
@@ -262,7 +295,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.$socket.emit('server.files.metadata', { filename: newVal }, { action: 'files/getMetadataCurrentFile' })
     }
 
-    @Watch('primaryColor')
+    @Watch('appliedPrimary')
     primaryColorChanged(newVal: string): void {
         this.$nextTick(() => {
             this.$vuetify.theme.currentTheme.primary = newVal
@@ -281,8 +314,17 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     @Watch('chartPaletteState')
     chartPaletteStateChanged(): void {
         this.$store.dispatch('printer/tempHistory/applyChartPalette', {
-            palette: this.themeTokens.chartPalette,
+            palette: this.chartPalette,
             dark: this.darkMode,
+        })
+    }
+
+    @Watch('shellVariables', { immediate: true })
+    shellVariablesChanged(variables: Record<string, string>): void {
+        const style = document.documentElement.style
+        shellCssVariableNames.forEach((name) => {
+            if (name in variables) style.setProperty(name, variables[name])
+            else style.removeProperty(name)
         })
     }
 

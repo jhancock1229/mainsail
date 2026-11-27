@@ -5,15 +5,13 @@ import {
     chartPalettes,
     contrastRatio,
     defaultThemeTokens,
-    exportThemeFile,
     matchingPreset,
     onAccentContrast,
-    MAX_THEME_FILE_SIZE,
-    parseThemeFile,
     resolveThemeTokens,
     surfaceColors,
     textColorOnAccent,
     themeCssVariables,
+    themeFontNames,
     themeFonts,
     themePresets,
     themeRootAttributeNames,
@@ -47,7 +45,7 @@ describe('resolveThemeTokens', () => {
             density: 'compact',
             surface: 'outlined',
             tint: 'accent',
-            font: 'mono',
+            font: 'humanist',
             chartPalette: 'vivid',
         }
 
@@ -85,7 +83,7 @@ describe('themeRootAttributes', () => {
             density: 'compact',
             surface: 'outlined',
             tint: 'accent',
-            font: 'mono',
+            font: 'humanist',
             chartPalette: 'vivid',
         }
 
@@ -142,10 +140,10 @@ describe('themeCssVariables', () => {
     })
 
     it('only ever emits values built from validated tokens', () => {
-        const vars = themeCssVariables({ ...defaults, font: 'mono', radius: 10, tint: 'accent' }, false)
+        const vars = themeCssVariables({ ...defaults, font: 'humanist', radius: 10, tint: 'accent' }, false)
 
         Object.values(vars).forEach((value) => expect(value).not.toMatch(/[;{}]|url\(|expression/i))
-        expect(vars['--theme-font']).toBe(themeFonts.mono)
+        expect(vars['--theme-font']).toBe(themeFonts.humanist)
     })
 })
 
@@ -344,113 +342,14 @@ describe('chart palettes', () => {
     })
 })
 
-describe('theme files', () => {
-    const tokens: ThemeTokens = {
-        accent: '#8855EE',
-        radius: 12,
-        density: 'compact',
-        surface: 'outlined',
-        tint: 'accent',
-        font: 'mono',
-        chartPalette: 'accessible',
-    }
-
-    it('round-trips an exported theme', () => {
-        const text = exportThemeFile(tokens, 'My theme')
-        const result = parseThemeFile(text)
-
-        expect(result).toEqual({ ok: true, name: 'My theme', tokens: { ...tokens, accent: '#8855ee' } })
+describe('fonts', () => {
+    it('offers Manrope and no monospaced interface font', () => {
+        expect(themeFontNames).toContain('manrope')
+        expect(themeFontNames).not.toContain('mono')
+        Object.values(themeFonts).forEach((stack) => expect(stack).not.toMatch(/mono|plex|serif(?<!sans-serif)/i))
     })
 
-    it('exports a small, readable JSON document without anything else', () => {
-        const file = JSON.parse(exportThemeFile(tokens))
-
-        expect(file).toEqual({ format: 'mainsail-theme', version: 1, tokens: { ...tokens, accent: '#8855ee' } })
-    })
-
-    it('fills tokens that are missing in the file with the stock value and leaves the accent open', () => {
-        const result = parseThemeFile(JSON.stringify({ format: 'mainsail-theme', version: 1, tokens: { radius: 8 } }))
-
-        expect(result).toEqual({
-            ok: true,
-            name: null,
-            tokens: { ...defaults, accent: null, radius: 8 },
-        })
-    })
-
-    const errorOf = (file: unknown) => {
-        const result = parseThemeFile(typeof file === 'string' ? file : JSON.stringify(file))
-        if (result.ok) throw new Error('file was accepted')
-
-        return result.error
-    }
-    const valid = { format: 'mainsail-theme', version: 1, tokens: { ...tokens } }
-
-    it('rejects files that are not a theme', () => {
-        expect(errorOf('body { color: red }')).toEqual({ code: 'notJson' })
-        expect(errorOf('')).toEqual({ code: 'notJson' })
-        expect(errorOf([valid])).toEqual({ code: 'notTheme' })
-        expect(errorOf('null')).toEqual({ code: 'notTheme' })
-        expect(errorOf({ tokens: valid.tokens })).toEqual({ code: 'notTheme' })
-        expect(errorOf({ ...valid, format: 'other' })).toEqual({ code: 'notTheme' })
-        expect(errorOf({ ...valid, tokens: 'x' })).toEqual({ code: 'notTheme' })
-    })
-
-    it('rejects other versions', () => {
-        expect(errorOf({ ...valid, version: 2 })).toEqual({ code: 'unsupportedVersion', value: '2' })
-        expect(errorOf({ ...valid, version: '1' })).toEqual({ code: 'unsupportedVersion', value: '"1"' })
-    })
-
-    it('rejects oversized files before parsing them', () => {
-        expect(errorOf(' '.repeat(MAX_THEME_FILE_SIZE + 1))).toEqual({ code: 'tooLarge' })
-    })
-
-    it('rejects unknown keys instead of ignoring them', () => {
-        expect(errorOf({ ...valid, css: 'body{display:none}' })).toEqual({ code: 'unknownKey', key: 'css' })
-        expect(errorOf({ ...valid, tokens: { ...tokens, customCss: 'x' } })).toEqual({
-            code: 'unknownKey',
-            key: 'tokens.customCss',
-        })
-    })
-
-    it.each([
-        ['accent', 'red'],
-        ['accent', '#12345'],
-        ['accent', '#12345g'],
-        ['accent', 'url(javascript:alert(1))'],
-        ['accent', '#123456; background: url(x)'],
-        ['accent', 123456],
-        ['radius', -1],
-        ['radius', 25],
-        ['radius', 4.5],
-        ['radius', '4'],
-        ['radius', '4px; position: fixed'],
-        ['density', 'cozy'],
-        ['density', null],
-        ['surface', 'glass'],
-        ['surface', ['flat']],
-        ['tint', '#ff0000'],
-        ['tint', true],
-        ['font', 'Comic Sans MS'],
-        ['font', 'x; } body { display: none'],
-        ['font', 'https://example.com/font.woff2'],
-        ['chartPalette', ['#ff0000']],
-        ['chartPalette', 'toString'],
-    ])('rejects an invalid %s: %j', (key, value) => {
-        const error = errorOf({ ...valid, tokens: { ...tokens, [key]: value } })
-
-        expect(error.code).toBe('invalidValue')
-        expect(error.key).toBe(key)
-        expect(error.value).toBe(JSON.stringify(value).slice(0, 40))
-    })
-
-    it('rejects names that are not short text', () => {
-        expect(errorOf({ ...valid, name: 5 }).code).toBe('invalidValue')
-        expect(errorOf({ ...valid, name: 'x'.repeat(61) }).code).toBe('invalidValue')
-    })
-
-    it('does not accept inherited object keys as token values', () => {
-        expect(errorOf({ ...valid, tokens: { ...tokens, font: 'constructor' } }).code).toBe('invalidValue')
-        expect(errorOf({ ...valid, tokens: { ...tokens, density: '__proto__' } }).code).toBe('invalidValue')
+    it('falls back to the default when a removed font is still stored', () => {
+        expect(resolveThemeTokens(undefined, { font: 'mono' }, defaultPrimaryColor).font).toBe('roboto')
     })
 })

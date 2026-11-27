@@ -1388,6 +1388,8 @@
     "Settings": {
         "AppearanceTab": {
             "Accent": "Accent color",
+            "AccentAdjustedDark": "This color is shown a little lighter in dark mode so that it stays readable.",
+            "AccentAdjustedLight": "This color is shown a little darker in light mode so that it stays readable.",
             "AccentDescription": "Used for buttons, links and highlights. This is the primary color from the UI settings.",
             "Appearance": "Appearance",
             "ChartPalette": "Chart colors",
@@ -1409,13 +1411,13 @@
                 "compact": "Compact"
             },
             "Density": "Spacing",
-            "DensityDescription": "Compact fits more on the screen: smaller gaps and lower panel headers.",
+            "DensityDescription": "Compact fits more on the screen: smaller gaps and lower controls.",
             "Export": "Export",
             "Font": "Font",
             "FontDescription": "Uses fonts that come with Mainsail or with your device. Nothing is loaded from the internet.",
             "Fonts": {
                 "humanist": "Humanist",
-                "mono": "Monospace",
+                "manrope": "Manrope",
                 "roboto": "Roboto",
                 "rounded": "Rounded",
                 "system": "System"
@@ -1425,6 +1427,7 @@
                 "invalidValue": "The theme was not imported: {value} is not a valid value for \"{key}\".",
                 "notJson": "The theme was not imported: the file is not a JSON file.",
                 "notTheme": "The theme was not imported: the file is not a Mainsail theme.",
+                "otherInterface": "The theme was not imported: it was made for the other interface (classic or new).",
                 "tooLarge": "The theme was not imported: the file is larger than {max} KB.",
                 "unknownKey": "The theme was not imported: it contains the unknown setting \"{key}\".",
                 "unsupportedVersion": "The theme was not imported: version {value} is not supported."
@@ -1432,7 +1435,7 @@
             "ImportSuccess": "Theme \"{name}\" imported.",
             "Presets": {
                 "blueprint": {
-                    "Description": "Sharp outlines, monospace and compact.",
+                    "Description": "Sharp outlines, system font and compact.",
                     "Name": "Blueprint"
                 },
                 "classic": {
@@ -1459,13 +1462,35 @@
             "PresetsDescription": "One click changes the whole look. Light, dark and auto mode keep working with every theme.",
             "PresetsTitle": "Themes",
             "Radius": "Corner radius",
-            "RadiusDescription": "How round panels, dialogs, buttons and inputs are.",
+            "RadiusDescription": "How round buttons, inputs, panels and dialogs are.",
             "ResetTheme": "Reset theme",
             "ResetThemeButton": "Reset",
-            "ResetThemeDescription": "Go back to Mainsail Classic. Logo color, background image and custom.css are not touched.",
+            "ResetThemeDescription": "Go back to {name}. Logo color, background image and custom.css are not touched.",
             "ResetToken": "Reset to default",
             "Share": "Share theme",
             "ShareDescription": "Save the current theme to a file or load one. A theme file only contains the settings on this page.",
+            "ShellPresets": {
+                "graphite": {
+                    "Description": "Neutral grey, compact, with a green accent.",
+                    "Name": "Graphite"
+                },
+                "ink": {
+                    "Description": "Deep blue with a periwinkle accent and soft charts.",
+                    "Name": "Ink"
+                },
+                "pine": {
+                    "Description": "Green-grey with a mint accent and tighter corners.",
+                    "Name": "Pine"
+                },
+                "plum": {
+                    "Description": "Violet-grey with a lilac accent and rounder corners.",
+                    "Name": "Plum"
+                },
+                "slate": {
+                    "Description": "The standard look: blue-grey with a blue accent.",
+                    "Name": "Slate"
+                }
+            },
             "Surface": "Panel style",
             "SurfaceDescription": "How panels stand out from the background.",
             "Surfaces": {
@@ -1479,6 +1504,15 @@
             "Tints": {
                 "accent": "Tinted",
                 "neutral": "Neutral"
+            },
+            "Tone": "Background",
+            "ToneDescription": "The color family of the backgrounds, lines and text, in light and dark mode.",
+            "Tones": {
+                "graphite": "Graphite",
+                "ink": "Ink",
+                "pine": "Pine",
+                "plum": "Plum",
+                "slate": "Slate"
             }
         },
         "CommandPaletteTab": {

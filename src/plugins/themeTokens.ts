@@ -3,7 +3,7 @@ import { colorArray, colorChamber, colorHeaterBed, panelToolbarHeight } from '@/
 export const themeDensities = ['comfortable', 'compact'] as const
 export const themeSurfaces = ['standard', 'flat', 'elevated', 'outlined'] as const
 export const themeTints = ['neutral', 'accent'] as const
-export const themeFontNames = ['roboto', 'system', 'humanist', 'rounded', 'mono'] as const
+export const themeFontNames = ['roboto', 'manrope', 'system', 'humanist', 'rounded'] as const
 export const themeChartPaletteNames = ['classic', 'vivid', 'soft', 'accessible'] as const
 
 export type ThemeDensity = (typeof themeDensities)[number]
@@ -29,10 +29,6 @@ export type ThemeTokenName = keyof ThemeTokens
 
 export const MIN_THEME_RADIUS = 0
 export const MAX_THEME_RADIUS = 24
-export const MAX_THEME_FILE_SIZE = 4096
-export const MAX_THEME_NAME_LENGTH = 60
-export const THEME_FILE_FORMAT = 'mainsail-theme'
-export const THEME_FILE_VERSION = 1
 export const MIN_ACCENT_CONTRAST = 3
 
 const MAX_CONTROL_RADIUS = 12
@@ -56,17 +52,17 @@ export const defaultThemeTokens = (defaultAccent: string): ThemeTokens => ({
 
 export const themeFonts: Record<ThemeFont, string> = {
     roboto: 'Roboto, sans-serif',
+    manrope: "'Manrope', system-ui, sans-serif",
     system: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif",
     humanist: "Seravek, 'Gill Sans Nova', Ubuntu, Calibri, 'DejaVu Sans', source-sans-pro, sans-serif",
     rounded:
         "ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, Comfortaa, Manjari, 'Arial Rounded MT Bold', Calibri, sans-serif",
-    mono: "'Roboto Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isOneOf = <T extends string>(options: readonly T[], value: unknown): value is T =>
+export const isOneOf = <T extends string>(options: readonly T[], value: unknown): value is T =>
     typeof value === 'string' && (options as readonly string[]).includes(value)
 
 export const isAccentColor = (value: unknown): value is string =>
@@ -83,13 +79,13 @@ const tokenValidators: { [K in ThemeTokenName]: (value: unknown) => value is The
     chartPalette: (value): value is ThemeChartPalette => isOneOf(themeChartPaletteNames, value),
 }
 
-const storedTokenNames = Object.keys(defaultStoredThemeTokens()) as (keyof ThemeStoredTokens)[]
-const tokenNames: ThemeTokenName[] = ['accent', ...storedTokenNames]
+export const storedTokenNames = Object.keys(defaultStoredThemeTokens()) as (keyof ThemeStoredTokens)[]
+export const tokenNames: ThemeTokenName[] = ['accent', ...storedTokenNames]
 
 export const isValidThemeToken = <K extends ThemeTokenName>(name: K, value: unknown): value is ThemeTokens[K] =>
     tokenValidators[name](value)
 
-const pickValidTokens = (source: Record<string, unknown>): Partial<ThemeStoredTokens> => {
+export const pickValidTokens = (source: Record<string, unknown>): Partial<ThemeStoredTokens> => {
     const picked: Record<string, unknown> = {}
     storedTokenNames.forEach((name) => {
         if (Object.prototype.hasOwnProperty.call(source, name) && tokenValidators[name](source[name]))
@@ -150,7 +146,7 @@ export const themeCssVariables = (tokens: ThemeTokens, dark: boolean): Record<st
     }
 }
 
-const parseHex = (color: string): [number, number, number] | null => {
+export const parseHex = (color: string): [number, number, number] | null => {
     const splits = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color)
     if (!splits) return null
 
@@ -353,7 +349,7 @@ export const themePresets: ThemePreset[] = [
             density: 'compact',
             surface: 'outlined',
             tint: 'neutral',
-            font: 'mono',
+            font: 'system',
             chartPalette: 'accessible',
         },
     },
@@ -405,77 +401,39 @@ export const matchingPreset = (tokens: ThemeTokens, defaultAccent: string): stri
     return preset?.id ?? null
 }
 
-export type ThemeFileErrorCode =
-    'tooLarge' | 'notJson' | 'notTheme' | 'unsupportedVersion' | 'unknownKey' | 'invalidValue'
+export const hexToHsl = (color: string): [number, number, number] => {
+    const [r, g, b] = (parseHex(color) ?? [0, 0, 0]).map((channel) => channel / 255)
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    const lightness = (max + min) / 2
+    const delta = max - min
+    if (delta === 0) return [0, 0, lightness]
 
-export interface ThemeFileError {
-    code: ThemeFileErrorCode
-    key?: string
-    value?: string
+    const saturation = delta / (1 - Math.abs(2 * lightness - 1))
+    const sector = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4
+
+    return [(sector * 60 + 360) % 360, saturation, lightness]
 }
 
-export interface ImportedThemeTokens extends ThemeStoredTokens {
-    accent: string | null
-}
+export const hslToHex = (hue: number, saturation: number, lightness: number): string => {
+    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation
+    const sector = (((hue % 360) + 360) % 360) / 60
+    const second = chroma * (1 - Math.abs((sector % 2) - 1))
+    const match = lightness - chroma / 2
+    const [r, g, b] = [
+        [chroma, second, 0],
+        [second, chroma, 0],
+        [0, chroma, second],
+        [0, second, chroma],
+        [second, 0, chroma],
+        [chroma, 0, second],
+    ][Math.min(Math.floor(sector), 5)]
 
-export type ThemeFileResult =
-    { ok: true; name: string | null; tokens: ImportedThemeTokens } | { ok: false; error: ThemeFileError }
-
-const MAX_ERROR_VALUE_LENGTH = 40
-
-const describeValue = (value: unknown): string =>
-    (JSON.stringify(value) ?? 'undefined').slice(0, MAX_ERROR_VALUE_LENGTH)
-
-const fail = (error: ThemeFileError): ThemeFileResult => ({ ok: false, error })
-
-export const exportThemeFile = (tokens: ThemeTokens, name?: string): string => {
-    const file: Record<string, unknown> = { format: THEME_FILE_FORMAT, version: THEME_FILE_VERSION }
-    if (name) file.name = name.slice(0, MAX_THEME_NAME_LENGTH)
-
-    file.tokens = Object.fromEntries(
-        tokenNames.map((key) => [key, key === 'accent' ? tokens.accent.toLowerCase() : tokens[key]])
+    return (
+        '#' +
+        [r, g, b]
+            .map((channel) => Math.round((channel + match) * 255))
+            .map((channel) => Math.min(255, Math.max(0, channel)).toString(16).padStart(2, '0'))
+            .join('')
     )
-
-    return JSON.stringify(file, null, 4)
-}
-
-export const parseThemeFile = (text: string): ThemeFileResult => {
-    if (text.length > MAX_THEME_FILE_SIZE) return fail({ code: 'tooLarge' })
-
-    let file: unknown
-    try {
-        file = JSON.parse(text)
-    } catch {
-        return fail({ code: 'notJson' })
-    }
-
-    if (!isRecord(file) || file.format !== THEME_FILE_FORMAT || !isRecord(file.tokens))
-        return fail({ code: 'notTheme' })
-    if (file.version !== THEME_FILE_VERSION)
-        return fail({ code: 'unsupportedVersion', value: describeValue(file.version) })
-
-    const unknownKey = Object.keys(file).find((key) => !['format', 'version', 'name', 'tokens'].includes(key))
-    if (unknownKey !== undefined) return fail({ code: 'unknownKey', key: unknownKey })
-
-    const name = file.name ?? null
-    if (name !== null && (typeof name !== 'string' || name.length > MAX_THEME_NAME_LENGTH))
-        return fail({ code: 'invalidValue', key: 'name', value: describeValue(name) })
-
-    const fileTokens = file.tokens
-    const unknownToken = Object.keys(fileTokens).find((key) => !(tokenNames as string[]).includes(key))
-    if (unknownToken !== undefined) return fail({ code: 'unknownKey', key: `tokens.${unknownToken}` })
-
-    const invalidToken = tokenNames.find((key) => key in fileTokens && !tokenValidators[key](fileTokens[key]))
-    if (invalidToken !== undefined)
-        return fail({ code: 'invalidValue', key: invalidToken, value: describeValue(fileTokens[invalidToken]) })
-
-    return {
-        ok: true,
-        name,
-        tokens: {
-            ...defaultStoredThemeTokens(),
-            ...pickValidTokens(fileTokens),
-            accent: isAccentColor(fileTokens.accent) ? fileTokens.accent.toLowerCase() : null,
-        },
-    }
 }

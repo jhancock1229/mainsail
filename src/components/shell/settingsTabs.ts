@@ -1,5 +1,6 @@
 import {
     mdiBellOutline,
+    mdiBrush,
     mdiCodeTags,
     mdiCog,
     mdiConsoleLine,
@@ -22,6 +23,7 @@ import { settingsTabNames } from '@/plugins/shellNavigation'
 
 const tabs: Record<string, { icon: string; titleKey: string }> = {
     general: { icon: mdiCog, titleKey: 'Settings.GeneralTab.General' },
+    appearance: { icon: mdiBrush, titleKey: 'Settings.AppearanceTab.Appearance' },
     'ui-settings': { icon: mdiPalette, titleKey: 'Settings.UiSettingsTab.UiSettings' },
     dashboard: { icon: mdiMonitorDashboard, titleKey: 'Settings.DashboardTab.Dashboard' },
     webcams: { icon: mdiWebcam, titleKey: 'Settings.WebcamsTab.Webcams' },
