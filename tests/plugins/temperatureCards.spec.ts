@@ -117,7 +117,6 @@ describe('getTemperatureTrend', () => {
 
 describe('getTemperatureSamples', () => {
     const now = new Date('2026-01-01T12:00:00Z').getTime()
-    // one entry per second, oldest first, the newest entry is "now"
     const source: PrinterTempHistoryStateSourceEntry[] = Array.from({ length: 100 }, (_, index) => ({
         date: new Date(now - (99 - index) * 1000),
         'extruder-temperature': index < 10 ? null : index,
@@ -354,7 +353,6 @@ describe('moveTemperatureCard', () => {
             'extruder',
             names[2],
         ])
-        // the neighbour is the next card that is shown, the filtered one in between stays where it is
         expect(moveTemperatureCard(names, ['extruder', mcu, 'heater_bed', names[2]], 'heater_bed', -1)).toEqual([
             'heater_bed',
             mcu,
@@ -442,7 +440,6 @@ describe('normalizeTemperatureCardSettings', () => {
         order: [],
         hidden: [],
         sparklineWindow: DEFAULT_SPARKLINE_WINDOW,
-        // users who had the chart enabled before the cards existed keep seeing it
         chartExpanded: true,
     }
 

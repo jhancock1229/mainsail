@@ -464,8 +464,6 @@ export const actions: ActionTree<GuiState, RootState> = {
             return
         }
 
-        // a customized state layout stores all columns of the viewport, so later changes of the idle layout
-        // cannot duplicate or drop panels
         const customLayouts = (state.dashboard.stateLayouts?.[payload.layoutState] ?? {}) as Record<string, unknown>
         getActiveColumnKeys(payload.viewport, state.dashboard.columns).forEach((layoutKey) => {
             let value = payload.value

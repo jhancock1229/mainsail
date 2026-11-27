@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { playSoundOn } from '@/plugins/notificationSound'
 
-// the parts of an AudioContext that the sound needs
 const createContext = (state: string, resume: (context: { state: string }) => Promise<void>) => {
     const started: number[] = []
     const context = {
@@ -56,7 +55,6 @@ describe('playSoundOn', () => {
     })
 
     it('drops the sound when the browser keeps the audio context suspended', async () => {
-        // browsers leave resume() pending until the user interacts with the page
         const { context, started } = createContext('suspended', () => new Promise(() => undefined))
 
         const played = playSoundOn(context, 'warning')

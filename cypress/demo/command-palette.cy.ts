@@ -1,6 +1,5 @@
 import { demo, openDashboard } from './support'
 
-// Cmd on macOS, Ctrl everywhere else (the palette decides the same way)
 const mod = Cypress.platform === 'darwin' ? '{meta}' : '{ctrl}'
 const modLabel = Cypress.platform === 'darwin' ? '⌘' : 'Ctrl'
 
@@ -23,7 +22,6 @@ const noRawKeys = (selector: string) =>
         .invoke('text')
         .should('not.match', /CommandPalette|Settings\.|Buttons\./)
 
-// the mock records the gcode scripts it received; retried, because the websocket is asynchronous
 const gcodeLog = (check: (scripts: string[]) => void, attempts = 20): void => {
     demo('gcode-log').then((response) => {
         try {
@@ -47,7 +45,6 @@ const printerStatus = (check: (status: string) => void, attempts = 20): void => 
     })
 }
 
-// changes a setting like the settings dialog does
 const dispatch = (action: string, payload: unknown) =>
     cy.get('#app').then(($app) => {
         const app = $app[0] as unknown as { __vue__: { $store: { dispatch: (name: string, value: unknown) => void } } }
@@ -112,7 +109,6 @@ describe('Command palette', () => {
         input().type('{enter}')
 
         paletteIsClosed()
-        // the answer of the macro arrives in the console of the dashboard
         cy.contains('.v-main', 'Toolhead parked')
         gcodeLog((scripts) => expect(scripts).to.include('PARK_TOOLHEAD'))
 
@@ -151,12 +147,11 @@ describe('Command palette', () => {
         cy.contains('.v-dialog--active', 'Do you want to start benchy.gcode?')
         printerStatus((status) => expect(status).to.contain('print: standby'))
 
-        // the print button has the focus, so Enter starts the print (Cypress does not press buttons with Enter)
+        // Cypress does not press buttons with Enter
         cy.focused().should('have.class', 'v-btn').and('contain', 'print').click()
         cy.get('.v-dialog--active').should('not.exist')
         cy.contains('.panel-toolbar', 'Printing')
 
-        // commands that would disturb the print are listed as unavailable, with the reason
         openPalette()
         search('home')
         cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'Home all axes').should(
@@ -166,7 +161,6 @@ describe('Command palette', () => {
         search('demo.gcode')
         cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'demo.gcode').click()
         cy.contains('.v-dialog--active', 'Do you want to start').should('not.exist')
-        // like the preset menu of the temperature panel, which is disabled during a print
         search('preheat pla')
         cy.contains(`${paletteDialog} .command-palette-row--disabled`, 'Preheat PLA').should(
             'contain',
@@ -181,7 +175,6 @@ describe('Command palette', () => {
         search('pause print{enter}')
         cy.contains('.panel-toolbar', 'Paused')
 
-        // Esc in the confirmation goes back to the list without running the command
         openPalette()
         search('cancel{enter}')
         cy.contains(`${paletteDialog} .command-palette__confirm`, 'cannot be resumed')
@@ -252,7 +245,6 @@ describe('Command palette', () => {
         openPalette()
         selectedRow().should('contain', 'Pause print')
 
-        // the print ends: "Home all axes" takes the place of "Pause print"
         demo('idle')
         cy.get(`${paletteDialog} .command-palette-row`).first().should('contain', 'Home all axes')
         selectedRow().should('not.exist')
@@ -303,7 +295,6 @@ describe('Command palette', () => {
         sectionTitles((titles) => expect(titles[0]).to.equal('favourites'))
         input().type('{esc}')
 
-        // add a second favourite in the settings
         openPaletteSettings()
         noRawKeys('.v-dialog--active')
         cy.contains('.v-dialog--active .command-palette-favourite', 'PURGE_LINE')
@@ -316,7 +307,6 @@ describe('Command palette', () => {
             ])
         )
 
-        // remove the first one again
         cy.contains('.v-dialog--active .command-palette-favourite', 'PURGE_LINE').find('button').click()
         cy.contains('.v-dialog--active .command-palette-favourite', 'PURGE_LINE').should('not.exist')
         closeSettings()
@@ -342,17 +332,14 @@ describe('Command palette', () => {
         cy.get('.command-palette-shortcut').should('contain', modLabel).and('contain', 'K').click()
         cy.contains('.v-dialog--active', 'Press the new key combination')
 
-        // a key without modifier would be typed into text fields
         cy.get('body').type('j')
         cy.get('.command-palette-shortcut-error').should('contain', 'together with another key')
-        // the save shortcut of the editor is taken
         cy.get('body').type(`${mod}s`)
         cy.get('.command-palette-shortcut-error').should('contain', 'used by the browser or by Mainsail')
 
         cy.get('body').type(`${mod}{shift}p`)
         cy.get('.command-palette-shortcut-error').should('not.exist')
         cy.get('.command-palette-shortcut').should('contain', 'P').and('not.contain', 'K')
-        // recording the shortcut did not open the palette or close the settings
         cy.contains('.v-dialog--active', 'Enable the command palette')
         paletteIsClosed()
         closeSettings()
@@ -364,7 +351,6 @@ describe('Command palette', () => {
         input().should('be.focused')
         input().type('{esc}')
 
-        // the new shortcut is stored
         cy.reload()
         cy.contains('.panel-toolbar', 'Standby', { timeout: 15000 })
         cy.get('body').type(`${mod}{shift}p`)
@@ -381,7 +367,6 @@ describe('Command palette', () => {
         cy.get('body').type('{esc}')
 
         cy.get('.command-palette-shortcut').should('contain', 'K')
-        // Esc ended the recording, not the settings dialog
         cy.contains('.v-dialog--active', 'Enable the command palette')
     })
 
@@ -394,7 +379,6 @@ describe('Command palette', () => {
         cy.get('body').type(`${mod}k`)
         paletteIsClosed()
 
-        // the settings stay reachable through the settings dialog
         cy.get('.v-app-bar button').eq(-2).click()
         cy.contains('.v-dialog--active .v-tab', /^\s*Commands\s*$/i).click()
         cy.get('.command-palette-enable .v-input--selection-controls__ripple').click()
@@ -414,7 +398,6 @@ describe('Command palette', () => {
         paletteIsClosed()
         cy.get('.cm-search input[name=search]').should('be.focused')
 
-        // everywhere else in the editor the palette opens
         cy.get('.cm-content').type(`${mod}k`, { force: true })
         input().should('be.focused')
     })

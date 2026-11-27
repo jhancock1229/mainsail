@@ -40,7 +40,7 @@ import {
 import { PrinterTempHistoryStateSourceEntry } from '@/store/printer/tempHistory/types'
 
 const MILLISECONDS = 1000
-// ids are global in the document and object names cannot be turned into unique ids (top_cover, top-cover)
+// ids are global in the document, and object names do not make unique ids (top_cover, top-cover)
 let sparklineCount = 0
 
 @Component
@@ -51,7 +51,6 @@ export default class TemperaturePanelCardSparkline extends Mixins(BaseMixin) {
     @Prop({ type: Number, default: null }) readonly target!: number | null
     @Prop({ type: String, default: '' }) readonly label!: string
 
-    // the svg is stretched to the card, only the proportions of these matter
     width = 200
     height = 40
     gradientId = `temperature-sparkline-${++sparklineCount}`
@@ -89,7 +88,7 @@ export default class TemperaturePanelCardSparkline extends Mixins(BaseMixin) {
 </script>
 
 <style scoped>
-/* out of the flow, so the card decides the height and not the proportions of the viewBox */
+/* in the flow, the proportions of the viewBox would set the height of the card */
 .temperature-sparkline {
     position: absolute;
     top: 0;

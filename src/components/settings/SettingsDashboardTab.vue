@@ -3,7 +3,6 @@
     min-height: 80px;
 }
 
-/* reserve the line, so the lists below do not jump when switching between states */
 .state-layout-status {
     min-height: 20px;
 }

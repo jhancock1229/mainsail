@@ -20,6 +20,8 @@
 #   demo/demo.sh layouts [named|legacy|corrupt]
 #                          store example dashboard layouts (reload Mainsail afterwards)
 #   demo/demo.sh reset     fresh printer and default Mainsail settings
+#   demo/demo.sh classic   switch Mainsail to the classic (stock) interface
+#   demo/demo.sh spool     pretend a 1 kg spool of black PLA was loaded 12 days ago
 #   demo/demo.sh status    show Klipper and print state
 #   demo/demo.sh test      run the browser tests in cypress/demo against the simulated printer
 #
@@ -35,16 +37,14 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | layouts | reset | status)
+    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | layouts | reset | classic | spool | status)
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
-        # separate ports and in-memory settings, so a running demo is not disturbed
         export DEMO_PORT=${DEMO_PORT:-7135}
         export DEMO_UI_PORT=${DEMO_UI_PORT:-4183}
         export DEMO_DB_FILE=none
-        # built into its own directory, so a production build in dist/ is left alone
-        # (the build still writes its version file to dist/, which must exist)
+        # the build writes its version file to dist/ even with another outDir
         mkdir -p dist
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite build --outDir dist-demo
         npx start-server-and-test \
@@ -53,7 +53,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

@@ -61,19 +61,16 @@ interface TimelineListItem {
 @Component
 export default class PrintHeroTimeline extends Mixins(BaseMixin) {
     @Prop({ type: Object, default: null }) readonly timeline!: PrintTimeline | null
-    // estimated seconds until the print is done, 0 if unknown or ended
     @Prop({ type: Number, default: 0 }) readonly remaining!: number
 
     get elapsed(): number {
         return this.timeline?.last.totalDuration ?? 0
     }
 
-    // length of the bar in seconds: the whole job as far as it can be estimated
     get scale(): number {
         return Math.max(this.elapsed + this.remaining, 1)
     }
 
-    // a short job happens within a few minutes, so the minute alone tells too little
     get showSeconds(): boolean {
         return this.scale < SECONDS_PER_HOUR
     }
@@ -130,7 +127,6 @@ export default class PrintHeroTimeline extends Mixins(BaseMixin) {
     clockTime(time: number): string {
         if (!this.showSeconds) return this.formatTime(time)
 
-        // the time format "automatic" of the base mixin has no seconds
         const automatic = (this.$store.state.gui.general.timeFormat ?? null) === null
         const options: DateTimeFormatOptions = automatic ? { timeStyle: 'medium' } : this.formatTimeWithSecondsOptions
 

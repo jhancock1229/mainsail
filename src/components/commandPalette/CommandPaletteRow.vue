@@ -193,7 +193,6 @@ export default class CommandPaletteRow extends Mixins(BaseMixin) {
     opacity: 1;
 }
 
-/* no hover on touch screens, so the pin is always reachable */
 @media (hover: none) {
     .command-palette-row__pin {
         opacity: 0.6;

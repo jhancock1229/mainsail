@@ -135,7 +135,6 @@ export default class PageDashboard extends Mixins(DashboardLayoutsMixin) {
         return `${this.namedLayouts.activeId}:${this.dashboardLayoutState}`
     }
 
-    // let the panels settle in softly when the layout switches
     @Watch('layoutIdentity')
     onLayoutIdentityChanged(): void {
         if (this.layoutChangedTimeout !== null) window.clearTimeout(this.layoutChangedTimeout)

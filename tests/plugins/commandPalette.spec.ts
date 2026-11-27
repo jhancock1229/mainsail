@@ -133,7 +133,6 @@ describe('buildPaletteCommands', () => {
         const navigation = commands.filter((command) => command.group === 'navigation').map((command) => command.id)
 
         expect(new Set(navigation).size).toBe(5)
-        // a link with a target of its own keeps the short id, also when other links change
         expect(navigation).toEqual([
             'nav:/console',
             'nav:#|Docs',
@@ -177,7 +176,6 @@ describe('buildPaletteCommands', () => {
             subtitle: 'functional/',
             run: { type: 'print', filename: 'functional/cable_clip.gcode' },
         })
-        // the start print dialog of Mainsail asks, with its spool and timelapse options
         expect(files[0].confirmText).toBeNull()
         expect(files[1].subtitle).toBe('')
     })
@@ -301,7 +299,6 @@ describe('buildPaletteCommands', () => {
             expect(reason('action:resume')).toBe('CommandPalette.Reasons.NotPaused')
             expect(reason('action:home')).toBe('CommandPalette.Reasons.WhilePrinting')
             expect(reason('file:demo.gcode')).toBe('CommandPalette.Reasons.WhilePrinting')
-            // like the preset menu of the temperature panel, which is disabled while printing or paused
             expect(reason('action:cooldown')).toBe('CommandPalette.Reasons.WhilePrinting')
             expect(reason('preset:pla')).toBe('CommandPalette.Reasons.WhilePrinting')
             expect(reason('macro:LOAD_FILAMENT')).toBeNull()
@@ -323,7 +320,6 @@ describe('buildPaletteCommands', () => {
 
             expect(reason('action:firmwareRestart')).toBeNull()
             expect(reason('action:emergencyStop')).toBe('CommandPalette.Reasons.AlreadyShutdown')
-            // print_stats can be stale while Klipper is not ready
             expect(reason('action:pause')).toBe('CommandPalette.Reasons.KlipperNotReady')
             expect(reason('action:cancel')).toBe('CommandPalette.Reasons.KlipperNotReady')
             expect(reason('action:home')).toBe('CommandPalette.Reasons.KlipperNotReady')
@@ -387,7 +383,6 @@ describe('collectGcodeFiles', () => {
     })
 
     it('matches the extension like the file list of Mainsail does, so every command can find its file', () => {
-        // files/getGcodeFiles compares the extension as it is written; part.GCODE is not listed there
         const root = dir('gcodes', [file('part.GCODE'), file('part.gcode')])
 
         expect(collectGcodeFiles(root as never, ['.gcode'])).toEqual([{ filename: 'part.gcode', modified: 1 }])
@@ -702,7 +697,6 @@ describe('keepSelection', () => {
     })
 
     it('selects nothing when the selected command disappears or becomes unavailable', () => {
-        // e.g. the print ends while "Pause print" is selected: Enter must not run its neighbour
         expect(keepSelection(results([['action:home', false]]), 'action:pause')).toBeNull()
         expect(
             keepSelection(
@@ -781,27 +775,22 @@ describe('shortcuts', () => {
         expect(shortcutFromEvent(event('Dead', { alt: true }, 'KeyE'), true)).toBe('alt+e')
         expect(shortcutFromEvent(event('Dead', { alt: true }, 'KeyN'), true)).toBe('alt+n')
         expect(shortcutFromEvent(event('Dead', { alt: true }, 'Backquote'), true)).toBe('alt+`')
-        // a dead key on a physical key that is not known cannot be used
         expect(shortcutFromEvent(event('Dead', { alt: true }, 'IntlBackslash'), true)).toBeNull()
         expect(shortcutFromEvent(event('+', { ctrl: true }), false)).toBe('mod+plus')
     })
 
     it('can be triggered on every platform, whatever platform it was recorded on', () => {
-        // recorded on macOS with the Control key, which is the main modifier elsewhere
         expect(matchesShortcut(event('j', { ctrl: true }), 'ctrl+j', true)).toBe(true)
         expect(matchesShortcut(event('j', { ctrl: true }), 'ctrl+j', false)).toBe(true)
         expect(matchesShortcut(event('j', { meta: true }), 'ctrl+j', true)).toBe(false)
-        // recorded on Windows with the Windows key, which is Cmd on macOS
         expect(matchesShortcut(event('j', { meta: true }), 'meta+j', false)).toBe(true)
         expect(matchesShortcut(event('j', { meta: true }), 'meta+j', true)).toBe(true)
-        // both modifiers of one platform fall together on the other
         expect(matchesShortcut(event('j', { ctrl: true }), 'mod+ctrl+j', false)).toBe(true)
         expect(matchesShortcut(event('j', { ctrl: true, meta: true }), 'mod+ctrl+j', true)).toBe(true)
         expect(matchesShortcut(event('j', { meta: true }), 'mod+meta+j', true)).toBe(true)
     })
 
     it('rejects a combination that is reserved on another platform', () => {
-        // Ctrl+S is free on macOS, but it is the save shortcut of the editor everywhere else
         expect(validateShortcut('ctrl+s')).toBe('Reserved')
         expect(validateShortcut('meta+w')).toBe('Reserved')
         expect(validateShortcut('ctrl+j')).toBeNull()
@@ -894,5 +883,40 @@ describe('sanitizePaletteSettings', () => {
             pinned: ['a', 'b'],
         })
         expect(sanitizePaletteSettings('broken')).toEqual(defaults)
+    })
+})
+
+describe('interface switch command', () => {
+    const context = (interfaceShell?: 'new' | 'classic') =>
+        ({
+            socketConnected: true,
+            klipperState: 'ready',
+            printerState: 'standby',
+            naviPoints: [],
+            macros: [],
+            hiddenMacros: [],
+            files: [],
+            presets: [],
+            cooldownGcode: 'TURN_OFF_HEATERS',
+            confirmOnCoolDown: false,
+            settingsTabs: [],
+            interfaceShell,
+            t: (key: string) => key,
+        }) as Parameters<typeof buildPaletteCommands>[0]
+    const find = (interfaceShell?: 'new' | 'classic') =>
+        buildPaletteCommands(context(interfaceShell)).find((command) => command.id === 'action:switchInterface')
+
+    it('offers the classic interface from the new one', () => {
+        expect(find('new')?.title).toBe('CommandPalette.Actions.SwitchToClassic')
+        expect(find('new')?.run).toEqual({ type: 'setting', name: 'uiSettings.interfaceShell', value: 'classic' })
+    })
+
+    it('offers the new interface from the classic one', () => {
+        expect(find('classic')?.title).toBe('CommandPalette.Actions.SwitchToNew')
+        expect(find('classic')?.run).toEqual({ type: 'setting', name: 'uiSettings.interfaceShell', value: 'new' })
+    })
+
+    it('is left out when the interface is not known', () => {
+        expect(find(undefined)).toBeUndefined()
     })
 })

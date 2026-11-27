@@ -29,6 +29,8 @@ import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
 import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
+import { getDefaultSpoolTrackerSettings } from '@/plugins/spoolTracker'
+import { DEFAULT_INTERFACE_SHELL } from '@/plugins/shellNavigation'
 
 export const getDefaultState = (): GuiState => {
     return {
@@ -216,7 +218,9 @@ export const getDefaultState = (): GuiState => {
             dashboardFilesFilter: ['new', 'failed', 'completed'],
             dashboardHistoryLimit: 5,
             hideOtherInstances: false,
+            interfaceShell: DEFAULT_INTERFACE_SHELL,
         },
+        spoolTracker: getDefaultSpoolTrackerSettings(),
         view: {
             afc: {
                 hiddenExtruders: [],

@@ -9,9 +9,10 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { SpoolTrackerSettings } from '@/plugins/spoolTracker'
+import { InterfaceShell } from '@/plugins/shellNavigation'
 
 export interface GuiState {
-    // error explainer and printer event notifications
     alerts: AlertSettings
     general: {
         printername: string
@@ -126,7 +127,9 @@ export interface GuiState {
         dashboardFilesFilter: GuiStateUiSettingsDashboardFilesFilter[]
         dashboardHistoryLimit: number
         hideOtherInstances: boolean
+        interfaceShell?: InterfaceShell
     }
+    spoolTracker: SpoolTrackerSettings
     view: {
         afc: {
             hiddenExtruders: string[]
@@ -265,7 +268,6 @@ export type GuiStateDashboardLayoutKey = Exclude<
     'nonExpandPanels' | 'stateLayouts' | 'columns' | 'panelDensity' | 'namedLayouts' | 'showLayoutBar'
 >
 
-// a missing key means not customized: the layout is derived from the idle layout
 export type GuiStateDashboardStateLayouts = Partial<Record<GuiStateDashboardLayoutKey, GuiStateLayoutoption[]>>
 
 export interface GuiStateLayoutoption {

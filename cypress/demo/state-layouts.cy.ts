@@ -13,8 +13,6 @@ describe('State-aware dashboard', () => {
     })
 
     it('keeps the webcam on top and moves the toolhead controls to the bottom while printing', () => {
-        // The print hero panel shows the webcam picture itself and then replaces the webcam panel (covered in
-        // print-hero.cy.ts). Without it, the webcam panel is on top.
         openDashboardSettings()
         cy.contains('.v-dialog--active .v-list-item', 'Print Progress').find('.v-icon').last().click()
         cy.get('body').type('{esc}')
@@ -66,7 +64,6 @@ describe('State-aware dashboard', () => {
         openDashboardSettings()
         cy.contains('.v-dialog--active .v-btn-toggle button', 'Printing').click()
         cy.contains('.v-dialog--active', 'Follows your idle layout')
-        // an untranslated label would show its key
         cy.get('.v-dialog--active')
             .invoke('text')
             .should('not.match', /Settings\.DashboardTab\./i)
