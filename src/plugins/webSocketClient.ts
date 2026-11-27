@@ -189,14 +189,20 @@ export class WebSocketClient {
     }
 
     emit(method: string, params: Params, options: EmitOptions = {}): void {
-        const verdict = this.requestGuard?.(method, params) ?? true
-        if (verdict === true) {
-            this.send(method, params, options)
+        this.whenPermitted([{ method, params }], () => this.send(method, params, options))
+    }
+
+    private whenPermitted(requests: { method: string; params: unknown }[], run: () => void, deny?: () => void): void {
+        const verdicts = requests.map(({ method, params }) => this.requestGuard?.(method, params) ?? true)
+        if (verdicts.every((verdict) => verdict === true)) {
+            run()
             return
         }
 
-        verdict.then((allowed) => {
-            if (allowed) this.send(method, params, options)
+        const connection = this.instance
+        Promise.all(verdicts).then((allowed) => {
+            if (allowed.every(Boolean) && this.instance === connection) run()
+            else deny?.()
         })
     }
 
@@ -230,37 +236,56 @@ export class WebSocketClient {
         options: EmitOptions = {}
     ): Promise<RPCResult<M>> {
         return new Promise<RPCResult<M>>((resolve, reject) => {
-            if (this.instance?.readyState !== WebSocket.OPEN) {
-                reject(new Error('WebSocket is not connected'))
-                return
-            }
-
-            const id = this.messageId++
-            this.waits.push({
-                id: id,
-                params: params,
-                action: options.action ?? null,
-                actionPayload: options.actionPayload ?? {},
-                loading: options.loading ?? null,
-                resolve: resolve as (value: unknown) => void,
-                reject,
-            })
-
-            if (options.loading) this.store.dispatch('socket/addLoading', { name: options.loading })
-
-            this.instance.send(
-                JSON.stringify({
-                    jsonrpc: '2.0',
-                    method,
-                    params,
-                    id,
-                })
+            this.whenPermitted(
+                [{ method, params }],
+                () => this.sendAndWait(method, params, options, resolve as (value: unknown) => void, reject),
+                () => reject(new Error(`${method} is not permitted`))
             )
         })
     }
 
+    private sendAndWait(
+        method: string,
+        params: unknown,
+        options: EmitOptions,
+        resolve: (value: unknown) => void,
+        reject: (reason?: unknown) => void
+    ): void {
+        if (this.instance?.readyState !== WebSocket.OPEN) {
+            reject(new Error('WebSocket is not connected'))
+            return
+        }
+
+        const id = this.messageId++
+        this.waits.push({
+            id: id,
+            params: params,
+            action: options.action ?? null,
+            actionPayload: options.actionPayload ?? {},
+            loading: options.loading ?? null,
+            resolve,
+            reject,
+        })
+
+        if (options.loading) this.store.dispatch('socket/addLoading', { name: options.loading })
+
+        this.instance.send(
+            JSON.stringify({
+                jsonrpc: '2.0',
+                method,
+                params,
+                id,
+            })
+        )
+    }
+
     emitBatch(messages: BatchMessage[]): void {
         if (messages.length === 0) return
+
+        this.whenPermitted(messages, () => this.sendBatch(messages))
+    }
+
+    private sendBatch(messages: BatchMessage[]): void {
         if (this.instance?.readyState !== WebSocket.OPEN) return
 
         const body = []

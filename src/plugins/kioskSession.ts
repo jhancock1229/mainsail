@@ -1,6 +1,5 @@
 import Vue from 'vue'
 import {
-    effectiveActionRule,
     isSmallTouchScreen,
     KioskAction,
     KioskDeviceMode,
@@ -12,8 +11,11 @@ import {
 } from '@/plugins/kiosk'
 
 export type KioskPinReason = KioskAction | 'exit' | 'changePin'
+export type KioskPinRefusal = 'busy' | 'unavailable'
+export type KioskGrantSource = 'route' | 'editor'
 
 const DEVICE_MODE_KEY = 'mainsail.kiosk.deviceMode'
+const PIN_ATTEMPTS_KEY = 'mainsail.kiosk.pinAttempts'
 const SALT_BYTES = 16
 
 const readDeviceMode = (): KioskDeviceMode => {
@@ -21,6 +23,28 @@ const readDeviceMode = (): KioskDeviceMode => {
         return parseDeviceMode(window.localStorage.getItem(DEVICE_MODE_KEY))
     } catch {
         return null
+    }
+}
+
+const readPinAttempts = (): { failedAttempts: number; lastFailureAt: number } => {
+    try {
+        const stored = JSON.parse(window.localStorage.getItem(PIN_ATTEMPTS_KEY) ?? '{}')
+        const failedAttempts =
+            Number.isInteger(stored.failedAttempts) && stored.failedAttempts > 0 ? stored.failedAttempts : 0
+        const lastFailureAt = typeof stored.lastFailureAt === 'number' ? stored.lastFailureAt : 0
+
+        return { failedAttempts, lastFailureAt }
+    } catch {
+        return { failedAttempts: 0, lastFailureAt: 0 }
+    }
+}
+
+const storePinAttempts = (): void => {
+    try {
+        const { failedAttempts, lastFailureAt } = kioskSession
+        window.localStorage.setItem(PIN_ATTEMPTS_KEY, JSON.stringify({ failedAttempts, lastFailureAt }))
+    } catch {
+        window.console.warn('[Kiosk] the failed PIN attempts could not be stored')
     }
 }
 
@@ -35,10 +59,13 @@ export const kioskSession = Vue.observable({
     height: window.innerHeight,
     touch: detectTouch(),
     pinReason: null as KioskPinReason | null,
-    failedAttempts: 0,
-    lastFailureAt: 0,
+    promptAvailable: false,
+    ...readPinAttempts(),
     dashboardPanel: null as string | null,
     urlParameterApplied: false,
+    urlLeavePending: false,
+    localChange: false,
+    grants: { route: null, editor: null } as Record<KioskGrantSource, KioskAction | null>,
 })
 
 let pendingPin: { promise: Promise<boolean>; resolve: (allowed: boolean) => void } | null = null
@@ -67,8 +94,20 @@ export const kioskModeFor = (settings: KioskSettings): { active: boolean; sugges
     })
 }
 
-export const requestKioskPin = (reason: KioskPinReason): Promise<boolean> => {
-    if (pendingPin !== null) return kioskSession.pinReason === reason ? pendingPin.promise : Promise.resolve(false)
+export const requestKioskPin = (
+    reason: KioskPinReason,
+    onRefused: (why: KioskPinRefusal) => void = () => undefined
+): Promise<boolean> => {
+    if (pendingPin !== null) {
+        if (kioskSession.pinReason === reason) return pendingPin.promise
+
+        onRefused('busy')
+        return Promise.resolve(false)
+    }
+    if (!kioskSession.promptAvailable) {
+        onRefused('unavailable')
+        return Promise.resolve(false)
+    }
 
     let resolve: (allowed: boolean) => void = () => undefined
     const promise = new Promise<boolean>((done) => (resolve = done))
@@ -94,24 +133,27 @@ export const submitKioskPin = (pin: string, settings: KioskSettings, now: number
     if (!verifyPin(pin, settings.pin)) {
         kioskSession.failedAttempts++
         kioskSession.lastFailureAt = now
+        storePinAttempts()
         return false
     }
 
     kioskSession.failedAttempts = 0
+    storePinAttempts()
     return true
 }
 
-export const authorizeKioskAction = (
-    action: KioskAction,
-    settings: KioskSettings,
-    onBlocked: (action: KioskAction) => void
-): true | Promise<boolean> => {
-    const rule = effectiveActionRule(action, settings)
-    if (rule === 'allow') return true
-    if (rule === 'pin') return requestKioskPin(action)
+export const grantedKioskActions = (): KioskAction[] => {
+    return Object.values(kioskSession.grants).filter((action): action is KioskAction => action !== null)
+}
 
-    onBlocked(action)
-    return Promise.resolve(false)
+export const setKioskGrant = (source: KioskGrantSource, action: KioskAction | null): void => {
+    kioskSession.grants[source] = action
+}
+
+export const withLocalKioskChange = (change: () => void): void => {
+    kioskSession.localChange = true
+    change()
+    Vue.nextTick(() => (kioskSession.localChange = false))
 }
 
 export const createPinSalt = (): string => {

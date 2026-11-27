@@ -82,6 +82,7 @@ export default class ShellSections extends Mixins(ShellMixin) {
         this.observer.observe(this.main, { childList: true, subtree: true })
         this.main.addEventListener('touchstart', this.onTouchStart, { passive: true })
         this.main.addEventListener('touchend', this.onTouchEnd, { passive: true })
+        window.addEventListener('resize', this.schedule)
         this.apply()
     }
 
@@ -90,6 +91,7 @@ export default class ShellSections extends Mixins(ShellMixin) {
         if (this.frame !== null) window.cancelAnimationFrame(this.frame)
         this.main?.removeEventListener('touchstart', this.onTouchStart)
         this.main?.removeEventListener('touchend', this.onTouchEnd)
+        window.removeEventListener('resize', this.schedule)
         shellCompactState.homeView = null
         document.documentElement.style.removeProperty(BARS_HEIGHT_PROPERTY)
     }

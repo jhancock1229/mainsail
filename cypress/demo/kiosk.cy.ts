@@ -264,7 +264,7 @@ describe('Touch and kiosk mode', () => {
 
         cy.get('.topbar-corner-menu button').click()
         cy.contains('.v-menu__content .v-list-item', 'Firmware Restart').click()
-        cy.contains('.kiosk-pin-dialog', 'Enter the PIN to restart or power off')
+        cy.contains('.kiosk-pin-dialog', 'Enter the PIN to restart, power off or update')
         noRawKeys('.kiosk-pin-dialog')
 
         enterPin('1111')
@@ -303,7 +303,7 @@ describe('Touch and kiosk mode', () => {
         cy.location('pathname').should('equal', '/files')
     })
 
-    it('needs the pin to open the settings and to leave, and locks the keypad after too many attempts', () => {
+    it('needs the pin to open the settings and to leave', () => {
         openKiosk()
         openKioskSettings()
         setPin(PIN)
@@ -317,9 +317,8 @@ describe('Touch and kiosk mode', () => {
         cy.get('.kiosk-bottom-bar__more').click()
         cy.get('.kiosk-more-sheet__exit').click()
         cy.contains('.kiosk-pin-dialog', 'Enter the PIN to leave touch mode')
-        for (let attempt = 0; attempt < 5; attempt++) enterPin('0000')
-        cy.contains('.kiosk-pin-dialog', 'Too many wrong attempts')
-        cy.get('.kiosk-pin-dialog [data-key="1"]').should('be.disabled')
+        enterPin('0000')
+        cy.contains('.kiosk-pin-dialog', 'Wrong PIN')
         cy.get('.kiosk-pin-dialog__cancel').click()
         cy.get('.v-application').should('have.class', 'kiosk-mode')
 
@@ -330,6 +329,26 @@ describe('Touch and kiosk mode', () => {
         cy.get('.v-application').should('not.have.class', 'kiosk-mode')
         cy.get('.kiosk-bottom-bar').should('not.exist')
         cy.get('.v-navigation-drawer').should('exist')
+    })
+
+    it('locks the keypad after too many attempts, also for the address that leaves touch mode', () => {
+        openKiosk()
+        openKioskSettings()
+        setPin(PIN)
+        closeSettings()
+
+        cy.get('.kiosk-bottom-bar__more').click()
+        cy.get('.kiosk-more-sheet__exit').click()
+        for (let attempt = 0; attempt < 5; attempt++) enterPin('0000')
+        cy.contains('.kiosk-pin-dialog', 'Too many wrong attempts')
+        cy.get('.kiosk-pin-dialog [data-key="1"]').should('be.disabled')
+        cy.get('.kiosk-pin-dialog__cancel').click()
+        cy.get('.v-application').should('have.class', 'kiosk-mode')
+
+        cy.visit('/?kiosk=0')
+        cy.contains('.kiosk-pin-dialog', 'Too many wrong attempts', { timeout: 15000 })
+        cy.get('.kiosk-pin-dialog [data-key="1"]').should('be.disabled')
+        cy.get('.v-application').should('have.class', 'kiosk-mode')
     })
 
     it('leaves without a pin when none is set', () => {

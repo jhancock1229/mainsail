@@ -22,7 +22,6 @@ import KioskMoreSheet from '@/components/kiosk/KioskMoreSheet.vue'
 import KioskPinDialog from '@/components/kiosk/KioskPinDialog.vue'
 import KioskSuggestion from '@/components/kiosk/KioskSuggestion.vue'
 import {
-    classifyRequest,
     KioskAction,
     KioskActionRule,
     parseKioskUrlParam,
@@ -31,11 +30,12 @@ import {
     shellLockKey,
 } from '@/plugins/kiosk'
 import { resolveInterfaceShell, resolveShellLocation } from '@/plugins/shellNavigation'
+import { askKioskPin, notifyKioskBlocked } from '@/plugins/kioskGuard'
 import {
-    authorizeKioskAction,
     kioskSession,
     requestKioskPin,
     setKioskDeviceMode,
+    setKioskGrant,
     updateKioskScreen,
 } from '@/plugins/kioskSession'
 
@@ -56,6 +56,7 @@ export default class TheKiosk extends Mixins(KioskMixin, ShellMixin) {
     removeRouteGuard: (() => void) | null = null
     unlockedKey: string | null = null
     allowedPath: string | null = null
+    destroyed = false
 
     get classicShell(): boolean {
         return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell) === 'classic'
@@ -71,10 +72,18 @@ export default class TheKiosk extends Mixins(KioskMixin, ShellMixin) {
             this.allowedPath = this.$route.path
             return
         }
-        if (gate.rule === 'pin' && this.allowedPath === this.$route.path) this.unlockedKey = gate.key
-        if (gate.rule === 'pin' && this.unlockedKey === gate.key) return
+        if (gate.rule === 'block') {
+            this.lock()
+            this.$router.replace('/')
+            return
+        }
+        if (this.unlockedKey === gate.key) return
+        if (kioskSession.localChange && this.allowedPath === this.$route.path) {
+            this.unlock(gate)
+            return
+        }
 
-        this.$router.replace('/')
+        this.askAgain(gate)
     }
 
     @Watch('kioskActive')
@@ -85,34 +94,52 @@ export default class TheKiosk extends Mixins(KioskMixin, ShellMixin) {
     mounted(): void {
         updateKioskScreen()
         window.addEventListener('resize', updateKioskScreen)
-        this.$socket.setRequestGuard(this.guardRequest)
         this.removeRouteGuard = this.$router.beforeEach(this.guardRoute)
         this.applyUrlParameter()
     }
 
     beforeDestroy(): void {
+        this.destroyed = true
         window.removeEventListener('resize', updateKioskScreen)
-        this.$socket.setRequestGuard(null)
         this.removeRouteGuard?.()
+        this.lock()
     }
 
     applyUrlParameter(): void {
-        if (kioskSession.urlParameterApplied) return
-        kioskSession.urlParameterApplied = true
+        if (!kioskSession.urlParameterApplied) {
+            kioskSession.urlParameterApplied = true
 
-        const requested = parseKioskUrlParam(window.location.search)
-        if (requested === 'on') setKioskDeviceMode('on')
-        else if (requested === 'off' && this.kioskActive) this.leaveKiosk()
-        else if (requested === 'off' && kioskSession.deviceMode === null) setKioskDeviceMode('off')
+            const requested = parseKioskUrlParam(window.location.search)
+            if (requested === 'on') setKioskDeviceMode('on')
+            else if (requested === 'off' && this.kioskActive) kioskSession.urlLeavePending = true
+            else if (requested === 'off' && kioskSession.deviceMode === null) setKioskDeviceMode('off')
+        }
+
+        if (kioskSession.urlLeavePending) this.leaveAsTheUrlAsks()
     }
 
-    guardRequest(method: string, params: unknown): true | Promise<boolean> {
-        if (!this.kioskActive) return true
+    async leaveAsTheUrlAsks(): Promise<void> {
+        await this.leaveKiosk()
+        if (!this.destroyed) kioskSession.urlLeavePending = false
+    }
 
-        const action = classifyRequest(method, params)
-        if (action === null) return true
+    unlock(gate: RouteGate): void {
+        this.unlockedKey = gate.key
+        setKioskGrant('route', gate.action)
+    }
 
-        return authorizeKioskAction(action, this.kioskSettings, this.kioskBlocked)
+    lock(): void {
+        this.unlockedKey = null
+        setKioskGrant('route', null)
+    }
+
+    async askAgain(gate: RouteGate): Promise<void> {
+        const allowed = await requestKioskPin(gate.action ?? 'configEdit')
+        if (this.destroyed) return
+
+        const current = this.currentGate
+        if (allowed && current.key === gate.key) this.unlock(gate)
+        else if (current.rule !== 'allow' && current.key !== this.unlockedKey) this.$router.replace('/')
     }
 
     gateFor(route: Route): RouteGate {
@@ -134,18 +161,18 @@ export default class TheKiosk extends Mixins(KioskMixin, ShellMixin) {
     async guardRoute(to: Route, from: Route, next: NavigationGuardNext): Promise<void> {
         const gate = this.gateFor(to)
         const unlocked = gate.rule === 'pin' && gate.key === this.unlockedKey
-        if (!unlocked) this.unlockedKey = null
+        if (!unlocked) this.lock()
         if (gate.rule === 'allow' || unlocked) return next()
 
         const stay = (): void => next(from.matched.length ? false : '/')
         if (gate.rule === 'block') {
-            if (gate.action !== null) this.kioskBlocked(gate.action)
+            if (gate.action !== null) notifyKioskBlocked(gate.action)
             return stay()
         }
 
-        if (!(await requestKioskPin(gate.action ?? 'configEdit'))) return stay()
+        if (!(await askKioskPin(gate.action ?? 'configEdit'))) return stay()
 
-        this.unlockedKey = gate.key
+        this.unlock(gate)
         next()
     }
 }

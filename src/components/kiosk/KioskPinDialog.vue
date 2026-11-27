@@ -103,8 +103,14 @@ export default class KioskPinDialog extends Mixins(KioskMixin) {
         this.clock = window.setInterval(() => (this.now = Date.now()), MS_PER_SECOND)
     }
 
+    mounted(): void {
+        kioskSession.promptAvailable = true
+    }
+
     beforeDestroy(): void {
         this.stopClock()
+        kioskSession.promptAvailable = false
+        settleKioskPin(false)
     }
 
     stopClock(): void {

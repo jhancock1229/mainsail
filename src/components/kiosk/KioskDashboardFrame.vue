@@ -30,7 +30,7 @@
                     :data-panel="name"
                     eager
                     class="kiosk-dashboard__panel">
-                    <slot name="panel" :panel="name" />
+                    <slot v-if="isMounted(name)" name="panel" :panel="name" />
                 </v-window-item>
             </v-window>
         </div>
@@ -46,7 +46,15 @@ import { Mixins, Ref, Watch } from 'vue-property-decorator'
 import DashboardMixin from '@/components/mixins/dashboard'
 import KioskMixin from '@/components/mixins/kiosk'
 import { getViewportLayoutKeys } from '@/plugins/dashboardLayoutState'
-import { kioskPanelSequence, resolveOpenPanel, SWIPE_IGNORED_TARGETS, swipeDirection } from '@/plugins/kiosk'
+import {
+    kioskPanelSequence,
+    onDemandPanelRenders,
+    onDemandPanels,
+    resolveOpenPanel,
+    SWIPE_IGNORED_TARGETS,
+    swipeDirection,
+} from '@/plugins/kiosk'
+import { isPrintHeroVisible } from '@/plugins/printHero'
 import { kioskSession } from '@/plugins/kioskSession'
 import { GuiStateLayoutoption } from '@/store/gui/types'
 
@@ -77,8 +85,24 @@ export default class KioskDashboardFrame extends Mixins(DashboardMixin, KioskMix
         return kioskPanelSequence(names, this.kioskSettings.hiddenPanels)
     }
 
+    get heroVisible(): boolean {
+        return isPrintHeroVisible({
+            klipperReady: this.klipperReadyForGui,
+            printerState: this.printer_state,
+            filename: this.$store.state.printer.print_stats?.filename ?? '',
+        })
+    }
+
     get shownPanels(): string[] {
-        return this.panels.filter((name) => !this.emptyPanels.includes(name))
+        const state = {
+            klipperReady: this.klipperReadyForGui,
+            klipperConnected: this.klipperState !== 'disconnected',
+            heroVisible: this.heroVisible,
+        }
+
+        return this.panels.filter((name) =>
+            onDemandPanels.includes(name) ? onDemandPanelRenders(name, state) : !this.emptyPanels.includes(name)
+        )
     }
 
     get selected(): string {
@@ -108,9 +132,15 @@ export default class KioskDashboardFrame extends Mixins(DashboardMixin, KioskMix
         this.contentObserver?.disconnect()
     }
 
+    isMounted(name: string): boolean {
+        return name === this.selected || !onDemandPanels.includes(name)
+    }
+
     findEmptyPanels(): void {
         const items = Array.from(this.panelContainer.querySelectorAll<HTMLElement>('.kiosk-dashboard__panel'))
-        const empty = items.filter((item) => item.childElementCount === 0).map((item) => item.dataset.panel ?? '')
+        const empty = items
+            .filter((item) => item.childElementCount === 0 && !onDemandPanels.includes(item.dataset.panel ?? ''))
+            .map((item) => item.dataset.panel ?? '')
         if (empty.join() !== this.emptyPanels.join()) this.emptyPanels = empty
     }
 

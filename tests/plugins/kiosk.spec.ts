@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
     classifyRequest,
@@ -22,7 +24,18 @@ import {
     routeRule,
     swipeDirection,
     verifyPin,
+    buildKioskMacros,
     canRecoverOnSmallScreen,
+    classifyGcode,
+    classifyHttpRequest,
+    combinedActionRule,
+    guardedRequests,
+    httpRequestMethod,
+    isRequestKnown,
+    MACRO_DEPTH_LIMIT,
+    onDemandPanelRenders,
+    onDemandPanels,
+    unguardedRequests,
     exposedShellPages,
     hiddenShellTabs,
     shellLocationRule,
@@ -245,46 +258,337 @@ describe('action rules', () => {
 
 describe('classifyRequest', () => {
     it('never guards the emergency stop', () => {
-        expect(classifyRequest('printer.emergency_stop', {})).toBe(null)
-        expect(classifyRequest('printer.gcode.script', { script: 'M112' })).toBe(null)
+        expect(classifyRequest('printer.emergency_stop', {})).toEqual([])
+        expect(classifyRequest('printer.gcode.script', { script: 'M112' })).toEqual([])
     })
 
     it('recognises cancelling a print', () => {
-        expect(classifyRequest('printer.print.cancel', {})).toBe('cancelPrint')
-        expect(classifyRequest('printer.gcode.script', { script: 'CANCEL_PRINT' })).toBe('cancelPrint')
-        expect(classifyRequest('printer.gcode.script', { script: 'G28\n  cancel_print  ; stop' })).toBe('cancelPrint')
+        expect(classifyRequest('printer.print.cancel', {})).toEqual(['cancelPrint'])
+        expect(classifyRequest('printer.gcode.script', { script: 'CANCEL_PRINT' })).toEqual(['cancelPrint'])
+        expect(classifyRequest('printer.gcode.script', { script: 'G28\n  cancel_print  ; stop' })).toEqual([
+            'cancelPrint',
+        ])
     })
 
-    it('recognises restarts of klipper, services and the host', () => {
-        expect(classifyRequest('printer.firmware_restart', {})).toBe('restart')
-        expect(classifyRequest('printer.restart', {})).toBe('restart')
-        expect(classifyRequest('printer.gcode.script', { script: 'FIRMWARE_RESTART' })).toBe('restart')
-        expect(classifyRequest('printer.gcode.script', { script: 'RESTART' })).toBe('restart')
-        expect(classifyRequest('machine.reboot', {})).toBe('restart')
-        expect(classifyRequest('machine.shutdown', {})).toBe('restart')
-        expect(classifyRequest('machine.device_power.off', { printer: null })).toBe('restart')
-        expect(classifyRequest('machine.device_power.on', { printer: null })).toBe(null)
-        expect(classifyRequest('machine.services.restart', { service: 'klipper' })).toBe('restart')
-        expect(classifyRequest('machine.services.stop', { service: 'klipper' })).toBe('restart')
+    it('recognises restarts of klipper, moonraker, services and the host', () => {
+        const restarts = [
+            'printer.firmware_restart',
+            'printer.restart',
+            'server.restart',
+            'machine.reboot',
+            'machine.shutdown',
+            'machine.services.restart',
+            'machine.services.stop',
+            'machine.services.start',
+        ]
+
+        restarts.forEach((method) => expect(classifyRequest(method, {}), method).toEqual(['restart']))
+        expect(classifyRequest('printer.gcode.script', { script: 'FIRMWARE_RESTART' })).toEqual(['restart'])
+        expect(classifyRequest('printer.gcode.script', { script: 'RESTART' })).toEqual(['restart'])
     })
 
-    it('recognises deleting files and directories', () => {
-        expect(classifyRequest('server.files.delete_file', { path: 'gcodes/a.gcode' })).toBe('deleteFile')
-        expect(classifyRequest('server.files.delete_directory', { path: 'gcodes/old' })).toBe('deleteFile')
+    it('recognises software updates, which restart services, also for a component named at run time', () => {
+        const updates = [
+            'machine.update.full',
+            'machine.update.system',
+            'machine.update.client',
+            'machine.update.recover',
+        ]
+
+        updates.forEach((method) => expect(classifyRequest(method, {}), method).toEqual(['restart']))
+        expect(classifyRequest('machine.update.klipper', {})).toEqual(['restart'])
+        expect(classifyRequest('machine.update.moonraker', {})).toEqual(['restart'])
+        expect(classifyRequest('machine.update.status', {})).toEqual([])
     })
 
-    it('recognises saving the configuration', () => {
-        expect(classifyRequest('printer.gcode.script', { script: 'SAVE_CONFIG' })).toBe('configEdit')
+    it('recognises switching a power device off, and leaves switching it on alone', () => {
+        expect(classifyRequest('machine.device_power.off', { printer: null })).toEqual(['restart'])
+        expect(classifyRequest('machine.device_power.post_device', { device: 'printer', action: 'off' })).toEqual([
+            'restart',
+        ])
+        expect(classifyRequest('machine.device_power.post_device', { device: 'printer', action: 'toggle' })).toEqual([
+            'restart',
+        ])
+        expect(classifyRequest('machine.device_power.post_device', { device: 'printer', action: 'on' })).toEqual([])
+        expect(classifyRequest('machine.device_power.on', { printer: null })).toEqual([])
+    })
+
+    it('recognises deleting, moving and renaming files', () => {
+        expect(classifyRequest('server.files.delete_file', { path: 'gcodes/a.gcode' })).toEqual(['deleteFile'])
+        expect(classifyRequest('server.files.delete_directory', { path: 'gcodes/old' })).toEqual(['deleteFile'])
+        expect(classifyRequest('server.files.move', { source: 'gcodes/a.gcode', dest: 'gcodes/b.gcode' })).toEqual([
+            'deleteFile',
+        ])
+    })
+
+    it('recognises every change in the config directory as config editing', () => {
+        expect(classifyRequest('server.files.delete_file', { path: 'config/printer.cfg' })).toEqual([
+            'deleteFile',
+            'configEdit',
+        ])
+        expect(classifyRequest('server.files.move', { source: 'gcodes/a.cfg', dest: 'config/a.cfg' })).toEqual([
+            'deleteFile',
+            'configEdit',
+        ])
+        expect(classifyRequest('server.files.copy', { source: 'config/a.cfg', dest: 'config/b.cfg' })).toEqual([
+            'configEdit',
+        ])
+        expect(classifyRequest('server.files.post_directory', { path: 'config/macros' })).toEqual(['configEdit'])
+        expect(classifyRequest('server.files.upload', { root: 'config' })).toEqual(['configEdit'])
+        expect(classifyRequest('server.files.upload', { root: 'gcodes' })).toEqual([])
+        expect(classifyRequest('server.files.copy', { source: 'config/a.cfg', dest: 'gcodes/a.cfg' })).toEqual([])
+        expect(classifyRequest('server.files.post_directory', { path: 'configs_old/x' })).toEqual([])
+        expect(classifyRequest('printer.gcode.script', { script: 'SAVE_CONFIG' })).toEqual(['configEdit'])
     })
 
     it('leaves ordinary requests alone', () => {
-        expect(classifyRequest('printer.gcode.script', { script: 'G28' })).toBe(null)
-        expect(classifyRequest('printer.gcode.script', { script: 'SET_HEATER_TEMPERATURE HEATER=extruder' })).toBe(null)
-        expect(classifyRequest('printer.gcode.script', { script: 'M117 RESTART later' })).toBe(null)
-        expect(classifyRequest('printer.gcode.script', {})).toBe(null)
-        expect(classifyRequest('printer.print.pause', {})).toBe(null)
-        expect(classifyRequest('server.database.post_item', { key: 'kiosk.pin' })).toBe(null)
-        expect(classifyRequest('server.files.get_directory', { path: 'gcodes' })).toBe(null)
+        expect(classifyRequest('printer.gcode.script', { script: 'G28' })).toEqual([])
+        expect(classifyRequest('printer.gcode.script', { script: 'SET_HEATER_TEMPERATURE HEATER=extruder' })).toEqual(
+            []
+        )
+        expect(classifyRequest('printer.gcode.script', { script: 'M117 RESTART later' })).toEqual([])
+        expect(classifyRequest('printer.gcode.script', {})).toEqual([])
+        expect(classifyRequest('printer.print.pause', {})).toEqual([])
+        expect(classifyRequest('server.database.post_item', { key: 'kiosk.pin' })).toEqual([])
+        expect(classifyRequest('server.files.get_directory', { path: 'gcodes' })).toEqual([])
+    })
+})
+
+describe('classifyGcode', () => {
+    const macros = buildKioskMacros({
+        'gcode_macro END_PRINT': { gcode: 'G91\nG1 Z10\nPARK\nM84' },
+        'gcode_macro PARK': { gcode: 'G90\nG1 X0 Y200' },
+        'gcode_macro ABORT': { gcode: 'M104 S0\n  CANCEL_PRINT\n' },
+        'gcode_macro STOP_ALL': { gcode: 'ABORT' },
+        'gcode_macro Finish_Tuning': {
+            gcode: '{% if printer.idle_timeout.state != "Printing" %}SAVE_CONFIG{% endif %}',
+        },
+        'gcode_macro CANCEL_PRINT': {
+            rename_existing: 'BASE_CANCEL_PRINT',
+            gcode: 'TURN_OFF_HEATERS\nBASE_CANCEL_PRINT',
+        },
+        'gcode_macro USES_BASE': { gcode: 'base_cancel_print' },
+        'gcode_macro LOOP_A': { gcode: 'LOOP_B' },
+        'gcode_macro LOOP_B': { gcode: 'LOOP_A\nRESTART' },
+        'gcode_macro POWER_OFF': { gcode: '{action_call_remote_method("shutdown_machine")}' },
+        'gcode_macro LIGHTS': { gcode: '{action_call_remote_method("set_device_power", device="lights", state="on")}' },
+        'gcode_macro LATER': { gcode: 'UPDATE_DELAYED_GCODE ID=reboot_soon DURATION=5' },
+        'delayed_gcode reboot_soon': { gcode: 'FIRMWARE_RESTART' },
+        'gcode_macro D1': { gcode: 'D2' },
+        'gcode_macro D2': { gcode: 'D3' },
+        'gcode_macro D3': { gcode: 'D4' },
+        'gcode_macro D4': { gcode: 'D5' },
+        'gcode_macro D5': { gcode: 'D6' },
+        'gcode_macro D6': { gcode: 'D7' },
+        'gcode_macro D7': { gcode: 'RESTART' },
+        extruder: { nozzle_diameter: '0.4' },
+    })
+
+    it('checks every line, not only the first protected one', () => {
+        expect(classifyGcode('RESTART\nSAVE_CONFIG')).toEqual(['restart', 'configEdit'])
+        expect(classifyGcode('G28\nCANCEL_PRINT\nFIRMWARE_RESTART\nSAVE_CONFIG')).toEqual([
+            'cancelPrint',
+            'restart',
+            'configEdit',
+        ])
+    })
+
+    it('ignores a line number in front of a command and a checksum behind it', () => {
+        expect(classifyGcode('N10 CANCEL_PRINT')).toEqual(['cancelPrint'])
+        expect(classifyGcode('n7  restart*71')).toEqual(['restart'])
+        expect(classifyGcode('N10 G28')).toEqual([])
+    })
+
+    it('looks into the macros of the printer configuration', () => {
+        expect(classifyGcode('ABORT', macros)).toEqual(['cancelPrint'])
+        expect(classifyGcode('abort', macros)).toEqual(['cancelPrint'])
+        expect(classifyGcode('STOP_ALL', macros)).toEqual(['cancelPrint'])
+        expect(classifyGcode('END_PRINT', macros)).toEqual([])
+        expect(classifyGcode('FINISH_TUNING', macros)).toEqual(['configEdit'])
+    })
+
+    it('still guards a command that a macro replaces, and the renamed original', () => {
+        expect(classifyGcode('CANCEL_PRINT', macros)).toEqual(['cancelPrint'])
+        expect(classifyGcode('BASE_CANCEL_PRINT', macros)).toEqual(['cancelPrint'])
+        expect(classifyGcode('USES_BASE', macros)).toEqual(['cancelPrint'])
+    })
+
+    it('follows a delayed gcode that a macro schedules', () => {
+        expect(classifyGcode('LATER', macros)).toEqual(['restart'])
+        expect(classifyGcode('UPDATE_DELAYED_GCODE ID=reboot_soon DURATION=1', macros)).toEqual(['restart'])
+        expect(classifyGcode('UPDATE_DELAYED_GCODE ID=unknown DURATION=1', macros)).toEqual([])
+    })
+
+    it('sees a host shutdown or reboot that a macro asks Moonraker for', () => {
+        expect(classifyGcode('POWER_OFF', macros)).toEqual(['restart'])
+        expect(classifyGcode('LIGHTS', macros)).toEqual([])
+    })
+
+    it('does not hang on macros that call each other', () => {
+        expect(classifyGcode('LOOP_A', macros)).toEqual(['restart'])
+    })
+
+    it('stops looking after six nested macros', () => {
+        expect(MACRO_DEPTH_LIMIT).toBe(6)
+        expect(classifyGcode('D2', macros)).toEqual(['restart'])
+        expect(classifyGcode('D1', macros)).toEqual([])
+    })
+
+    it('reads the macros of a request to run a script', () => {
+        expect(classifyRequest('printer.gcode.script', { script: 'G28\nABORT' }, macros)).toEqual(['cancelPrint'])
+        expect(classifyRequest('printer.gcode.script', { script: 'ABORT' })).toEqual([])
+    })
+
+    it('survives a configuration that is missing or malformed', () => {
+        expect(buildKioskMacros(undefined)).toEqual({ bodies: {}, renamed: {} })
+        expect(buildKioskMacros({ 'gcode_macro X': 'nonsense', 'gcode_macro Y': { gcode: 5 } })).toEqual({
+            bodies: {},
+            renamed: {},
+        })
+    })
+})
+
+describe('classifyHttpRequest', () => {
+    it('ignores requests that only read', () => {
+        expect(classifyHttpRequest('GET', '/server/files/config/printer.cfg', {})).toEqual([])
+        expect(httpRequestMethod('get', '/server/files/upload')).toBe(null)
+    })
+
+    it('treats an upload into the config directory as config editing', () => {
+        expect(classifyHttpRequest('POST', '/server/files/upload', { root: 'config', path: '' })).toEqual([
+            'configEdit',
+        ])
+        expect(classifyHttpRequest('post', '/server/files/upload?x=1', { root: 'config' })).toEqual(['configEdit'])
+        expect(classifyHttpRequest('POST', '/server/files/upload', { root: 'gcodes' })).toEqual([])
+    })
+
+    it('recognises deleting and moving files over http', () => {
+        expect(classifyHttpRequest('DELETE', '/server/files/gcodes/old%20part.gcode', {})).toEqual(['deleteFile'])
+        expect(classifyHttpRequest('DELETE', '/server/files/config/printer.cfg', {})).toEqual([
+            'deleteFile',
+            'configEdit',
+        ])
+        expect(classifyHttpRequest('DELETE', '/server/files/directory', { path: 'gcodes/old' })).toEqual(['deleteFile'])
+        expect(classifyHttpRequest('POST', '/server/files/move', { source: 'gcodes/a', dest: 'config/a' })).toEqual([
+            'deleteFile',
+            'configEdit',
+        ])
+        expect(classifyHttpRequest('POST', '/server/files/directory', { path: 'config/new' })).toEqual(['configEdit'])
+    })
+
+    it('recognises restarts and scripts over http', () => {
+        expect(classifyHttpRequest('POST', '/machine/reboot', {})).toEqual(['restart'])
+        expect(classifyHttpRequest('POST', '/machine/services/restart', { service: 'klipper' })).toEqual(['restart'])
+        expect(classifyHttpRequest('POST', '/printer/gcode/script', { script: 'RESTART\nSAVE_CONFIG' })).toEqual([
+            'restart',
+            'configEdit',
+        ])
+        expect(classifyHttpRequest('POST', '/printer/emergency_stop', {})).toEqual([])
+    })
+})
+
+describe('combinedActionRule', () => {
+    it('allows a request without protected actions', () => {
+        expect(combinedActionRule([], settingsWith({ pin }))).toEqual({ rule: 'allow', action: null })
+    })
+
+    it('needs every action of a request to be permitted', () => {
+        const settings = settingsWith({ actions: { configEdit: 'block' } })
+
+        expect(combinedActionRule(['restart', 'configEdit'], settings)).toEqual({ rule: 'block', action: 'configEdit' })
+        expect(combinedActionRule(['restart'], settings)).toEqual({ rule: 'allow', action: null })
+    })
+
+    it('prefers blocking over asking for the pin', () => {
+        const settings = settingsWith({ actions: { restart: 'pin', deleteFile: 'block' }, pin })
+
+        expect(combinedActionRule(['restart', 'deleteFile'], settings)).toEqual({ rule: 'block', action: 'deleteFile' })
+        expect(combinedActionRule(['restart'], settings)).toEqual({ rule: 'pin', action: 'restart' })
+    })
+
+    it('does not ask again for an action that was unlocked for the open page', () => {
+        const settings = settingsWith({ actions: { configEdit: 'pin', restart: 'pin' }, pin })
+
+        expect(combinedActionRule(['configEdit'], settings, ['configEdit'])).toEqual({ rule: 'allow', action: null })
+        expect(combinedActionRule(['configEdit', 'restart'], settings, ['configEdit'])).toEqual({
+            rule: 'pin',
+            action: 'restart',
+        })
+    })
+
+    it('never unlocks a blocked action', () => {
+        const settings = settingsWith({ actions: { configEdit: 'block' } })
+
+        expect(combinedActionRule(['configEdit'], settings, ['configEdit']).rule).toBe('block')
+    })
+})
+
+describe('the requests the interface can send', () => {
+    const sourceRoot = path.resolve(__dirname, '../../src')
+    const sourceFiles = (directory: string): string[] =>
+        fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+            const full = path.join(directory, entry.name)
+            if (entry.isDirectory()) return entry.name === 'types' ? [] : sourceFiles(full)
+
+            return /\.(vue|ts)$/.test(entry.name) ? [full] : []
+        })
+    const sources = sourceFiles(sourceRoot).map((file) => fs.readFileSync(file, 'utf8'))
+    const literals = (pattern: RegExp): string[] => [
+        ...new Set(sources.flatMap((text) => [...text.matchAll(pattern)].map((match) => match[1]))),
+    ]
+
+    const notRequests = ['printer.cfg', 'printer.extruder.can_extrude', 'printer.id', 'printer._namespace']
+    const methods = literals(/['"`]((?:printer|machine|server)\.[a-z_.]+)['"`]/g).filter(
+        (method) => !notRequests.includes(method)
+    )
+    const httpPaths = literals(/['"`}](\/(?:printer|machine|server)\/[a-z_/]+)/g)
+
+    it('finds the requests in the source', () => {
+        expect(methods.length).toBeGreaterThan(60)
+        expect(methods).toEqual(expect.arrayContaining(['printer.gcode.script', 'server.restart', 'machine.update.']))
+        expect(httpPaths).toEqual(expect.arrayContaining(['/server/files/upload', '/server/history/job']))
+    })
+
+    it('has decided for every websocket method whether it is guarded', () => {
+        const undecided = methods.filter((method) => !isRequestKnown(method))
+
+        expect(undecided).toEqual([])
+    })
+
+    it('has decided for every http path that can change something', () => {
+        const fileOperations = /^\/server\/files\/(upload|directory|move|copy|zip)$/
+        const verbsFor = (entry: string): string[] => {
+            const isFileItself = entry.startsWith('/server/files/') && !fileOperations.test(entry)
+
+            return isFileItself ? ['DELETE'] : ['POST', 'DELETE']
+        }
+        const undecided = httpPaths
+            .flatMap((entry) => verbsFor(entry).map((verb) => httpRequestMethod(verb, entry) as string))
+            .filter((method) => !isRequestKnown(method) && method !== 'server.files')
+
+        expect(undecided).toEqual([])
+    })
+
+    it('guards a request or says why not, never both', () => {
+        const both = Object.keys(guardedRequests).filter((method) => method in unguardedRequests)
+
+        expect(both).toEqual([])
+        Object.values(unguardedRequests).forEach((reason) => expect(reason.length).toBeGreaterThan(10))
+    })
+
+    it('guards the requests that restart, update or move things', () => {
+        const required = [
+            'server.restart',
+            'machine.update.full',
+            'machine.update.system',
+            'machine.update.client',
+            'machine.update.recover',
+            'machine.services.start',
+            'machine.device_power.post_device',
+            'server.files.move',
+        ]
+
+        required.forEach((method) => expect(method in guardedRequests, method).toBe(true))
     })
 })
 
@@ -342,7 +646,16 @@ describe('pages', () => {
 
 describe('pages of the new interface', () => {
     const at = (page: string, tab: string | null = null) => ({ page, tab })
-    const shellPages = ['home', 'print', 'tune', 'fix', 'machine', 'settings']
+    const pageNames = ['home', 'print', 'tune', 'fix', 'machine', 'settings']
+    const firstTabs: Record<string, string | null> = {
+        home: null,
+        print: 'files',
+        tune: 'move',
+        fix: 'status',
+        machine: 'config',
+        settings: 'general',
+    }
+    const landing = pageNames.map((page) => at(page, firstTabs[page]))
 
     it('allows everything by default', () => {
         const settings = getDefaultKioskSettings()
@@ -350,7 +663,7 @@ describe('pages of the new interface', () => {
         expect(shellLocationRule(at('tune', 'move'), settings)).toBe('allow')
         expect(shellLocationRule(at('machine', 'config'), settings)).toBe('allow')
         expect(shellLocationRule(at('settings', 'general'), settings)).toBe('allow')
-        expect(exposedShellPages(shellPages, settings)).toEqual(shellPages)
+        expect(exposedShellPages(landing, settings)).toEqual(pageNames)
         expect(hiddenShellTabs(settings)).toEqual([])
     })
 
@@ -360,13 +673,21 @@ describe('pages of the new interface', () => {
         expect(shellLocationRule(at('machine', 'history'), settings)).toBe('block')
         expect(shellLocationRule(at('tune', 'resonance'), settings)).toBe('block')
         expect(shellLocationRule(at('tune', 'move'), settings)).toBe('allow')
-        expect(exposedShellPages(shellPages, settings)).toEqual(['home', 'print', 'tune', 'fix', 'settings'])
+        expect(exposedShellPages(landing, settings)).toEqual(['home', 'print', 'tune', 'fix', 'settings'])
         expect(hiddenShellTabs(settings)).toEqual(['tune/resonance'])
+    })
+
+    it('blocks a page that has no tab left to show', () => {
+        const settings = settingsWith({ hiddenShell: ['fix/status', 'fix/console', 'fix/logs'] })
+
+        expect(shellLocationRule(at('fix', null), settings)).toBe('block')
+        expect(exposedShellPages([at('home'), at('fix', null), at('tune', 'move')], settings)).toEqual(['home', 'tune'])
+        expect(shellLocationRule(at('home', null), settings)).toBe('allow')
     })
 
     it('never blocks home', () => {
         expect(shellLocationRule(at('home'), settingsWith({ hiddenShell: ['home'] }))).toBe('allow')
-        expect(exposedShellPages(shellPages, settingsWith({ hiddenShell: ['home'] }))).toContain('home')
+        expect(exposedShellPages(landing, settingsWith({ hiddenShell: ['home'] }))).toContain('home')
     })
 
     it('guards the config files like config editing', () => {
@@ -387,10 +708,8 @@ describe('pages of the new interface', () => {
         expect(shellLocationRule(at('settings', 'kiosk'), settingsWith({ actions: { settings: 'block' } }))).toBe(
             'block'
         )
-        expect(exposedShellPages(shellPages, settingsWith({ actions: { settings: 'block' } }))).not.toContain(
-            'settings'
-        )
-        expect(exposedShellPages(shellPages, settingsWith({ pin }))).toContain('settings')
+        expect(exposedShellPages(landing, settingsWith({ actions: { settings: 'block' } }))).not.toContain('settings')
+        expect(exposedShellPages(landing, settingsWith({ pin }))).toContain('settings')
     })
 
     it('cannot hide the settings page through the page list', () => {
@@ -459,6 +778,25 @@ describe('dashboard panels', () => {
     it('falls back to the first panel when the chosen one is gone', () => {
         expect(resolveOpenPanel('webcam', ['status', 'temperature'], 'idle')).toBe('status')
         expect(resolveOpenPanel(null, ['status', 'temperature'], 'idle')).toBe('status')
+    })
+})
+
+describe('panels that are only mounted while they are open', () => {
+    const ready = { klipperReady: true, klipperConnected: true, heroVisible: true }
+
+    it('are the ones that keep a stream, a chart or a log running', () => {
+        expect(onDemandPanels).toEqual(['webcam', 'temperature', 'miniconsole', 'print-hero'])
+    })
+
+    it('get a tab only when they would show something', () => {
+        onDemandPanels.forEach((name) => expect(onDemandPanelRenders(name, ready), name).toBe(true))
+        expect(onDemandPanelRenders('temperature', { ...ready, klipperReady: false })).toBe(false)
+        expect(onDemandPanelRenders('miniconsole', { ...ready, klipperConnected: false })).toBe(false)
+        expect(onDemandPanelRenders('miniconsole', { ...ready, klipperReady: false })).toBe(true)
+        expect(onDemandPanelRenders('print-hero', { ...ready, heroVisible: false })).toBe(false)
+        expect(
+            onDemandPanelRenders('webcam', { klipperReady: false, klipperConnected: false, heroVisible: false })
+        ).toBe(true)
     })
 })
 

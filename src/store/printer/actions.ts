@@ -145,8 +145,10 @@ export const actions: ActionTree<PrinterState, RootState> = {
             reInitList[extruderName] = ['can_extrude']
         })
 
-        const result = await Vue.$socket.emitAndWait('printer.objects.query', { objects: reInitList }, {})
-        dispatch('getData', result.status)
+        const result = await Vue.$socket
+            .emitAndWait('printer.objects.query', { objects: reInitList }, {})
+            .catch(() => null)
+        if (result !== null) dispatch('getData', result.status)
     },
 
     getEndstopStatus({ commit }, payload) {

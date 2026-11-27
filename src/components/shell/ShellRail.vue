@@ -85,7 +85,7 @@ import TheTopCornerMenu from '@/components/TheTopCornerMenu.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 import EmergencyStopDialog from '@/components/dialogs/EmergencyStopDialog.vue'
 import PrinterSelector from '@/components/ui/PrinterSelector.vue'
-import { shellPages } from '@/plugins/shellNavigation'
+import { resolveShellLocation, shellPages } from '@/plugins/shellNavigation'
 import { systemPrefersDarkQuery, toggledThemeMode } from '@/plugins/themeMode'
 import { exposedShellPages } from '@/plugins/kiosk'
 
@@ -113,8 +113,10 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin, K
     @Ref() readonly palette!: TheCommandPalette
 
     get pages(): { id: string; path: string; title: string; short: string }[] {
-        const ids = shellPages.map((page) => page.id as string)
-        const exposed = this.shellTouchMode ? exposedShellPages(ids, this.kioskSettings) : ids
+        const landing = shellPages.map((page) => resolveShellLocation(page.path, this.shellAvailability))
+        const exposed = this.shellTouchMode
+            ? exposedShellPages(landing, this.kioskSettings)
+            : shellPages.map((page) => page.id as string)
 
         return shellPages
             .filter((page) => exposed.includes(page.id))

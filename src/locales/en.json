@@ -653,8 +653,8 @@
         "Actions": {
             "cancelPrint": "Cancel print",
             "configEdit": "Edit configuration",
-            "deleteFile": "Delete files",
-            "restart": "Restart and power",
+            "deleteFile": "Delete, move and rename files",
+            "restart": "Restarts, power and updates",
             "settings": "Interface settings"
         },
         "Blocked": "\"{action}\" is not available in touch mode on this printer.",
@@ -687,9 +687,9 @@
                 "cancelPrint": "Enter the PIN to cancel the print",
                 "changePin": "Enter the current PIN",
                 "configEdit": "Enter the PIN to edit the configuration",
-                "deleteFile": "Enter the PIN to delete",
+                "deleteFile": "Enter the PIN to delete, move or rename",
                 "exit": "Enter the PIN to leave touch mode",
-                "restart": "Enter the PIN to restart or power off",
+                "restart": "Enter the PIN to restart, power off or update",
                 "settings": "Enter the PIN to open the settings"
             },
             "RecoveryAutoApplied": "This screen enters touch mode by itself, so clearing its browser data is not enough. Use a larger screen, such as a computer or tablet, or delete the key \"kiosk.pin\" in the namespace \"mainsail\" of the Moonraker database.",
@@ -698,6 +698,10 @@
             "RecoveryThisDevice": "If this is your only device: delete the key \"kiosk.pin\" in the namespace \"mainsail\" of the Moonraker database, or clear this site's data in the browser and reset the PIN in the settings.",
             "ResetPin": "Reset PIN",
             "Wrong": "Wrong PIN"
+        },
+        "Refused": {
+            "busy": "Answer the PIN prompt first. This request was not sent.",
+            "unavailable": "Not sent: the PIN cannot be asked for right now."
         },
         "Suggestion": {
             "Accept": "Use touch mode",
@@ -1632,20 +1636,21 @@
         "InterfaceSettings": "Interface Settings",
         "KioskTab": {
             "ActionDescriptions": {
-                "cancelPrint": "The cancel button and CANCEL_PRINT.",
-                "configEdit": "The configuration files (the Machine page in the classic interface) and SAVE_CONFIG.",
-                "deleteFile": "Deleting files and directories.",
-                "restart": "Klipper and firmware restart, restarting or stopping services, host reboot and shutdown, switching power devices off.",
+                "cancelPrint": "The cancel button, CANCEL_PRINT and macros that call it.",
+                "configEdit": "Opening the configuration files, saving, uploading, moving or deleting anything in the config directory, and SAVE_CONFIG. In the classic interface the whole Machine page.",
+                "deleteFile": "Deleting, moving and renaming files and directories. Uploading G-code, copying and removing print history entries are always allowed.",
+                "restart": "Klipper, firmware and Moonraker restart; starting, restarting or stopping services; host reboot and shutdown; switching power devices off; software updates and recovery. Switching a power device on is always allowed.",
                 "settings": "The interface settings. Always ask for the PIN once one is set."
             },
             "Actions": "Actions",
-            "ActionsDescription": "Applies in touch mode only. The emergency stop is never restricted.",
+            "ActionsDescription": "Applies in touch mode only. The rules are checked for every request this interface sends to the printer, whichever button, console line or macro starts it. The emergency stop is never restricted.",
             "AllScreens": "Every screen in touch mode",
             "AllScreensDescription": "These settings are stored on the printer and apply to every device that uses touch mode.",
             "BottomBar": "Bottom bar",
             "BottomBarDescription": "Up to {max} pages, in the order you pick them. The dashboard is always included, the other pages are under \"More\".",
             "ChangePin": "Change PIN",
             "ChoosePin": "Choose a PIN",
+            "Coverage": "What the rules cannot see: commands a macro builds while it runs, and anything Klipper or Moonraker start on their own (buttons wired to the printer, idle timeout, other devices and apps). Macros are followed up to 6 levels deep using the printer configuration as it was last loaded. Print history can be cleared and interface preferences changed outside the settings page.",
             "Enable": "Touch mode on this screen",
             "EnableDescription": "Large touch targets, a bottom bar instead of the side menu and one dashboard panel at a time. Remembered in this browser only, so other devices keep the regular interface.",
             "EnableDescriptionShell": "Uses the small-screen layout at any width and applies the rules below to this screen. Remembered in this browser only, so other devices are not affected.",

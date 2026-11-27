@@ -133,6 +133,9 @@
                         :class="'kiosk-action-select kiosk-action-' + action.name"
                         @change="setRule(action.name, $event)" />
                 </settings-row>
+                <div class="text-caption text--secondary mt-3 kiosk-coverage">
+                    {{ $t('Settings.KioskTab.Coverage') }}
+                </div>
                 <v-alert v-if="pinRuleWithoutPin" dense text type="warning" class="mt-3 mb-0 kiosk-pin-missing">
                     {{ $t('Settings.KioskTab.PinMissing') }}
                 </v-alert>
@@ -197,7 +200,8 @@ import {
     PIN_MAX_LENGTH,
     PIN_MIN_LENGTH,
 } from '@/plugins/kiosk'
-import { createPinSalt, requestKioskPin, setKioskDeviceMode } from '@/plugins/kioskSession'
+import { askKioskPin } from '@/plugins/kioskGuard'
+import { createPinSalt, setKioskDeviceMode, withLocalKioskChange } from '@/plugins/kioskSession'
 import { resolveInterfaceShell, shellPages, shellTabKey } from '@/plugins/shellNavigation'
 
 interface ShellExposure {
@@ -334,12 +338,12 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
     }
 
     save(name: string, value: unknown): void {
-        this.$store.dispatch('gui/saveSetting', { name: `kiosk.${name}`, value })
+        withLocalKioskChange(() => this.$store.dispatch('gui/saveSetting', { name: `kiosk.${name}`, value }))
     }
 
     async toggleDevice(): Promise<void> {
         if (this.kioskActive) await this.leaveKiosk()
-        else setKioskDeviceMode('on')
+        else withLocalKioskChange(() => setKioskDeviceMode('on'))
     }
 
     setExposed(list: 'hiddenPages' | 'hiddenPanels', name: string, exposed: boolean): void {
@@ -361,7 +365,7 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
     }
 
     async startSetPin(): Promise<void> {
-        if (this.kioskHasPin && !(await requestKioskPin('changePin'))) return
+        if (this.kioskHasPin && !(await askKioskPin('changePin'))) return
 
         this.firstPin = null
         this.setPinError = ''
@@ -386,7 +390,7 @@ export default class SettingsKioskTab extends Mixins(KioskNavigationMixin, Dashb
     }
 
     async removePin(): Promise<void> {
-        if (!(await requestKioskPin('changePin'))) return
+        if (!(await askKioskPin('changePin'))) return
 
         this.$store.dispatch('gui/removeKioskPin')
     }

@@ -27,6 +27,7 @@ const DEMO_MACROS = {
     LIGHTS_ON: ['Switch the chamber lights on', 'RESPOND MSG="Lights on"'],
     LIGHTS_OFF: ['Switch the chamber lights off', 'RESPOND MSG="Lights off"'],
     MOTORS_OFF: ['Disable the stepper motors', 'M84\nRESPOND MSG="Motors off"'],
+    ABORT_JOB: ['Cool down and cancel the running print', 'TURN_OFF_HEATERS\nCANCEL_PRINT'],
 }
 for (const [name, [description, gcode]] of Object.entries(DEMO_MACROS)) {
     fixture.status[`gcode_macro ${name}`] = {}
@@ -793,8 +794,13 @@ handlers['printer.gcode.script'] = (params) => {
     return 'ok'
 }
 
+// every method the interface asked for, so the browser tests can check what was and was not sent (/demo/rpc-log)
+const rpcLog = []
+const uploadLog = []
+
 const handleRpc = (request) => {
     const params = request.params ?? {}
+    rpcLog.push(request.method)
     const handler = handlers[request.method]
     if (handler) return handler(params)
 
@@ -856,6 +862,8 @@ const controls = {
         if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
     },
     reconnect: () => wss.clients.forEach((client) => client.close()),
+    // a setting changed by another device: /demo/dbset?key=kiosk.actions.restart&value="pin"
+    dbset: (_name, params) => dbSet('mainsail', params.get('key'), JSON.parse(params.get('value'))),
     classic: () => dbSet('mainsail', 'uiSettings.interfaceShell', 'classic'),
     spool: () =>
         dbSet('mainsail', 'spoolTracker', {
@@ -880,6 +888,8 @@ const resetWithoutPresets = controls.reset
 controls.reset = () => {
     resetWithoutPresets()
     gcodeLog.length = 0
+    rpcLog.length = 0
+    uploadLog.length = 0
     seedPresets()
     seedHistory()
     removeUploads()
@@ -933,6 +943,10 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
         return res.end(JSON.stringify(gcodeLog))
     }
+    if (url.pathname === '/demo/rpc-log' || url.pathname === '/demo/upload-log') {
+        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify(url.pathname === '/demo/rpc-log' ? rpcLog : uploadLog))
+    }
     if (req.method === 'GET' && /^\/server\/files\/config\/[^.][^/]*\.(cfg|conf)$/.test(url.pathname)) {
         res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' })
         return res.end(configFileText())
@@ -944,6 +958,12 @@ const server = http.createServer((req, res) => {
         req.on('end', () => {
             const body = Buffer.concat(chunks)
             const filename = /filename="([^"]+)"/.exec(body.toString('latin1'))?.[1] ?? 'upload.gcode'
+            const root = /name="root"\r\n\r\n([^\r]+)/.exec(body.toString('latin1'))?.[1] ?? 'gcodes'
+            uploadLog.push({ root, filename })
+            if (root !== 'gcodes') {
+                res.writeHead(201, { ...headers, 'Content-Type': 'application/json' })
+                return res.end(JSON.stringify({ item: { path: filename, root }, action: 'create_file' }))
+            }
             const item = {
                 path: filename,
                 root: 'gcodes',

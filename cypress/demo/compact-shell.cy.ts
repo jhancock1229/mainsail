@@ -332,7 +332,7 @@ describe('Small-screen shell: touch mode and the operator view', () => {
         nav('fix').click()
         cy.get('.shell-fix [data-action="firmware-restart"]').click()
         cy.contains('.v-dialog--active button', 'Yes').click()
-        cy.contains('.kiosk-pin-dialog', 'Enter the PIN to restart or power off')
+        cy.contains('.kiosk-pin-dialog', 'Enter the PIN to restart, power off or update')
         enterPin('1111')
         cy.contains('.kiosk-pin-dialog', 'Wrong PIN')
         cy.get('.kiosk-pin-dialog__cancel').click()

@@ -1,5 +1,6 @@
 import { sha256 } from 'js-sha256'
 import type { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
+import { shellPages } from '@/plugins/shellNavigation'
 
 export type KioskDeviceMode = 'on' | 'off' | null
 export type KioskSmallScreens = 'suggest' | 'apply' | 'off'
@@ -167,17 +168,118 @@ export const effectiveActionRule = (action: KioskAction, settings: KioskSettings
     return rule
 }
 
-const requestActions: Record<string, KioskAction> = {
-    'printer.print.cancel': 'cancelPrint',
-    'printer.firmware_restart': 'restart',
-    'printer.restart': 'restart',
-    'machine.reboot': 'restart',
-    'machine.shutdown': 'restart',
-    'machine.services.restart': 'restart',
-    'machine.services.stop': 'restart',
-    'machine.device_power.off': 'restart',
-    'server.files.delete_file': 'deleteFile',
-    'server.files.delete_directory': 'deleteFile',
+export const CONFIG_ROOT = 'config'
+export const MACRO_DEPTH_LIMIT = 6
+
+type RequestParams = Record<string, unknown>
+type RequestClassifier = (params: RequestParams) => KioskAction[]
+
+const inConfigRoot = (value: unknown): boolean => {
+    return typeof value === 'string' && (value === CONFIG_ROOT || value.startsWith(`${CONFIG_ROOT}/`))
+}
+
+const withConfigEdit = (actions: KioskAction[], ...paths: unknown[]): KioskAction[] => {
+    return paths.some(inConfigRoot) ? [...actions, 'configEdit'] : actions
+}
+
+const always =
+    (...actions: KioskAction[]): RequestClassifier =>
+    () =>
+        actions
+
+export const guardedRequests: Record<string, RequestClassifier> = {
+    'printer.print.cancel': always('cancelPrint'),
+    'printer.firmware_restart': always('restart'),
+    'printer.restart': always('restart'),
+    'server.restart': always('restart'),
+    'machine.reboot': always('restart'),
+    'machine.shutdown': always('restart'),
+    'machine.services.restart': always('restart'),
+    'machine.services.stop': always('restart'),
+    'machine.services.start': always('restart'),
+    'machine.update.full': always('restart'),
+    'machine.update.system': always('restart'),
+    'machine.update.client': always('restart'),
+    'machine.update.recover': always('restart'),
+    'machine.device_power.off': always('restart'),
+    'machine.device_power.post_device': (params) => (params.action === 'on' ? [] : ['restart']),
+    'server.files.delete_file': (params) => withConfigEdit(['deleteFile'], params.path),
+    'server.files.delete_directory': (params) => withConfigEdit(['deleteFile'], params.path),
+    'server.files.move': (params) => withConfigEdit(['deleteFile'], params.source, params.dest),
+    'server.files.copy': (params) => withConfigEdit([], params.dest),
+    'server.files.post_directory': (params) => withConfigEdit([], params.path),
+    'server.files.zip': (params) => withConfigEdit([], params.dest),
+    'server.files.upload': (params) => withConfigEdit([], params.root),
+}
+
+export const guardedRequestPrefixes: Record<string, RequestClassifier> = {
+    'machine.update.': always('restart'),
+}
+
+const READS = 'only reads data'
+const PRINT_FLOW = 'starts, pauses or queues prints, which an operator is there to do'
+const PREFERENCES = 'stores interface preferences; the settings page itself follows the settings rule'
+
+export const unguardedRequests: Record<string, string> = {
+    'printer.emergency_stop': 'the emergency stop is never restricted',
+    'printer.gcode.script': 'classified line by line, see classifyGcode',
+    'printer.info': READS,
+    'printer.objects.list': READS,
+    'printer.objects.query': READS,
+    'printer.objects.subscribe': READS,
+    'printer.query_endstops.status': READS,
+    'printer.print.start': PRINT_FLOW,
+    'printer.print.pause': PRINT_FLOW,
+    'printer.print.resume': PRINT_FLOW,
+    'server.job_queue.status': READS,
+    'server.job_queue.post_job': PRINT_FLOW,
+    'server.job_queue.delete_job': PRINT_FLOW,
+    'server.job_queue.pause': PRINT_FLOW,
+    'server.job_queue.start': PRINT_FLOW,
+    'machine.device_power.devices': READS,
+    'machine.device_power.on': 'switching a device on does not interrupt anything',
+    'machine.peripherals.canbus': READS,
+    'machine.peripherals.serial': READS,
+    'machine.peripherals.usb': READS,
+    'machine.peripherals.video': READS,
+    'machine.proc_stats': READS,
+    'machine.system_info': READS,
+    'machine.update.status': READS,
+    'machine.update.refresh': READS,
+    'machine.timelapse.get_settings': READS,
+    'machine.timelapse.lastframeinfo': READS,
+    'machine.timelapse.post_settings': PREFERENCES,
+    'machine.timelapse.render': 'renders a timelapse from frames that stay in place',
+    'machine.timelapse.saveframes': 'copies the frames into an archive',
+    'server.announcements.list': READS,
+    'server.announcements.dismiss': 'dismisses a notice',
+    'server.config': READS,
+    'server.connection.identify': READS,
+    'server.info': READS,
+    'server.gcode_store': READS,
+    'server.temperature_store': READS,
+    'server.sensors.list': READS,
+    'server.database.list': READS,
+    'server.database.get_item': READS,
+    'server.database.item': PREFERENCES,
+    'server.database.post_item': PREFERENCES,
+    'server.database.delete_item': PREFERENCES,
+    'server.files.list': READS,
+    'server.files.get_directory': READS,
+    'server.files.metadata': READS,
+    'server.files.metascan': READS,
+    'server.history.list': READS,
+    'server.history.totals': READS,
+    'server.history.job': 'removes entries of the print history, not files; only offered on the history page',
+    'server.history.delete_job': 'removes entries of the print history, not files; only offered on the history page',
+    'server.history.reset_totals': 'only offered by the reset on the settings page',
+    'server.logs.rollover': 'starts new log files, the old ones are kept',
+    'server.spoolman.get_spool_id': READS,
+    'server.spoolman.post_spool_id': 'chooses the loaded spool',
+    'server.spoolman.proxy': 'talks to Spoolman, which has its own data',
+    'server.webcams.list': READS,
+    'server.webcams.post_item': PREFERENCES,
+    'server.webcams.delete_item': PREFERENCES,
 }
 
 const gcodeActions: Record<string, KioskAction> = {
@@ -187,16 +289,155 @@ const gcodeActions: Record<string, KioskAction> = {
     SAVE_CONFIG: 'configEdit',
 }
 
-export const classifyRequest = (method: string, params: unknown): KioskAction | null => {
-    if (method in requestActions) return requestActions[method]
-    if (method !== 'printer.gcode.script' || !isObject(params) || typeof params.script !== 'string') return null
+const remoteMethodActions: Record<string, KioskAction> = {
+    shutdown_machine: 'restart',
+    reboot_machine: 'restart',
+}
 
-    for (const line of params.script.split('\n')) {
-        const command = line.trim().split(/[\s;]/)[0].toUpperCase()
-        if (command in gcodeActions) return gcodeActions[command]
+export interface KioskMacros {
+    bodies: Record<string, string>
+    renamed: Record<string, string>
+}
+
+const MACRO_PREFIX = 'gcode_macro '
+const DELAYED_PREFIX = 'delayed_gcode '
+const DELAYED_KEY = 'UPDATE_DELAYED_GCODE '
+
+export const buildKioskMacros = (config: unknown): KioskMacros => {
+    const macros: KioskMacros = { bodies: {}, renamed: {} }
+    if (!isObject(config)) return macros
+
+    Object.entries(config).forEach(([section, values]) => {
+        if (!isObject(values) || typeof values.gcode !== 'string') return
+
+        const lower = section.toLowerCase()
+        if (lower.startsWith(MACRO_PREFIX)) {
+            const name = section.slice(MACRO_PREFIX.length).trim().toUpperCase()
+            macros.bodies[name] = values.gcode
+            if (typeof values.rename_existing === 'string') {
+                macros.renamed[values.rename_existing.trim().toUpperCase()] = name
+            }
+        }
+        if (lower.startsWith(DELAYED_PREFIX)) {
+            macros.bodies[DELAYED_KEY + section.slice(DELAYED_PREFIX.length).trim().toUpperCase()] = values.gcode
+        }
+    })
+
+    return macros
+}
+
+const emptyMacros: KioskMacros = { bodies: {}, renamed: {} }
+
+const commandLine = (line: string): string => {
+    return line
+        .replace(/\{%.*?%\}/g, ' ')
+        .replace(/^\s*N\d+\s+/i, '')
+        .replace(/\*\d+\s*$/, '')
+        .trim()
+}
+
+const delayedKey = (line: string): string | null => {
+    const id = /\bID\s*=\s*([\w-]+)/i.exec(line)
+
+    return id ? DELAYED_KEY + id[1].toUpperCase() : null
+}
+
+export const classifyGcode = (
+    script: string,
+    macros: KioskMacros = emptyMacros,
+    depth: number = 0,
+    path: string[] = []
+): KioskAction[] => {
+    const found = new Set<KioskAction>()
+
+    script.split('\n').forEach((raw) => {
+        const remote = /action_call_remote_method\(\s*["'](\w+)["']/.exec(raw)
+        if (remote && remote[1] in remoteMethodActions) found.add(remoteMethodActions[remote[1]])
+
+        const line = commandLine(raw)
+        const command = line.split(/[\s;]/)[0].toUpperCase()
+        if (command === '') return
+
+        const original = macros.renamed[command] ?? command
+        if (original in gcodeActions) found.add(gcodeActions[original])
+        if (command in gcodeActions) found.add(gcodeActions[command])
+
+        const key = command === DELAYED_KEY.trim() ? delayedKey(line) : command
+        if (key === null || !(key in macros.bodies) || path.includes(key) || depth >= MACRO_DEPTH_LIMIT) return
+
+        classifyGcode(macros.bodies[key], macros, depth + 1, [...path, key]).forEach((action) => found.add(action))
+    })
+
+    return kioskActions.filter((action) => found.has(action))
+}
+
+export const classifyRequest = (method: string, params: unknown, macros: KioskMacros = emptyMacros): KioskAction[] => {
+    const fields = isObject(params) ? params : {}
+    if (method === 'printer.gcode.script') {
+        return typeof fields.script === 'string' ? classifyGcode(fields.script, macros) : []
     }
+    if (method in guardedRequests) return guardedRequests[method](fields)
+    if (method in unguardedRequests) return []
 
-    return null
+    const prefix = Object.keys(guardedRequestPrefixes).find((entry) => method.startsWith(entry))
+
+    return prefix === undefined ? [] : guardedRequestPrefixes[prefix](fields)
+}
+
+export const isRequestKnown = (method: string): boolean => {
+    return (
+        method in guardedRequests ||
+        method in unguardedRequests ||
+        Object.keys(guardedRequestPrefixes).some((entry) => method.startsWith(entry))
+    )
+}
+
+const FILES_PATH = '/server/files/'
+const DIRECTORY_PATH = '/server/files/directory'
+const httpWrites = ['POST', 'DELETE', 'PUT', 'PATCH']
+
+export const httpRequestMethod = (verb: string, path: string): string | null => {
+    const upper = verb.toUpperCase()
+    if (!httpWrites.includes(upper)) return null
+
+    const clean = path.split(/[?#]/)[0].replace(/\/+$/, '')
+    if (upper === 'DELETE' && clean === DIRECTORY_PATH) return 'server.files.delete_directory'
+    if (upper === 'DELETE' && clean.startsWith(FILES_PATH)) return 'server.files.delete_file'
+    if (upper === 'POST' && clean === DIRECTORY_PATH) return 'server.files.post_directory'
+
+    return clean.replace(/^\/+/, '').replace(/\//g, '.')
+}
+
+export const classifyHttpRequest = (
+    verb: string,
+    path: string,
+    fields: Record<string, unknown>,
+    macros: KioskMacros = emptyMacros
+): KioskAction[] => {
+    const method = httpRequestMethod(verb, path)
+    if (method === null) return []
+
+    const clean = path.split(/[?#]/)[0]
+    const params =
+        method === 'server.files.delete_file' && clean !== DIRECTORY_PATH
+            ? { ...fields, path: decodeURIComponent(clean.slice(FILES_PATH.length)) }
+            : fields
+
+    return classifyRequest(method, params, macros)
+}
+
+export const combinedActionRule = (
+    actions: KioskAction[],
+    settings: KioskSettings,
+    granted: KioskAction[] = []
+): { rule: KioskActionRule; action: KioskAction | null } => {
+    const rules = actions.map((action) => ({ action, rule: effectiveActionRule(action, settings) }))
+    const blocked = rules.find((entry) => entry.rule === 'block')
+    if (blocked) return blocked
+
+    const needsPin = rules.find((entry) => entry.rule === 'pin' && !granted.includes(entry.action))
+
+    return needsPin ?? { rule: 'allow', action: null }
 }
 
 const isPageExposed = (page: string, hiddenPages: string[]): boolean => {
@@ -229,6 +470,10 @@ const SHELL_HOME_PAGE = 'home'
 const SHELL_SETTINGS_PAGE = 'settings'
 const SHELL_CONFIG_TAB = 'machine/config'
 
+const pageHasTabs = (page: string): boolean => {
+    return (shellPages.find((entry) => entry.id === page)?.tabs.length ?? 0) > 0
+}
+
 export const shellLocationRule = (
     location: { page: string; tab: string | null },
     settings: KioskSettings
@@ -236,6 +481,7 @@ export const shellLocationRule = (
     if (location.page === SHELL_HOME_PAGE) return 'allow'
     if (location.page === SHELL_SETTINGS_PAGE) return effectiveActionRule('settings', settings)
     if (settings.hiddenShell.includes(location.page)) return 'block'
+    if (location.tab === null) return pageHasTabs(location.page) ? 'block' : 'allow'
 
     const tab = `${location.page}/${location.tab}`
     if (settings.hiddenShell.includes(tab)) return 'block'
@@ -248,8 +494,11 @@ export const shellLockKey = (location: { page: string; tab: string | null }): st
     return location.page === SHELL_SETTINGS_PAGE ? location.page : `${location.page}/${location.tab}`
 }
 
-export const exposedShellPages = (pages: string[], settings: KioskSettings): string[] => {
-    return pages.filter((page) => shellLocationRule({ page, tab: null }, settings) !== 'block')
+export const exposedShellPages = (
+    locations: { page: string; tab: string | null }[],
+    settings: KioskSettings
+): string[] => {
+    return locations.filter((location) => shellLocationRule(location, settings) !== 'block').map((entry) => entry.page)
 }
 
 export const hiddenShellTabs = (settings: KioskSettings): string[] => {
@@ -260,6 +509,19 @@ export const hiddenShellTabs = (settings: KioskSettings): string[] => {
 }
 
 export const canRecoverOnSmallScreen = (settings: KioskSettings): boolean => settings.smallScreens !== 'apply'
+
+export const onDemandPanels = ['webcam', 'temperature', 'miniconsole', 'print-hero']
+
+export const onDemandPanelRenders = (
+    name: string,
+    state: { klipperReady: boolean; klipperConnected: boolean; heroVisible: boolean }
+): boolean => {
+    if (name === 'temperature') return state.klipperReady
+    if (name === 'miniconsole') return state.klipperConnected
+    if (name === 'print-hero') return state.heroVisible
+
+    return true
+}
 
 export const kioskPanelSequence = (columns: string[][], hiddenPanels: string[]): string[] => {
     const rows = Math.max(0, ...columns.map((column) => column.length))

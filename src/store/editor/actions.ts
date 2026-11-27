@@ -6,6 +6,9 @@ import { sha256 } from 'js-sha256'
 import Vue from 'vue'
 import i18n from '@/plugins/i18n'
 import { escapePath, formatFilesize, windowBeforeUnloadFunction } from '@/plugins/helpers'
+import { CONFIG_ROOT } from '@/plugins/kiosk'
+import { authorizeKiosk } from '@/plugins/kioskGuard'
+import { setKioskGrant } from '@/plugins/kioskSession'
 
 export const actions: ActionTree<EditorState, RootState> = {
     reset({ commit }) {
@@ -24,7 +27,10 @@ export const actions: ActionTree<EditorState, RootState> = {
         })
     },
 
-    openFile({ state, dispatch, commit, rootGetters }, payload) {
+    async openFile({ state, dispatch, commit, rootGetters }, payload) {
+        setKioskGrant('editor', null)
+        if (payload.root === CONFIG_ROOT && !(await authorizeKiosk(['configEdit'], 'editor'))) return
+
         const fullFilepathArray = []
         fullFilepathArray.push(payload.root)
         let path = payload.path
@@ -147,6 +153,7 @@ export const actions: ActionTree<EditorState, RootState> = {
 
     close({ commit }) {
         commit('reset')
+        setKioskGrant('editor', null)
 
         window.removeEventListener('beforeunload', windowBeforeUnloadFunction)
     },

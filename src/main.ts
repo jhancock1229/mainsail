@@ -7,6 +7,7 @@ import i18n, { setAndLoadLocale } from '@/plugins/i18n'
 import store from '@/store'
 import router from '@/plugins/router'
 import { WebSocketPlugin } from '@/plugins/webSocketClient'
+import { installKioskGuards } from '@/plugins/kioskGuard'
 // vue-observe-visibility
 import { ObserveVisibility } from 'vue-observe-visibility'
 //vue-load-image
@@ -83,6 +84,7 @@ const initLoad = async () => {
 
     const url = store.getters['socket/getWebsocketUrl']
     Vue.use(WebSocketPlugin, { url, store })
+    installKioskGuards(store, Vue.$socket)
     if (store?.state?.instancesDB === 'moonraker') Vue.$socket.connect()
 }
 
