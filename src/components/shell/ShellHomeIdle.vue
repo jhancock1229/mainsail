@@ -1,6 +1,6 @@
 <template>
     <div class="sh-columns sh-columns--755">
-        <section :aria-label="$t('Shell.Idle.Start')" class="sh-col shell-start">
+        <section :aria-label="$t('Shell.Idle.Start')" data-section="start" class="sh-col shell-start">
             <div class="sh-row shell-start__head">
                 <h2 class="sh-h2">{{ $t('Shell.Idle.Start') }}</h2>
                 <button
@@ -37,7 +37,7 @@
             </router-link>
         </section>
 
-        <section :aria-label="$t('Shell.Idle.GetReady')" class="sh-col sh-col--gap-12 shell-ready">
+        <section :aria-label="$t('Shell.Idle.GetReady')" data-section="ready" class="sh-col sh-col--gap-12 shell-ready">
             <h2 class="sh-h2">{{ $t('Shell.Idle.GetReady') }}</h2>
             <template v-if="presets.length">
                 <div class="sh-row">
@@ -84,7 +84,7 @@
             </button>
         </section>
 
-        <section :aria-label="$t('Shell.Idle.CameraAndLast')" class="sh-col shell-last">
+        <section :aria-label="$t('Shell.Idle.CameraAndLast')" data-section="camera" class="sh-col shell-last">
             <h2 class="sh-h2">{{ $t('Shell.Print.Views.camera') }}</h2>
             <shell-camera />
             <shell-spool />

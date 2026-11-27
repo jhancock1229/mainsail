@@ -1,9 +1,10 @@
 <template>
-    <div class="shell" :class="'shell--' + shellLocation.page">
-        <shell-rail />
+    <div class="shell" :class="shellClasses">
+        <shell-rail :compact="shellCompact" />
         <main class="shell__main">
             <component :is="pageComponent" :key="shellLocation.page" :tab="shellLocation.tab" />
         </main>
+        <shell-sections v-if="shellCompact" />
         <start-print-dialog
             v-if="uploadedFile"
             :value="true"
@@ -22,6 +23,7 @@ import StartPrintDialog from '@/components/dialogs/StartPrintDialog.vue'
 import { shellUpload } from '@/plugins/shellUpload'
 import { SpoolUsage } from '@/plugins/spoolTracker'
 import ShellRail from '@/components/shell/ShellRail.vue'
+import ShellSections from '@/components/shell/ShellSections.vue'
 import ShellHomePage from '@/components/shell/ShellHomePage.vue'
 import ShellPrintPage from '@/components/shell/ShellPrintPage.vue'
 import ShellTunePage from '@/components/shell/ShellTunePage.vue'
@@ -36,6 +38,7 @@ import { shellPath } from '@/plugins/shellNavigation'
 @Component({
     components: {
         ShellRail,
+        ShellSections,
         ShellHomePage,
         ShellPrintPage,
         ShellTunePage,
@@ -46,6 +49,10 @@ import { shellPath } from '@/plugins/shellNavigation'
     },
 })
 export default class TheShell extends Mixins(ShellMixin, SpoolTrackerMixin) {
+    get shellClasses(): Record<string, boolean> {
+        return { [`shell--${this.shellLocation.page}`]: true, 'shell--compact': this.shellCompact }
+    }
+
     get pageComponent(): string {
         return `shell-${this.shellLocation.page}-page`
     }
@@ -85,6 +92,11 @@ export default class TheShell extends Mixins(ShellMixin, SpoolTrackerMixin) {
         if (failed) this.$toast.error(this.$t('App.TopBar.CannotUploadTheFile').toString())
     }
 
+    @Watch('shellCompact', { immediate: true })
+    onCompactChanged(compact: boolean): void {
+        document.documentElement.classList.toggle('shell-compact', compact)
+    }
+
     @Watch('settingsTabs', { immediate: true })
     publishTabsToCommandPalette(tabs: PaletteSettingsTab[]): void {
         commandPaletteBus.settingsTabs = tabs
@@ -96,6 +108,7 @@ export default class TheShell extends Mixins(ShellMixin, SpoolTrackerMixin) {
 
     beforeDestroy(): void {
         EventBus.$off(OPEN_SETTINGS_TAB, this.openSettingsTab)
+        document.documentElement.classList.remove('shell-compact')
     }
 
     closeUploadPrompt(): void {

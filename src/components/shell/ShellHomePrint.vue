@@ -1,7 +1,7 @@
 <template>
     <div class="shell-home-print">
         <div class="sh-columns sh-columns--757" :class="{ 'sh-columns--ruled-bottom': active }">
-            <section :aria-label="$t('Shell.Print.Title')" class="sh-col sh-col--gap-16 shell-job">
+            <section :aria-label="$t('Shell.Print.Title')" data-section="job" class="sh-col sh-col--gap-16 shell-job">
                 <h2 class="sh-h2">{{ $t('Shell.Print.Title') }}</h2>
                 <div class="shell-job__percent">
                     <span class="shell-job__percent-value">{{ printPercent }}</span>
@@ -81,7 +81,7 @@
                 </div>
             </section>
 
-            <section :aria-label="viewLabel" class="sh-col shell-view">
+            <section :aria-label="viewLabel" data-section="view" class="sh-col shell-view">
                 <div class="sh-row shell-view__head">
                     <h2 class="sh-h2">{{ viewLabel }}</h2>
                     <shell-tabs v-model="view" :tabs="views" :label="$t('Shell.Print.View')" small />
@@ -90,7 +90,7 @@
                 <shell-console v-else />
             </section>
 
-            <section :aria-label="$t('Shell.Heat.Title')" class="sh-col sh-col--gap-16">
+            <section :aria-label="$t('Shell.Heat.Title')" data-section="heat" class="sh-col sh-col--gap-16 shell-side">
                 <shell-heat />
                 <div class="sh-rule" />
                 <shell-spool printing />
@@ -133,7 +133,8 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins } from 'vue-property-decorator'
+import { Mixins, Watch } from 'vue-property-decorator'
+import { shellCompactState } from '@/plugins/shellCompactState'
 import { mdiStopCircleOutline } from '@mdi/js'
 import ShellPrintMixin from '@/components/mixins/shellPrint'
 import ShellTabs, { ShellTabItem } from '@/components/shell/ShellTabs.vue'
@@ -182,6 +183,10 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
 
     get active(): boolean {
         return ['printing', 'paused'].includes(this.shellHomeState)
+    }
+
+    get requestedView(): string | null {
+        return shellCompactState.homeView
     }
 
     get views(): ShellTabItem[] {
@@ -262,6 +267,11 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
         const settings = resolveSpoolTrackerSettings(this.$store.state.gui.spoolTracker)
 
         return resolveSpoolSource({ components: this.moonrakerComponents, trackerEnabled: settings.enabled }) !== 'none'
+    }
+
+    @Watch('requestedView', { immediate: true })
+    onRequestedView(view: string | null): void {
+        if (view !== null) this.view = view
     }
 
     pauseJob(): void {

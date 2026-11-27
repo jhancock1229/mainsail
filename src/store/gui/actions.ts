@@ -492,6 +492,11 @@ export const actions: ActionTree<GuiState, RootState> = {
         })
     },
 
+    removeKioskPin({ commit }) {
+        commit('saveSetting', { name: 'kiosk.pin', value: null })
+        Vue.$socket.emit('server.database.delete_item', { namespace: 'mainsail', key: 'kiosk.pin' })
+    },
+
     updateGcodeviewerCache({ dispatch, state }, payload) {
         const klipperCache = state.gcodeViewer.klipperCache as Record<string, unknown>
         const payloadCache = payload as Record<string, unknown>

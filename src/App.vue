@@ -1,9 +1,9 @@
 <template>
-    <v-app :style="cssVars">
+    <v-app :style="cssVars" :class="{ 'kiosk-mode': kioskActive }">
         <template v-if="socketIsConnected && guiIsReady">
             <the-shell v-if="interfaceShell === 'new'" />
             <template v-else>
-                <the-sidebar />
+                <the-sidebar v-if="!kioskActive" />
                 <the-topbar />
                 <v-main id="content" :style="mainStyle">
                     <v-container id="page-container" fluid :class="containerClasses">
@@ -22,6 +22,7 @@
             <the-screws-tilt-adjust-dialog />
             <the-macro-prompt />
             <the-event-notifier />
+            <the-kiosk />
         </template>
         <the-select-printer-dialog v-else-if="instancesDB !== 'moonraker'" />
         <the-connecting-dialog v-else />
@@ -51,13 +52,16 @@ import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
+import TheKiosk from '@/components/TheKiosk.vue'
+import KioskMixin from '@/components/mixins/kiosk'
 import TheShell from '@/components/shell/TheShell.vue'
-import { classicPathFor, InterfaceShell, isClassicForced, resolveInterfaceShell } from '@/plugins/shellNavigation'
+import { classicPathFor, InterfaceShell, resolveInterfaceShell } from '@/plugins/shellNavigation'
 import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 
 @Component({
     components: {
         TheEventNotifier,
+        TheKiosk,
         TheMacroPrompt,
         TheTimelapseRenderingSnackbar,
         TheEditor,
@@ -74,7 +78,7 @@ import { commandPaletteBus } from '@/plugins/commandPaletteBus'
         TheShell,
     },
 })
-export default class App extends Mixins(BaseMixin, ThemeMixin) {
+export default class App extends Mixins(BaseMixin, ThemeMixin, KioskMixin) {
     get title(): string {
         let title = this.$store.getters['getTitle']
 
@@ -101,7 +105,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         }
 
         // overwrite padding left for the sidebar
-        if (this.naviDrawer && !this.$vuetify.breakpoint.mdAndDown) {
+        if (this.naviDrawer && !this.$vuetify.breakpoint.mdAndDown && !this.kioskActive) {
             if (this.navigationStyle === 'iconsAndText') style.paddingLeft = '220px'
             if (this.navigationStyle === 'iconsOnly') style.paddingLeft = '56px'
         }
@@ -136,8 +140,6 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return resolveDarkMode(this.mode, this.systemPrefersDark)
     }
 
-    widthAtLoad = window.innerWidth
-
     get interfaceReady(): boolean {
         return this.socketIsConnected && this.guiIsReady
     }
@@ -145,7 +147,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     get interfaceShell(): InterfaceShell {
         if (!this.interfaceReady) return 'classic'
 
-        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell, this.widthAtLoad)
+        return resolveInterfaceShell(this.$store.state.gui.uiSettings.interfaceShell)
     }
 
     get classicRedirect(): string | null {
@@ -266,7 +268,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
     @Watch('interfaceShell', { immediate: true })
     interfaceShellChanged(shell: InterfaceShell): void {
         document.documentElement.classList.toggle('shell-new', shell === 'new')
-        commandPaletteBus.switchableShell = isClassicForced(this.widthAtLoad) ? null : shell
+        commandPaletteBus.switchableShell = shell
     }
 
     @Watch('classicRedirect', { immediate: true })
@@ -466,6 +468,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 @import './assets/styles/utils.css';
 @import './assets/styles/updateManager.css';
 @import './assets/styles/shell.css';
+@import './assets/styles/shell-compact.css';
 
 :root {
     --app-height: 100%;

@@ -7,15 +7,22 @@ import {
     featurePath,
     findShellFeature,
     getShellPage,
-    isClassicForced,
     isShellTabAvailable,
     MAX_FEATURE_CLICKS,
     resolveInterfaceShell,
+    resolveShellLayout,
     resolveShellLocation,
     settingsTabNames,
+    ShellAvailability,
     shellFeatures,
+    ShellPageId,
     shellPages,
     shellPath,
+    adjacentSection,
+    allShellSectionIds,
+    compactFeatureClicks,
+    offeredShellTabs,
+    shellSectionEntries,
 } from '@/plugins/shellNavigation'
 import { allDashboardPanels } from '@/store/variables'
 
@@ -238,28 +245,178 @@ describe('isShellTabAvailable', () => {
     })
 })
 
-describe('isClassicForced', () => {
-    it('is true below the width the new shell needs', () => {
-        expect(isClassicForced(400)).toBe(true)
-        expect(isClassicForced(959)).toBe(true)
-        expect(isClassicForced(960)).toBe(false)
+describe('resolveInterfaceShell', () => {
+    it('uses the new interface unless the classic one is chosen', () => {
+        expect(resolveInterfaceShell(undefined)).toBe('new')
+        expect(resolveInterfaceShell('new')).toBe('new')
+        expect(resolveInterfaceShell('something else')).toBe('new')
+        expect(resolveInterfaceShell('classic')).toBe('classic')
     })
 })
 
-describe('resolveInterfaceShell', () => {
-    it('defaults to the new shell on desktop and laptop windows', () => {
-        expect(resolveInterfaceShell(undefined, 1440)).toBe('new')
-        expect(resolveInterfaceShell('new', 1280)).toBe('new')
-        expect(resolveInterfaceShell('something else', 1280)).toBe('new')
+describe('resolveShellLayout', () => {
+    it('uses the wide layout from 960 px on', () => {
+        expect(resolveShellLayout({ width: 960, touchMode: false })).toBe('wide')
+        expect(resolveShellLayout({ width: 1440, touchMode: false })).toBe('wide')
     })
 
-    it('follows the setting back to the classic shell', () => {
-        expect(resolveInterfaceShell('classic', 1440)).toBe('classic')
+    it('uses the compact layout on phones and small printer screens', () => {
+        expect(resolveShellLayout({ width: 400, touchMode: false })).toBe('compact')
+        expect(resolveShellLayout({ width: 800, touchMode: false })).toBe('compact')
+        expect(resolveShellLayout({ width: 959, touchMode: false })).toBe('compact')
     })
 
-    it('keeps the classic shell on phone-width screens', () => {
-        expect(resolveInterfaceShell('new', 400)).toBe('classic')
-        expect(resolveInterfaceShell('new', 959)).toBe('classic')
-        expect(resolveInterfaceShell('new', 960)).toBe('new')
+    it('uses the compact layout at any width in touch mode', () => {
+        expect(resolveShellLayout({ width: 1440, touchMode: true })).toBe('compact')
+    })
+})
+
+describe('sections of the compact layout', () => {
+    const bare: ShellAvailability = {
+        moonrakerComponents: [],
+        klipperObjects: [],
+        registeredDirectories: [],
+        farm: false,
+    }
+    const ids = (entries: { id: string }[]): string[] => entries.map((entry) => entry.id)
+
+    it('shows the columns of Home one at a time, for every state of the printer', () => {
+        expect(ids(shellSectionEntries('home', { homeState: 'idle' }))).toEqual(['start', 'ready', 'camera'])
+        expect(ids(shellSectionEntries('home', { homeState: 'printing' }))).toEqual([
+            'job',
+            'camera',
+            'console',
+            'heat',
+        ])
+        expect(ids(shellSectionEntries('home', { homeState: 'paused' }))).toEqual(['job', 'camera', 'console', 'heat'])
+        expect(ids(shellSectionEntries('home', { homeState: 'finished' }))).toEqual([
+            'job',
+            'camera',
+            'console',
+            'heat',
+        ])
+        expect(ids(shellSectionEntries('home', { homeState: 'error' }))).toEqual([
+            'problem',
+            'console',
+            'camera',
+            'heat',
+        ])
+    })
+
+    it('offers the camera and the console of the middle column as two sections', () => {
+        const entries = shellSectionEntries('home', { homeState: 'printing' })
+
+        expect(entries.find((entry) => entry.id === 'camera')).toMatchObject({ column: 'view', view: 'camera' })
+        expect(entries.find((entry) => entry.id === 'console')).toMatchObject({ column: 'view', view: 'console' })
+        expect(shellSectionEntries('home', { homeState: 'idle' })[2]).toMatchObject({ column: 'camera', view: null })
+    })
+
+    it('lists the columns of every tab of a page in one row, so each is one tap away', () => {
+        expect(shellSectionEntries('tune', { available: bare }).map((entry) => entry.key)).toEqual([
+            'move:move',
+            'move:goto',
+            'move:first-layer',
+            'extruder:extruder',
+            'bed-level:level',
+            'heater-tuning:heaters',
+            'heater-tuning:pid',
+            'resonance:resonance',
+            'resonance:resonance-help',
+            'limits:limits',
+            'limits:speed',
+            'macros:macros',
+        ])
+        expect(shellSectionEntries('fix', { available: bare }).map((entry) => entry.key)).toEqual([
+            'status:status',
+            'status:endstops',
+            'console:console',
+            'logs:logs',
+        ])
+    })
+
+    it('adds the columns that depend on what the printer has', () => {
+        const keys = (available: ShellAvailability): string[] =>
+            shellSectionEntries('tune', { available }).map((entry) => entry.key)
+
+        expect(keys({ ...bare, klipperObjects: ['bed_mesh'] })).toContain('bed-level:mesh')
+        expect(keys({ ...bare, moonrakerComponents: ['spoolman'] })).toContain('extruder:filament')
+        expect(keys({ ...bare, printerObjects: ['mmu'] })).toContain('extruder:filament')
+        expect(keys(bare)).not.toContain('extruder:filament')
+    })
+
+    it('leaves out the tabs the printer does not offer or the owner hides', () => {
+        const usual = { ...bare, moonrakerComponents: ['history'], registeredDirectories: ['gcodes'] }
+
+        expect(ids(shellSectionEntries('print', { available: usual }))).toEqual(['files', 'preview'])
+        expect(ids(shellSectionEntries('print', { available: { ...usual, hidden: ['print/preview'] } }))).toEqual([
+            'files',
+        ])
+        expect(ids(shellSectionEntries('machine', { available: { ...usual, hidden: ['machine/config'] } }))).toEqual([
+            'system',
+            'outputs',
+            'history',
+            'cameras',
+        ])
+    })
+
+    it('shows the list of settings and the open settings tab as two sections', () => {
+        expect(shellSectionEntries('settings', { tab: 'presets' })).toMatchObject([
+            { id: 'sections', tab: 'presets' },
+            { id: 'content', tab: 'presets' },
+        ])
+    })
+
+    it('moves to the neighbouring section on a swipe and stops at the ends', () => {
+        const entries = shellSectionEntries('fix', { available: bare })
+
+        expect(adjacentSection(entries, 'status:status', 'next')?.key).toBe('status:endstops')
+        expect(adjacentSection(entries, 'status:endstops', 'next')?.key).toBe('console:console')
+        expect(adjacentSection(entries, 'console:console', 'previous')?.key).toBe('status:endstops')
+        expect(adjacentSection(entries, 'status:status', 'previous')).toBeNull()
+        expect(adjacentSection(entries, 'logs:logs', 'next')).toBeNull()
+        expect(adjacentSection(entries, 'unknown', 'next')).toBeNull()
+    })
+
+    it('opens another available tab when the address names a hidden one', () => {
+        const available = { ...bare, hidden: ['fix/status'] }
+
+        expect(resolveShellLocation('/fix/status', available)).toEqual({ page: 'fix', tab: 'console' })
+        expect(offeredShellTabs('fix', available).map((tab) => tab.id)).toEqual(['console', 'logs'])
+    })
+})
+
+describe('shellFeatures in the compact layout', () => {
+    it('reaches every feature in three taps or fewer', () => {
+        const tooDeep = shellFeatures.filter((feature) => compactFeatureClicks(feature) > MAX_FEATURE_CLICKS)
+
+        expect(tooDeep).toEqual([])
+    })
+
+    it('counts one tap for the bottom bar, one for the section and one for the control', () => {
+        expect(compactFeatureClicks({ id: 'x', place: 'tune', tab: 'limits', section: 'speed' })).toBe(3)
+        expect(compactFeatureClicks({ id: 'x', place: 'home' })).toBe(2)
+        expect(compactFeatureClicks({ id: 'x', place: 'home', section: 'job', steps: 2 })).toBe(3)
+        expect(compactFeatureClicks({ id: 'x', place: 'home', section: 'ready' })).toBe(3)
+        expect(compactFeatureClicks({ id: 'x', place: 'home', section: 'ready', steps: 2 })).toBe(4)
+        expect(compactFeatureClicks({ id: 'x', place: 'rail', steps: 2 })).toBe(2)
+    })
+
+    it('keeps the emergency stop and leaving touch mode one tap from every screen', () => {
+        expect(compactFeatureClicks(findShellFeature('topbar:emergency-stop')!)).toBe(1)
+        expect(compactFeatureClicks(findShellFeature('kiosk:leave-touch-mode')!)).toBe(1)
+    })
+
+    it('only points at sections that exist', () => {
+        shellFeatures
+            .filter((feature) => feature.section !== undefined && feature.place !== 'rail')
+            .forEach((feature) => {
+                expect(allShellSectionIds(feature.place as ShellPageId, feature.tab), feature.id).toContain(
+                    feature.section
+                )
+            })
+    })
+
+    it('has the touch and kiosk settings on the settings page', () => {
+        expect(findShellFeature('settings:kiosk')).toMatchObject({ place: 'settings', tab: 'kiosk' })
     })
 })

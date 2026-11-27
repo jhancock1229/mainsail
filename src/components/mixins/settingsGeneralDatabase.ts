@@ -36,6 +36,10 @@ export default class SettingsGeneralDatabase extends BaseMixin {
                 label: this.$t('Settings.GCodeViewerTab.GCodeViewer'),
             },
             {
+                value: 'kiosk',
+                label: this.$t('Settings.GeneralTab.DbKiosk'),
+            },
+            {
                 value: 'navigation',
                 label: this.$t('Settings.GeneralTab.DbNavigation'),
             },

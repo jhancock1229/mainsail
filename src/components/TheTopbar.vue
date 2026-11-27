@@ -70,8 +70,8 @@
                 <span>{{ modeToggleLabel }}</span>
             </v-tooltip>
             <the-notification-menu />
-            <the-settings-menu />
-            <the-top-corner-menu />
+            <the-settings-menu class="topbar-settings-menu" />
+            <the-top-corner-menu class="topbar-corner-menu" />
         </v-app-bar>
         <v-snackbar v-model="uploadSnackbar.status" :timeout="-1" fixed right bottom>
             <strong>{{ $t('App.TopBar.Uploading') }} {{ uploadSnackbar.filename }}</strong>

@@ -109,13 +109,19 @@ describe('Redesigned shell: navigation', () => {
         tab('general').should('have.attr', 'aria-selected', 'true')
     })
 
-    it('keeps the shell and the page when the window is resized below the phone width', () => {
+    it('switches to the small-screen layout and keeps the page when the window gets narrower than 960 px', () => {
         rail('tune').click()
         tab('limits').click()
         cy.viewport(800, 700)
-        cy.get('.shell .shell-rail').should('be.visible')
+        cy.get('.shell.shell--compact').should('be.visible')
+        cy.get('.shell-rail__links').should('be.visible')
         cy.get('.v-app-bar').should('not.exist')
         cy.location('pathname').should('eq', '/tune/limits')
+        cy.get('.machine-settings-panel').should('be.visible')
+
+        cy.viewport(1280, 720)
+        cy.get('.shell').should('not.have.class', 'shell--compact')
+        tab('limits').should('be.visible').and('have.attr', 'aria-selected', 'true')
     })
 
     it('opens the command palette from the rail and runs a command', () => {
@@ -518,21 +524,20 @@ describe('Redesigned shell: interface switch', () => {
         cy.get('.v-app-bar').should('be.visible')
     })
 
-    it('keeps the classic interface on phone-width screens', () => {
+    it('uses the new interface on phone-width screens as well', () => {
         cy.viewport(400, 850)
-        openDashboard()
-        cy.request(`${Cypress.env('demoUrl')}/reset`)
-        cy.reload()
-        cy.get('.v-app-bar', { timeout: 15000 }).should('be.visible')
-        cy.get('.shell').should('not.exist')
+        openShell()
+        cy.get('.shell.shell--compact').should('be.visible')
+        cy.get('html').should('have.class', 'shell-new')
+        cy.get('.v-app-bar').should('not.exist')
     })
 
-    it('does not offer the new interface where the screen forces the classic one', () => {
+    it('offers the new interface on a phone-width screen that uses the classic one', () => {
         cy.viewport(400, 850)
         openDashboard()
         cy.get('.command-palette-trigger-icon').click()
         cy.get(`${paletteDialog} .command-palette__input`).type('interface')
-        cy.get(paletteDialog).should('not.contain', 'Switch to the')
+        cy.get(paletteDialog).should('contain', 'Switch to the new interface')
     })
 
     it('sends an address of the new shell to the matching classic page', () => {

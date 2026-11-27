@@ -19,6 +19,7 @@ export class WebSocketClient {
     private waits: Wait[] = []
     private heartbeatTimer: number | null = null
     private autoReconnect: boolean = false
+    private requestGuard: RequestGuard | null = null
 
     constructor(options: WebSocketPluginOptions) {
         this.url = options.url
@@ -183,7 +184,23 @@ export class WebSocketClient {
         this.waits.splice(index, 1)
     }
 
+    setRequestGuard(guard: RequestGuard | null): void {
+        this.requestGuard = guard
+    }
+
     emit(method: string, params: Params, options: EmitOptions = {}): void {
+        const verdict = this.requestGuard?.(method, params) ?? true
+        if (verdict === true) {
+            this.send(method, params, options)
+            return
+        }
+
+        verdict.then((allowed) => {
+            if (allowed) this.send(method, params, options)
+        })
+    }
+
+    private send(method: string, params: Params, options: EmitOptions = {}): void {
         if (this.instance?.readyState !== WebSocket.OPEN) return
 
         const id = this.messageId++
@@ -372,6 +389,8 @@ interface Wait {
 }
 
 type Params = object
+
+export type RequestGuard = (method: string, params: unknown) => true | Promise<boolean>
 
 interface EmitOptions {
     action?: string | null

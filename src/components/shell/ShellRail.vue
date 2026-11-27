@@ -1,19 +1,22 @@
 <template>
-    <nav class="shell-rail" :aria-label="$t('Shell.Rail.Main')">
+    <nav class="shell-rail" :class="{ 'shell-rail--compact': compact }" :aria-label="$t('Shell.Rail.Main')">
         <div class="shell-rail__name">
             <span class="shell-rail__name-text">{{ printerName }}</span>
             <printer-selector v-if="countPrinters" />
         </div>
-        <router-link
-            v-for="page in pages"
-            :key="page.id"
-            :to="page.path"
-            class="shell-rail__link"
-            :class="{ 'shell-rail__link--active': page.id === shellLocation.page }"
-            :data-page="page.id"
-            :aria-current="page.id === shellLocation.page ? 'page' : null">
-            {{ page.title }}
-        </router-link>
+        <div class="shell-rail__links">
+            <router-link
+                v-for="page in pages"
+                :key="page.id"
+                :to="page.path"
+                class="shell-rail__link"
+                :class="{ 'shell-rail__link--active': page.id === shellLocation.page }"
+                :data-page="page.id"
+                :aria-label="page.title"
+                :aria-current="page.id === shellLocation.page ? 'page' : null">
+                {{ compact ? page.short : page.title }}
+            </router-link>
+        </div>
         <div class="sh-spacer" />
         <div class="shell-rail__tools">
             <the-notification-menu />
@@ -33,9 +36,26 @@
             </v-tooltip>
             <the-top-corner-menu />
             <span class="shell-rail__about"><about-dialog /></span>
+            <v-btn
+                v-if="compact && showSearch"
+                icon
+                class="shell-rail__search-icon"
+                :aria-label="$t('Shell.Rail.Search')"
+                @click="openPalette">
+                <v-icon>{{ mdiMagnify }}</v-icon>
+            </v-btn>
+            <v-btn
+                v-if="shellTouchMode"
+                icon
+                class="shell-rail__leave"
+                :aria-label="$t('Kiosk.Exit')"
+                :title="$t('Kiosk.Exit')"
+                @click="leaveTouchMode">
+                <v-icon>{{ kioskHasPin ? mdiLockOutline : mdiExitToApp }}</v-icon>
+            </v-btn>
         </div>
         <the-command-palette ref="palette" class="shell-rail__palette" />
-        <button v-if="paletteSettings.enabled" type="button" class="shell-rail__search" @click="openPalette">
+        <button v-if="showSearch" type="button" class="shell-rail__search" @click="openPalette">
             <span>{{ $t('Shell.Rail.Search') }}</span>
             <span class="shell-rail__keys">{{ paletteShortcutKeys.join('') }}</span>
         </button>
@@ -44,8 +64,9 @@
             type="button"
             class="shell-rail__stop emergency-button"
             :disabled="loadings.includes('topbarEmergencyStop')"
+            :aria-label="$t('Shell.Rail.EmergencyStop')"
             @click="btnEmergencyStop">
-            {{ $t('Shell.Rail.EmergencyStop') }}
+            {{ compact ? $t('Shell.Compact.Stop') : $t('Shell.Rail.EmergencyStop') }}
         </button>
         <emergency-stop-dialog v-model="showEmergencyStopDialog" />
     </nav>
@@ -53,9 +74,10 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins, Ref } from 'vue-property-decorator'
-import { mdiWeatherNight, mdiWeatherSunny } from '@mdi/js'
+import { Mixins, Prop, Ref } from 'vue-property-decorator'
+import { mdiExitToApp, mdiLockOutline, mdiMagnify, mdiWeatherNight, mdiWeatherSunny } from '@mdi/js'
 import ShellMixin from '@/components/mixins/shell'
+import KioskMixin from '@/components/mixins/kiosk'
 import CommandPaletteMixin from '@/components/mixins/commandPalette'
 import TheCommandPalette from '@/components/TheCommandPalette.vue'
 import TheNotificationMenu from '@/components/notifications/TheNotificationMenu.vue'
@@ -65,6 +87,7 @@ import EmergencyStopDialog from '@/components/dialogs/EmergencyStopDialog.vue'
 import PrinterSelector from '@/components/ui/PrinterSelector.vue'
 import { shellPages } from '@/plugins/shellNavigation'
 import { systemPrefersDarkQuery, toggledThemeMode } from '@/plugins/themeMode'
+import { exposedShellPages } from '@/plugins/kiosk'
 
 @Component({
     components: {
@@ -76,7 +99,12 @@ import { systemPrefersDarkQuery, toggledThemeMode } from '@/plugins/themeMode'
         TheTopCornerMenu,
     },
 })
-export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
+export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin, KioskMixin) {
+    @Prop({ type: Boolean, default: false }) declare readonly compact: boolean
+
+    mdiExitToApp = mdiExitToApp
+    mdiLockOutline = mdiLockOutline
+    mdiMagnify = mdiMagnify
     mdiWeatherNight = mdiWeatherNight
     mdiWeatherSunny = mdiWeatherSunny
 
@@ -84,12 +112,22 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
 
     @Ref() readonly palette!: TheCommandPalette
 
-    get pages(): { id: string; path: string; title: string }[] {
-        return shellPages.map((page) => ({
-            id: page.id,
-            path: page.path,
-            title: this.$t(`Shell.Pages.${page.id}`).toString(),
-        }))
+    get pages(): { id: string; path: string; title: string; short: string }[] {
+        const ids = shellPages.map((page) => page.id as string)
+        const exposed = this.shellTouchMode ? exposedShellPages(ids, this.kioskSettings) : ids
+
+        return shellPages
+            .filter((page) => exposed.includes(page.id))
+            .map((page) => ({
+                id: page.id,
+                path: page.path,
+                title: this.$t(`Shell.Pages.${page.id}`).toString(),
+                short: this.$t(`Shell.Compact.Pages.${page.id}`).toString(),
+            }))
+    }
+
+    get showSearch(): boolean {
+        return this.paletteSettings.enabled && !this.shellTouchMode
     }
 
     get printerName(): string {
@@ -108,6 +146,10 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
         const key = this.$vuetify.theme.dark ? 'App.TopBar.SwitchToLightMode' : 'App.TopBar.SwitchToDarkMode'
 
         return this.$t(key).toString()
+    }
+
+    leaveTouchMode(): void {
+        this.leaveKiosk()
     }
 
     openPalette(): void {
@@ -158,6 +200,12 @@ export default class ShellRail extends Mixins(ShellMixin, CommandPaletteMixin) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.shell-rail__links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .shell-rail__link {

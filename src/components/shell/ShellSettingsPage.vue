@@ -3,6 +3,7 @@
         <shell-header :title="$t('Shell.Pages.settings')" :status="$t('Shell.Settings.Status')" />
         <div class="sh-columns shell-settings__columns">
             <nav
+                data-section="sections"
                 class="sh-col sh-col--scroll shell-settings__tabs"
                 role="tablist"
                 :aria-label="$t('Shell.Pages.settings')">
@@ -18,7 +19,10 @@
                     {{ entry.title }}
                 </button>
             </nav>
-            <div ref="content" class="sh-host sh-host--flush shell-settings__content settings-tabs">
+            <div
+                ref="content"
+                data-section="content"
+                class="sh-host sh-host--flush shell-settings__content settings-tabs">
                 <component :is="'settings-' + tab + '-tab'" @scrollToTop="scrollToTop" />
             </div>
         </div>
@@ -49,6 +53,7 @@ import SettingsNotificationsTab from '@/components/settings/SettingsNotification
 import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
 import SettingsMiscellaneousTab from '@/components/settings/SettingsMiscellaneousTab.vue'
 import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue'
+import SettingsKioskTab from '@/components/settings/SettingsKioskTab.vue'
 
 @Component({
     components: {
@@ -70,6 +75,7 @@ import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue
         SettingsNotificationsTab,
         SettingsHeightmapTab,
         SettingsCommandPaletteTab,
+        SettingsKioskTab,
     },
 })
 export default class ShellSettingsPage extends Mixins(ShellMixin) {

@@ -9,6 +9,7 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { KioskSettings } from '@/plugins/kiosk'
 import { SpoolTrackerSettings } from '@/plugins/spoolTracker'
 import { InterfaceShell } from '@/plugins/shellNavigation'
 
@@ -24,6 +25,7 @@ export interface GuiState {
         calcEtaTime: string[] // file, filament, slicer are possible values
     }
     commandPalette: PaletteSettings
+    kiosk: KioskSettings
     console?: GuiConsoleState
     control: {
         style: 'bars' | 'circle' | 'cross'

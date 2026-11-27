@@ -8,7 +8,7 @@
             :label="$t('Shell.Pages.machine')"
             @input="goTo('machine', $event)" />
         <div class="sh-columns sh-columns--1">
-            <div class="sh-host" :class="'shell-machine__' + tab">
+            <div class="sh-host" :data-section="tab" :class="'shell-machine__' + tab">
                 <config-files-panel v-if="tab === 'config'" />
                 <update-panel v-else-if="tab === 'updates'" />
                 <system-panel v-else-if="tab === 'system'" />
