@@ -9,6 +9,7 @@ import {
     isDashboardViewport,
 } from '@/plugins/dashboardNamedLayouts'
 import { dashboardLayoutActions } from '@/store/gui/dashboardLayoutActions'
+import { shellHomeActions } from '@/store/gui/shellHomeActions'
 import { GuiPresetsStatePreset } from '@/store/gui/presets/types'
 import { RootState } from '@/store/types'
 import { getDefaultState } from './index'
@@ -510,6 +511,7 @@ export const actions: ActionTree<GuiState, RootState> = {
     },
 
     ...dashboardLayoutActions,
+    ...shellHomeActions,
 
     updateGcodeviewerCache({ dispatch, state }, payload) {
         const klipperCache = state.gcodeViewer.klipperCache as Record<string, unknown>

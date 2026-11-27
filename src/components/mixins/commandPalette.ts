@@ -11,6 +11,7 @@ import {
     togglePinnedCommand,
 } from '@/plugins/commandPalette'
 import { resolveNamedLayouts } from '@/plugins/dashboardNamedLayouts'
+import { resolveHomeLayouts } from '@/plugins/shellHomeLayout'
 import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 import { validGcodeExtensions } from '@/store/variables'
 import { PrinterStateMacro } from '@/store/printer/types'
@@ -44,10 +45,25 @@ export default class CommandPaletteMixin extends Mixins(NavigationMixin) {
             cooldownGcode: this.$store.getters['gui/presets/getCooldownGcode'],
             confirmOnCoolDown: this.$store.state.gui.uiSettings.confirmOnCoolDown ?? false,
             settingsTabs: commandPaletteBus.settingsTabs,
-            dashboardLayouts: this.paletteDashboardLayouts,
+            dashboardLayouts: this.paletteShell === 'classic' ? this.paletteDashboardLayouts : [],
+            homeLayouts: this.paletteShell === 'new' ? this.paletteHomeLayouts : [],
             interfaceShell: commandPaletteBus.switchableShell ?? undefined,
             t: (key, values) => this.$t(key, values).toString(),
         })
+    }
+
+    get paletteShell(): 'new' | 'classic' {
+        return commandPaletteBus.switchableShell ?? 'classic'
+    }
+
+    get paletteHomeLayouts(): { id: string; name: string; active: boolean }[] {
+        const home = resolveHomeLayouts(this.$store.state.gui.shellHome)
+
+        return home.layouts.map((layout) => ({
+            id: layout.id,
+            name: layout.name || this.$t('Shell.Home.DefaultName').toString(),
+            active: layout.id === home.activeId,
+        }))
     }
 
     get paletteDashboardLayouts(): { id: string; name: string; active: boolean }[] {

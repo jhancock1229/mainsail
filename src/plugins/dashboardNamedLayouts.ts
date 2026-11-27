@@ -1,5 +1,8 @@
 import type { GuiStateLayoutoption } from '@/store/gui/types'
 import { allDashboardPanels } from '@/store/variables'
+import { sanitizeLayoutName } from './layoutNames'
+
+export { MAX_LAYOUT_NAME_LENGTH, sanitizeLayoutName, uniqueLayoutName } from './layoutNames'
 
 export type DashboardViewport = 'mobile' | 'tablet' | 'desktop' | 'widescreen'
 export type PanelDensity = 'compact' | 'normal' | 'expanded'
@@ -10,7 +13,6 @@ export const customLayoutStates: CustomLayoutState[] = ['printing', 'error']
 
 export const COLUMN_WIDTH_UNITS = 24
 export const MIN_COLUMN_WIDTH_UNITS = 4
-export const MAX_LAYOUT_NAME_LENGTH = 40
 export const MAX_NAMED_LAYOUTS = 24
 export const DEFAULT_LAYOUT_ID = 'default'
 export const LAYOUT_EXPORT_FORMAT = 'mainsail-dashboard-layout'
@@ -180,23 +182,6 @@ export const nextPanelDensity = (name: string, current: PanelDensity): PanelDens
     const options = order.filter((option) => getPanelDensityOptions(name).includes(option))
 
     return options[(options.indexOf(current) + 1) % options.length]
-}
-
-export const sanitizeLayoutName = (name: unknown): string => {
-    if (typeof name !== 'string') return ''
-
-    return name.replace(/\s+/g, ' ').trim().slice(0, MAX_LAYOUT_NAME_LENGTH).trim()
-}
-
-export const uniqueLayoutName = (name: string, existing: string[]): string => {
-    const taken = existing.map((entry) => entry.toLowerCase())
-    if (!taken.includes(name.toLowerCase())) return name
-
-    for (let count = 2; ; count++) {
-        const suffix = ` ${count}`
-        const candidate = name.slice(0, MAX_LAYOUT_NAME_LENGTH - suffix.length).trim() + suffix
-        if (!taken.includes(candidate.toLowerCase())) return candidate
-    }
 }
 
 const sanitizePanels = (list: unknown[], seen: Set<string>): GuiStateLayoutoption[] => {

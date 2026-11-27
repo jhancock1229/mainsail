@@ -19,6 +19,8 @@
 #   demo/demo.sh reconnect  drop the connection to Mainsail, which then reconnects
 #   demo/demo.sh layouts [named|legacy|corrupt]
 #                          store example dashboard layouts (reload Mainsail afterwards)
+#   demo/demo.sh home-layouts [named|corrupt]
+#                          store example Home layouts for the new interface (reload afterwards)
 #   demo/demo.sh reset     fresh printer and default Mainsail settings
 #   demo/demo.sh classic   switch Mainsail to the classic (stock) interface
 #   demo/demo.sh spool     pretend a 1 kg spool of black PLA was loaded 12 days ago
@@ -37,7 +39,7 @@ case "${1:-}" in
         trap 'kill $! 2>/dev/null' EXIT
         VUE_APP_HOSTNAME=localhost VUE_APP_PORT=${DEMO_PORT} npx vite serve --port "${DEMO_UI_PORT:-8080}"
         ;;
-    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | layouts | reset | classic | spool | status)
+    print | quickprint | pause | resume | finish | frame | fail | error | runout | idle | reconnect | layouts | home-layouts | reset | classic | spool | status)
         curl -sS --max-time 5 "http://localhost:${DEMO_PORT:-7125}/demo/$1${2:+/$2}"
         ;;
     test)
@@ -53,7 +55,7 @@ case "${1:-}" in
             "cypress run --config-file cypress.demo.config.ts ${*:2}"
         ;;
     *)
-        sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
         exit 1
         ;;
 esac

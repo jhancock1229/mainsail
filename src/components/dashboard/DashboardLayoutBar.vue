@@ -100,7 +100,7 @@
                 </v-btn>
             </div>
         </v-sheet>
-        <dashboard-layout-name-dialog
+        <layout-name-dialog
             :show="showSaveAs"
             :title="$t('Dashboard.Layouts.SaveAs')"
             :hint="$t('Dashboard.Layouts.SaveAsHint')"
@@ -115,7 +115,7 @@ import Component from 'vue-class-component'
 import { Mixins, Prop } from 'vue-property-decorator'
 import DashboardLayoutsMixin from '@/components/mixins/dashboardLayouts'
 import DashboardColumnControls from '@/components/dashboard/DashboardColumnControls.vue'
-import DashboardLayoutNameDialog from '@/components/dashboard/DashboardLayoutNameDialog.vue'
+import LayoutNameDialog from '@/components/layouts/LayoutNameDialog.vue'
 import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 import { dashboardEditBus, startDashboardEdit, stopDashboardEdit } from '@/plugins/dashboardEditBus'
 import { OPEN_SETTINGS_TAB } from '@/plugins/commandPaletteBus'
@@ -136,7 +136,7 @@ import {
 import { TranslateResult } from 'vue-i18n'
 
 @Component({
-    components: { DashboardColumnControls, DashboardLayoutNameDialog },
+    components: { DashboardColumnControls, LayoutNameDialog },
 })
 export default class DashboardLayoutBar extends Mixins(DashboardLayoutsMixin) {
     @Prop({ type: String, required: true }) declare readonly layoutViewport: string

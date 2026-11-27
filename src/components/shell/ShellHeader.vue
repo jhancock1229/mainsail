@@ -10,6 +10,7 @@
                 @click="saveConfig">
                 {{ $t('Shell.SaveConfig') }}
             </button>
+            <slot />
             <div class="shell-header__status">{{ status }}</div>
         </div>
     </header>

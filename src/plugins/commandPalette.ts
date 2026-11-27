@@ -29,6 +29,8 @@ export type PaletteRun =
     | { type: 'settings'; tab: string }
     | { type: 'dashboard-layout'; id: string }
     | { type: 'dashboard-layout-edit' }
+    | { type: 'home-layout'; id: string }
+    | { type: 'home-layout-edit' }
     | { type: 'setting'; name: string; value: string }
 
 export interface PaletteCommand {
@@ -65,6 +67,7 @@ export interface PaletteContext {
     confirmOnCoolDown: boolean
     settingsTabs: { name: string; title: string; icon: string }[]
     dashboardLayouts?: { id: string; name: string; active: boolean }[]
+    homeLayouts?: { id: string; name: string; active: boolean }[]
     interfaceShell?: 'new' | 'classic'
     t: (key: string, values?: Record<string, unknown>) => string
 }
@@ -347,6 +350,29 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             icon: mdiPencilRulerOutline,
             keywords: ['dashboard', 'arrange', 'panels', 'columns', 'customize'],
             run: { type: 'dashboard-layout-edit' },
+        })
+    }
+
+    const homeLayouts = context.homeLayouts ?? []
+    homeLayouts.forEach((layout) => {
+        add({
+            id: `home-layout:${layout.id}`,
+            group: 'navigation',
+            title: t('Shell.Home.SwitchTo', { name: layout.name }),
+            subtitle: layout.active ? t('Dashboard.Layouts.Active') : '',
+            icon: mdiViewDashboardOutline,
+            keywords: ['layout', 'home', 'switch'],
+            run: { type: 'home-layout', id: layout.id },
+        })
+    })
+    if (homeLayouts.length > 0) {
+        add({
+            id: 'home-layout-edit',
+            group: 'navigation',
+            title: t('Shell.Home.Edit'),
+            icon: mdiPencilRulerOutline,
+            keywords: ['home', 'arrange', 'blocks', 'columns', 'customize', 'layout'],
+            run: { type: 'home-layout-edit' },
         })
     }
 

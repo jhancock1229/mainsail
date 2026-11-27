@@ -40,6 +40,10 @@ export default class SettingsGeneralDatabase extends BaseMixin {
                 label: this.$t('Settings.GeneralTab.DbNavigation'),
             },
             {
+                value: 'shellHome',
+                label: this.$t('Settings.GeneralTab.DbShellHome'),
+            },
+            {
                 value: 'spoolTracker',
                 label: this.$t('Settings.GeneralTab.DbSpoolTracker'),
             },

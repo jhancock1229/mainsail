@@ -130,6 +130,11 @@ export interface GuiState {
         interfaceShell?: InterfaceShell
     }
     spoolTracker: SpoolTrackerSettings
+    shellHome?: {
+        active: string
+        showMenu?: boolean
+        items: Record<string, { name: string; order: number; layout?: unknown }>
+    }
     view: {
         afc: {
             hiddenExtruders: string[]

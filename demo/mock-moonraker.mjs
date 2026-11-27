@@ -975,6 +975,81 @@ controls.layouts = (name = 'named') => {
     if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
 }
 
+const homeColumn = (mode, ...blocks) => ({ mode, blocks })
+const homeLayoutSeeds = {
+    named: () => ({
+        active: 'default',
+        items: {
+            default: { name: 'Everyday', order: 0 },
+            workshop: {
+                name: 'Workshop',
+                order: 1,
+                layout: {
+                    states: {
+                        idle: [
+                            homeColumn('split', 'ready'),
+                            homeColumn('tabs', 'start', 'macros', 'console'),
+                            homeColumn('split', 'camera', 'heat'),
+                        ],
+                        printing: [
+                            homeColumn('split', 'job'),
+                            homeColumn('tabs', 'console', 'camera', 'macros'),
+                            homeColumn('split', 'heat', 'events'),
+                        ],
+                    },
+                    actions: ['temperatures', 'speed', 'macros', 'console'],
+                },
+            },
+            glance: {
+                name: 'At a glance',
+                order: 2,
+                layout: {
+                    states: {
+                        idle: [
+                            homeColumn('split', 'camera'),
+                            homeColumn('split', 'start'),
+                            homeColumn('split', 'heat', 'spool', 'last'),
+                        ],
+                        printing: [
+                            homeColumn('split', 'job'),
+                            homeColumn('split', 'camera'),
+                            homeColumn('split', 'heat', 'spool'),
+                        ],
+                    },
+                },
+            },
+        },
+    }),
+    corrupt: () => ({
+        active: 'gone',
+        showMenu: 'yes',
+        items: {
+            kept: { name: 'Kept', order: 0, layout: { states: { idle: 'nonsense', printing: [] }, actions: 7 } },
+            tall: {
+                name: 'Too tall',
+                order: 1,
+                layout: {
+                    states: {
+                        idle: [
+                            homeColumn('split', 'start'),
+                            homeColumn('split', 'ready', 'spool', 'heat'),
+                            homeColumn('split', 'camera', 'unknown-block'),
+                        ],
+                    },
+                },
+            },
+            junk: 42,
+        },
+    }),
+}
+controls['home-layouts'] = (name = 'named') => {
+    if (!Object.hasOwn(homeLayoutSeeds, name)) throw new Error(`unknown Home layout example '${name}'`)
+
+    database.mainsail ??= {}
+    database.mainsail.shellHome = homeLayoutSeeds[name]()
+    if (DB_FILE !== 'none') fs.writeFileSync(DB_FILE, JSON.stringify(database, null, 2))
+}
+
 const configFileText = () =>
     Object.entries(fixture.status.configfile.config)
         .map(([name, options]) => {

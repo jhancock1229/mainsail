@@ -221,6 +221,11 @@ export const getDefaultState = (): GuiState => {
             interfaceShell: DEFAULT_INTERFACE_SHELL,
         },
         spoolTracker: getDefaultSpoolTrackerSettings(),
+        shellHome: {
+            active: 'default',
+            showMenu: true,
+            items: {},
+        },
         view: {
             afc: {
                 hiddenExtruders: [],

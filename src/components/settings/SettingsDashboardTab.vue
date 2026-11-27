@@ -11,6 +11,10 @@
 <template>
     <v-card flat>
         <v-card-text>
+            <v-alert v-if="inNewShell" class="dashboard-classic-note" type="info" dense text>
+                {{ $t('Shell.Home.ClassicNote') }}
+                <router-link to="/settings/home">{{ $t('Shell.Home.Layouts') }}</router-link>
+            </v-alert>
             <settings-dashboard-layouts />
             <v-divider class="my-2" />
             <settings-row
@@ -120,6 +124,7 @@ import {
     mdiSleep,
     mdiTablet,
 } from '@mdi/js'
+import { commandPaletteBus } from '@/plugins/commandPaletteBus'
 import { DashboardLayoutState } from '@/plugins/dashboardLayoutState'
 import { TranslateResult } from 'vue-i18n'
 
@@ -159,6 +164,10 @@ export default class SettingsDashboardTab extends Mixins(BaseMixin) {
 
     set stateLayoutsEnabled(newVal: boolean) {
         this.$store.dispatch('gui/saveSetting', { name: 'dashboard.stateLayouts.enabled', value: newVal })
+    }
+
+    get inNewShell(): boolean {
+        return commandPaletteBus.switchableShell === 'new'
     }
 
     get showLayoutBar(): boolean {

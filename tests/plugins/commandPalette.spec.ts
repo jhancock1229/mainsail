@@ -112,6 +112,24 @@ describe('buildPaletteCommands', () => {
         expect(byId(commands, 'dashboard-layout-edit').run).toEqual({ type: 'dashboard-layout-edit' })
     })
 
+    it('lists the Home layouts of the new interface and its editor', () => {
+        const commands = buildPaletteCommands(
+            createContext({
+                homeLayouts: [
+                    { id: 'default', name: 'Everyday', active: true },
+                    { id: 'workshop', name: 'Workshop', active: false },
+                ],
+            })
+        )
+
+        expect(byId(commands, 'home-layout:workshop')).toMatchObject({
+            group: 'navigation',
+            run: { type: 'home-layout', id: 'workshop' },
+        })
+        expect(byId(commands, 'home-layout-edit').run).toEqual({ type: 'home-layout-edit' })
+        expect(commands.some((command) => command.id.startsWith('dashboard-layout'))).toBe(false)
+    })
+
     it('has no layout commands when no layouts are given', () => {
         const commands = buildPaletteCommands(createContext())
 

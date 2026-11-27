@@ -7,6 +7,7 @@ import {
     mdiFileDocumentEditOutline,
     mdiFire,
     mdiGrid,
+    mdiHomeEditOutline,
     mdiKeyboardOutline,
     mdiMenu,
     mdiMonitorDashboard,
@@ -18,12 +19,13 @@ import {
     mdiWebcam,
 } from '@mdi/js'
 import { PaletteSettingsTab } from '@/plugins/commandPaletteBus'
-import { settingsTabNames } from '@/plugins/shellNavigation'
+import { settingsTabNames, shellOnlySettingsTabNames } from '@/plugins/shellNavigation'
 
 const tabs: Record<string, { icon: string; titleKey: string }> = {
     general: { icon: mdiCog, titleKey: 'Settings.GeneralTab.General' },
     'ui-settings': { icon: mdiPalette, titleKey: 'Settings.UiSettingsTab.UiSettings' },
     dashboard: { icon: mdiMonitorDashboard, titleKey: 'Settings.DashboardTab.Dashboard' },
+    home: { icon: mdiHomeEditOutline, titleKey: 'Shell.Home.Layouts' },
     webcams: { icon: mdiWebcam, titleKey: 'Settings.WebcamsTab.Webcams' },
     macros: { icon: mdiCodeTags, titleKey: 'Settings.MacrosTab.Macros' },
     control: { icon: mdiTune, titleKey: 'Settings.ControlTab.Control' },
@@ -41,7 +43,7 @@ const tabs: Record<string, { icon: string; titleKey: string }> = {
 }
 
 export const buildShellSettingsTabs = (t: (key: string) => string): PaletteSettingsTab[] => {
-    return settingsTabNames
+    return [...settingsTabNames, ...shellOnlySettingsTabNames]
         .map((name) => ({ name, icon: tabs[name]?.icon ?? mdiCog, title: t(tabs[name]?.titleKey ?? name) }))
         .sort((a, b) => {
             if (a.name === 'general') return -1

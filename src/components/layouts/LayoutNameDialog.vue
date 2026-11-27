@@ -1,6 +1,6 @@
 <template>
     <v-dialog :value="show" max-width="420" @click:outside="close" @keydown.esc="close">
-        <v-card class="dashboard-layout-name-dialog">
+        <v-card class="layout-name-dialog">
             <v-card-title class="text-h6">{{ title }}</v-card-title>
             <v-card-text class="pb-0">
                 <v-text-field
@@ -29,11 +29,11 @@
 import Component from 'vue-class-component'
 import { Mixins, Prop, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
-import { MAX_LAYOUT_NAME_LENGTH, sanitizeLayoutName } from '@/plugins/dashboardNamedLayouts'
+import { MAX_LAYOUT_NAME_LENGTH, sanitizeLayoutName } from '@/plugins/layoutNames'
 import { TranslateResult } from 'vue-i18n'
 
 @Component
-export default class DashboardLayoutNameDialog extends Mixins(BaseMixin) {
+export default class LayoutNameDialog extends Mixins(BaseMixin) {
     @Prop({ type: Boolean, required: true }) declare readonly show: boolean
     @Prop({ type: String, required: true }) declare readonly title: string | TranslateResult
     @Prop({ type: String, required: true }) declare readonly confirmText: string | TranslateResult

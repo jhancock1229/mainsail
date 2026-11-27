@@ -20,7 +20,7 @@ const switchTo = (name: string) => {
 const saveAs = (name: string) => {
     switcher().click()
     cy.contains('.menuable__content__active .v-list-item', 'Save as new layout').click()
-    cy.get('.dashboard-layout-name-dialog input').type(`${name}{enter}`)
+    cy.get('.layout-name-dialog input').type(`${name}{enter}`)
     switcher().should('contain', name)
 }
 const openSeeded = (seed: string) => {
@@ -29,10 +29,10 @@ const openSeeded = (seed: string) => {
     cy.visit('/')
     cy.contains('.panel-toolbar', 'Standby', { timeout: 15000 })
 }
-const layoutRow = (name: string) => cy.contains('.v-dialog--active .dashboard-layouts__item', name)
+const layoutRow = (name: string) => cy.contains('.v-dialog--active .layout-list__item', name)
 const layoutNames = (check: (names: string[]) => void) =>
     cy
-        .get('.v-dialog--active .dashboard-layouts__select .text-truncate')
+        .get('.v-dialog--active .layout-list__select .text-truncate')
         .should(($names) => check($names.toArray().map((name) => name.innerText.trim())))
 const columnWidths = (check: (widths: number[]) => void) =>
     columns().should(($columns) => {
@@ -59,6 +59,7 @@ const dragPanelOnto = (name: string, target: string) => {
         cy.get('body').trigger('pointermove', { clientX: x, clientY: y, ...pointer })
         cy.wait(300)
         cy.get('body').trigger('pointerup', { clientX: x, clientY: y, ...pointer })
+        cy.get('body').trigger('mouseup', { clientX: x, clientY: y, force: true, scrollBehavior: false })
     })
 }
 
@@ -225,25 +226,25 @@ describe('Dashboard layouts', () => {
         it('renames, duplicates and deletes layouts in the settings', () => {
             openDashboardSettings()
             noRawKeys('.v-dialog--active')
-            layoutRow('Default').find('.dashboard-layouts__delete').should('be.disabled')
+            layoutRow('Default').find('.layout-list__delete').should('be.disabled')
 
-            layoutRow('Default').find('.dashboard-layouts__rename').click()
-            cy.get('.dashboard-layout-name-dialog input').clear().type('Everyday{enter}')
+            layoutRow('Default').find('.layout-list__rename').click()
+            cy.get('.layout-name-dialog input').clear().type('Everyday{enter}')
             layoutNames((names) => expect(names).to.deep.equal(['Everyday']))
 
-            layoutRow('Everyday').find('.dashboard-layouts__duplicate').click()
-            cy.get('.dashboard-layout-name-dialog input').should('have.value', 'Everyday copy')
-            cy.get('.dashboard-layout-name-dialog input').clear().type('Farm glance{enter}')
+            layoutRow('Everyday').find('.layout-list__duplicate').click()
+            cy.get('.layout-name-dialog input').should('have.value', 'Everyday copy')
+            cy.get('.layout-name-dialog input').clear().type('Farm glance{enter}')
             layoutNames((names) => expect(names).to.deep.equal(['Everyday', 'Farm glance']))
-            layoutRow('Everyday').should('have.class', 'dashboard-layouts__item--active')
+            layoutRow('Everyday').should('have.class', 'layout-list__item--active')
 
-            layoutRow('Farm glance').find('.dashboard-layouts__select').click()
-            layoutRow('Farm glance').should('have.class', 'dashboard-layouts__item--active')
+            layoutRow('Farm glance').find('.layout-list__select').click()
+            layoutRow('Farm glance').should('have.class', 'layout-list__item--active')
 
-            layoutRow('Farm glance').find('.dashboard-layouts__delete').click()
-            cy.contains('.dashboard-layouts__delete-dialog button', 'Delete').click()
+            layoutRow('Farm glance').find('.layout-list__delete').click()
+            cy.contains('.layout-list__delete-dialog button', 'Delete').click()
             layoutNames((names) => expect(names).to.deep.equal(['Everyday']))
-            layoutRow('Everyday').should('have.class', 'dashboard-layouts__item--active')
+            layoutRow('Everyday').should('have.class', 'layout-list__item--active')
             cy.get('body').type('{esc}')
             switcher().should('contain', 'Everyday')
         })
@@ -255,7 +256,7 @@ describe('Dashboard layouts', () => {
             finishEdit()
 
             openDashboardSettings()
-            layoutRow('Default').find('.dashboard-layouts__export').click()
+            layoutRow('Default').find('.layout-list__export').click()
             cy.readFile('dist-demo/downloads/mainsail-layout-default.json').then((file) => {
                 expect(file.format).to.equal('mainsail-dashboard-layout')
                 expect(file.layout.density).to.deep.equal({ miniconsole: 'expanded' })
@@ -270,7 +271,7 @@ describe('Dashboard layouts', () => {
             )
             cy.contains('.v-toast', 'imported')
             layoutNames((names) => expect(names).to.deep.equal(['Default', 'Default 2']))
-            layoutRow('Default 2').should('have.class', 'dashboard-layouts__item--active')
+            layoutRow('Default 2').should('have.class', 'layout-list__item--active')
             cy.contains('.v-dialog--active .settings-row-title', 'Layouts').click()
             cy.get('body').type('{esc}')
 

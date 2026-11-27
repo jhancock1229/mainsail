@@ -180,6 +180,9 @@ import {
 import { commandPaletteBus, OPEN_SETTINGS_TAB } from '@/plugins/commandPaletteBus'
 import { EventBus } from '@/plugins/eventBus'
 import { startDashboardEdit } from '@/plugins/dashboardEditBus'
+import { startShellHomeEdit } from '@/plugins/shellHomeEdit'
+import { homeLayoutStateFor } from '@/plugins/shellHomeLayout'
+import { resolveShellHomeState } from '@/plugins/shellStatus'
 import { resolveDashboardLayoutState } from '@/plugins/dashboardLayoutState'
 import { mdiClose, mdiMagnify, mdiMagnifyClose } from '@mdi/js'
 
@@ -502,6 +505,22 @@ export default class TheCommandPalette extends Mixins(BaseMixin, CommandPaletteM
             case 'dashboard-layout':
                 this.$store.dispatch('gui/switchDashboardLayout', run.id)
                 if (this.$route.path !== '/') this.$router.push('/')
+                break
+            case 'home-layout':
+                this.$store.dispatch('gui/switchHomeLayout', run.id)
+                if (this.$route.path !== '/') this.$router.push('/')
+                break
+            case 'home-layout-edit':
+                if (this.$route.path !== '/') this.$router.push('/')
+                startShellHomeEdit(
+                    homeLayoutStateFor(
+                        resolveShellHomeState({
+                            klipperState: this.klipperState,
+                            printerState: this.printer_state,
+                            filename: this.$store.state.printer.print_stats?.filename ?? '',
+                        })
+                    )
+                )
                 break
             case 'dashboard-layout-edit':
                 if (this.$route.path !== '/') this.$router.push('/')
