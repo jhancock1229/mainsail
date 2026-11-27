@@ -13,6 +13,9 @@ import {
     PrinterTempHistoryStateSourceEntry,
 } from '@/store/printer/tempHistory/types'
 import { RootState } from '@/store/types'
+import { assignChartColors, ThemeChartPalette } from '@/plugins/themeTokens'
+
+const TEMPERATURE_SUFFIX = '-temperature'
 
 export const actions: ActionTree<PrinterTempHistoryState, RootState> = {
     reset({ commit, state }) {
@@ -21,8 +24,9 @@ export const actions: ActionTree<PrinterTempHistoryState, RootState> = {
         commit('reset')
     },
 
-    init({ commit, rootGetters, dispatch }, payload) {
+    init({ commit, rootGetters, dispatch, state }, payload) {
         window.console.debug('init printer/tempHistory')
+        const activePalette = state.chartPalette
         dispatch('reset')
 
         const now = new Date()
@@ -229,6 +233,7 @@ export const actions: ActionTree<PrinterTempHistoryState, RootState> = {
             })
 
             commit('setInitSeries', series)
+            if (activePalette !== null) dispatch('applyChartPalette', activePalette)
 
             const updateSourceInterval = setInterval(() => {
                 dispatch('updateSource')
@@ -293,5 +298,24 @@ export const actions: ActionTree<PrinterTempHistoryState, RootState> = {
 
     setColor({ commit }, payload) {
         commit('setColor', payload)
+    },
+
+    applyChartPalette({ commit, state, rootGetters }, payload: { palette: ThemeChartPalette; dark: boolean }) {
+        commit('setChartPalette', { palette: payload.palette, dark: payload.dark })
+
+        const names = state.series
+            .map((serie) => serie.name)
+            .filter((name) => name.endsWith(TEMPERATURE_SUFFIX))
+            .map((name) => name.slice(0, -TEMPERATURE_SUFFIX.length))
+            .sort()
+
+        const userColors: Record<string, string> = {}
+        names.forEach((name) => {
+            const color = rootGetters['gui/getDatasetValue']({ name, type: 'color' })
+            if (typeof color === 'string' && color !== '') userColors[name] = color
+        })
+
+        const colors = assignChartColors(names, userColors, payload.palette, payload.dark)
+        names.forEach((name) => commit('setColor', { name, value: colors[name] }))
     },
 }

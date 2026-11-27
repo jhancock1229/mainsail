@@ -49,7 +49,7 @@ export default class ShellHeader extends Mixins(ShellMixin) {
     align-items: baseline;
     justify-content: space-between;
     gap: 24px;
-    padding: 22px 28px 18px;
+    padding: var(--shell-pad-y) var(--shell-pad-x) 18px;
     min-width: 0;
 }
 

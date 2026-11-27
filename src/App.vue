@@ -39,7 +39,7 @@ import TheUpdateDialog from '@/components/TheUpdateDialog.vue'
 import TheConnectingDialog from '@/components/TheConnectingDialog.vue'
 import TheSelectPrinterDialog from '@/components/TheSelectPrinterDialog.vue'
 import TheEditor from '@/components/TheEditor.vue'
-import { panelToolbarHeight, topbarHeight, navigationItemHeight } from '@/store/variables'
+import { defaultPrimaryColor, topbarHeight, navigationItemHeight } from '@/store/variables'
 import TheTimelapseRenderingSnackbar from '@/components/TheTimelapseRenderingSnackbar.vue'
 import TheFullscreenUpload from '@/components/TheFullscreenUpload.vue'
 import TheUploadSnackbar from '@/components/TheUploadSnackbar.vue'
@@ -51,6 +51,25 @@ import TheMacroPrompt from '@/components/dialogs/TheMacroPrompt.vue'
 import { AppRoute } from '@/routes'
 import TheEventNotifier from '@/components/TheEventNotifier.vue'
 import { resolveDarkMode, systemPrefersDarkQuery } from '@/plugins/themeMode'
+import {
+    resolveShellTokens,
+    shellCssVariableNames,
+    shellCssVariables,
+    shellPrimary,
+    ShellTokens,
+} from '@/plugins/shellTheme'
+
+type AppliedPrimary = { color: string; text: string }
+import {
+    defaultThemeTokens,
+    resolveThemeTokens,
+    textColorOnAccent,
+    themeCssVariables,
+    themeRootAttributeNames,
+    themeRootAttributes,
+    ThemeChartPalette,
+    ThemeTokens,
+} from '@/plugins/themeTokens'
 import TheShell from '@/components/shell/TheShell.vue'
 import { classicPathFor, InterfaceShell, isClassicForced, resolveInterfaceShell } from '@/plugins/shellNavigation'
 import { commandPaletteBus } from '@/plugins/commandPaletteBus'
@@ -166,28 +185,67 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         return this.$vuetify?.theme?.currentTheme?.warning?.toString() ?? '#ff8300'
     }
 
-    get primaryTextColor(): string {
-        const splits = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(this.primaryColor)
-        if (splits) {
-            const r = parseInt(splits[1], 16) * 0.2126
-            const g = parseInt(splits[2], 16) * 0.7152
-            const b = parseInt(splits[3], 16) * 0.0722
-            const perceivedLightness = (r + g + b) / 255
+    get appliedPrimary(): { dark: AppliedPrimary; light: AppliedPrimary } {
+        if (this.interfaceShell === 'new')
+            return {
+                dark: shellPrimary(this.shellTokens, this.defaultAccent, true),
+                light: shellPrimary(this.shellTokens, this.defaultAccent, false),
+            }
 
-            return perceivedLightness > 0.7 ? '#222' : '#fff'
-        }
+        const classic = { color: this.primaryColor, text: textColorOnAccent(this.primaryColor) }
 
-        return '#ffffff'
+        return { dark: classic, light: classic }
+    }
+
+    get currentPrimary(): AppliedPrimary {
+        return this.appliedPrimary[this.darkMode ? 'dark' : 'light']
+    }
+
+    get vuetifyPrimaries(): string {
+        return `${this.appliedPrimary.dark.color}|${this.appliedPrimary.light.color}`
+    }
+
+    get defaultAccent(): string {
+        return this.theme?.colorPrimary ?? defaultPrimaryColor
+    }
+
+    get themeTokens(): ThemeTokens {
+        if (this.interfaceShell === 'new') return defaultThemeTokens(this.primaryColor)
+
+        return resolveThemeTokens(this.primaryColor, this.$store.state.gui.uiSettings.tokens, this.defaultAccent)
+    }
+
+    get themeAttributes(): Record<string, string> {
+        return themeRootAttributes(this.themeTokens)
+    }
+
+    get shellTokens(): ShellTokens {
+        return resolveShellTokens(this.$store.state.gui.uiSettings.shellTokens)
+    }
+
+    get shellVariables(): Record<string, string> {
+        if (this.interfaceShell !== 'new') return {}
+
+        return shellCssVariables(this.shellTokens, this.darkMode)
+    }
+
+    get chartPalette(): ThemeChartPalette {
+        return this.interfaceShell === 'new' ? this.shellTokens.chartPalette : this.themeTokens.chartPalette
+    }
+
+    get chartPaletteState(): string {
+        const series: { name: string }[] = this.$store.state.printer?.tempHistory?.series ?? []
+
+        return [this.chartPalette, this.darkMode, ...series.map((serie) => serie.name)].join('|')
     }
 
     get cssVars(): { [key: string]: string } {
         return {
-            '--v-btn-text-primary': this.primaryTextColor,
+            '--v-btn-text-primary': this.currentPrimary.text,
             '--color-logo': this.logoColor,
-            '--color-primary': this.primaryColor,
+            '--color-primary': this.currentPrimary.color,
             '--color-warning': this.warningColor,
-            '--panel-toolbar-icon-btn-width': panelToolbarHeight + 'px',
-            '--panel-toolbar-text-btn-height': panelToolbarHeight + 'px',
+            ...themeCssVariables(this.themeTokens, this.darkMode),
             '--topbar-icon-btn-width': topbarHeight + 'px',
             '--sidebar-menu-item-height': navigationItemHeight + 'px',
         }
@@ -247,10 +305,37 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
         this.$socket.emit('server.files.metadata', { filename: newVal }, { action: 'files/getMetadataCurrentFile' })
     }
 
-    @Watch('primaryColor')
-    primaryColorChanged(newVal: string): void {
+    @Watch('vuetifyPrimaries')
+    primaryColorChanged(): void {
         this.$nextTick(() => {
-            this.$vuetify.theme.currentTheme.primary = newVal
+            this.$vuetify.theme.themes.dark.primary = this.appliedPrimary.dark.color
+            this.$vuetify.theme.themes.light.primary = this.appliedPrimary.light.color
+        })
+    }
+
+    @Watch('themeAttributes', { immediate: true })
+    themeAttributesChanged(attributes: Record<string, string>): void {
+        const doc = document.documentElement
+        themeRootAttributeNames.forEach((name) => {
+            if (name in attributes) doc.setAttribute(name, attributes[name])
+            else doc.removeAttribute(name)
+        })
+    }
+
+    @Watch('chartPaletteState')
+    chartPaletteStateChanged(): void {
+        this.$store.dispatch('printer/tempHistory/applyChartPalette', {
+            palette: this.chartPalette,
+            dark: this.darkMode,
+        })
+    }
+
+    @Watch('shellVariables', { immediate: true })
+    shellVariablesChanged(variables: Record<string, string>): void {
+        const style = document.documentElement.style
+        shellCssVariableNames.forEach((name) => {
+            if (name in variables) style.setProperty(name, variables[name])
+            else style.removeProperty(name)
         })
     }
 
@@ -465,6 +550,7 @@ export default class App extends Mixins(BaseMixin, ThemeMixin) {
 @import './assets/styles/sidebar.css';
 @import './assets/styles/utils.css';
 @import './assets/styles/updateManager.css';
+@import './assets/styles/themeTokens.css';
 @import './assets/styles/shell.css';
 
 :root {

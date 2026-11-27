@@ -27,11 +27,12 @@
 
 <script lang="ts">
 import Component from 'vue-class-component'
-import { Mixins, Prop, Ref, Watch } from 'vue-property-decorator'
+import { Mixins, Prop, Provide, Ref, Watch } from 'vue-property-decorator'
 import ShellMixin from '@/components/mixins/shell'
 import ShellHeader from '@/components/shell/ShellHeader.vue'
 import { buildShellSettingsTabs } from '@/components/shell/settingsTabs'
 import { PaletteSettingsTab } from '@/plugins/commandPaletteBus'
+import { InterfaceShell } from '@/plugins/shellNavigation'
 import SettingsGeneralTab from '@/components/settings/SettingsGeneralTab.vue'
 import SettingsWebcamsTab from '@/components/settings/SettingsWebcamsTab.vue'
 import SettingsMacrosTab from '@/components/settings/SettingsMacrosTab.vue'
@@ -49,6 +50,7 @@ import SettingsNotificationsTab from '@/components/settings/SettingsNotification
 import SettingsCommandPaletteTab from '@/components/settings/SettingsCommandPaletteTab.vue'
 import SettingsMiscellaneousTab from '@/components/settings/SettingsMiscellaneousTab.vue'
 import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue'
+import SettingsAppearanceTab from '@/components/settings/SettingsAppearanceTab.vue'
 
 @Component({
     components: {
@@ -70,12 +72,15 @@ import SettingsHeightmapTab from '@/components/settings/SettingsHeightmapTab.vue
         SettingsNotificationsTab,
         SettingsHeightmapTab,
         SettingsCommandPaletteTab,
+        SettingsAppearanceTab,
     },
 })
 export default class ShellSettingsPage extends Mixins(ShellMixin) {
     @Prop({ type: String, default: 'general' }) declare readonly tab: string
 
     @Ref() readonly content!: HTMLElement
+
+    @Provide() settingsInterface: InterfaceShell = 'new'
 
     get tabs(): PaletteSettingsTab[] {
         const available = this.availableShellTabs('settings').map((entry) => entry.id)
@@ -108,12 +113,19 @@ export default class ShellSettingsPage extends Mixins(ShellMixin) {
 
 .shell-settings__tab {
     width: 100%;
-    min-height: 34px;
-    flex: 0 0 34px;
+    min-height: 32px;
+    flex: 0 0 32px;
     justify-content: flex-start;
 }
 
-@media (min-height: 820px) {
+@media (min-height: 760px) {
+    .shell-settings__tab {
+        min-height: 34px;
+        flex-basis: 34px;
+    }
+}
+
+@media (min-height: 864px) {
     .shell-settings__tab {
         min-height: 40px;
         flex-basis: 40px;

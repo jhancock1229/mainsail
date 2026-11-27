@@ -1,8 +1,11 @@
+import { ThemeChartPalette } from '@/plugins/themeTokens'
+
 export interface PrinterTempHistoryState {
     source: PrinterTempHistoryStateSourceEntry[]
     series: PrinterTempHistoryStateSerie[]
     timeLastUpdate: number | null
     updateSourceInterval: number | null
+    chartPalette: { palette: ThemeChartPalette; dark: boolean } | null
 }
 
 export interface PrinterTempHistoryStateSerie {

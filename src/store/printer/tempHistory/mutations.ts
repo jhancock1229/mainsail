@@ -8,6 +8,10 @@ export const mutations: MutationTree<PrinterTempHistoryState> = {
         Object.assign(state, getDefaultState())
     },
 
+    setChartPalette(state, payload: PrinterTempHistoryState['chartPalette']) {
+        Vue.set(state, 'chartPalette', payload)
+    },
+
     setInitSource(state, payload) {
         Vue.set(state, 'source', payload)
     },

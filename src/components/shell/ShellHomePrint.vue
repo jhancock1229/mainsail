@@ -425,7 +425,7 @@ export default class ShellHomePrint extends Mixins(ShellPrintMixin) {
     grid-template-columns: auto repeat(4, minmax(0, 1fr));
     gap: 12px;
     align-items: center;
-    padding: 16px 28px;
+    padding: 16px var(--shell-pad-x);
 }
 
 .shell-while__label {

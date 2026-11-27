@@ -11,6 +11,7 @@ export const getDefaultState = (): PrinterTempHistoryState => {
         series: [],
         timeLastUpdate: null,
         updateSourceInterval: null,
+        chartPalette: null,
     }
 }
 

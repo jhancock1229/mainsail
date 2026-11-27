@@ -45,6 +45,6 @@ export default class ShellConsole extends Mixins(BaseMixin, ConsoleMixin) {
     min-height: 0;
     overflow-y: auto;
     border: 1px solid var(--shell-line);
-    border-radius: 8px;
+    border-radius: var(--shell-radius);
 }
 </style>

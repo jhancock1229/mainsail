@@ -9,6 +9,8 @@ import { GuiNavigationState } from '@/store/gui/navigation/types'
 import { PrintHeroSettings } from '@/plugins/printHero'
 import { AlertSettings } from '@/plugins/notificationRules'
 import { PaletteSettings } from '@/plugins/commandPalette'
+import { ThemeStoredTokens } from '@/plugins/themeTokens'
+import { ShellStoredTokens } from '@/plugins/shellTheme'
 import { SpoolTrackerSettings } from '@/plugins/spoolTracker'
 import { InterfaceShell } from '@/plugins/shellNavigation'
 
@@ -127,6 +129,8 @@ export interface GuiState {
         dashboardFilesFilter: GuiStateUiSettingsDashboardFilesFilter[]
         dashboardHistoryLimit: number
         hideOtherInstances: boolean
+        tokens: ThemeStoredTokens
+        shellTokens: ShellStoredTokens
         interfaceShell?: InterfaceShell
     }
     spoolTracker: SpoolTrackerSettings

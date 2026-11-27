@@ -28,6 +28,8 @@ import { maintenance } from '@/store/gui/maintenance'
 import { webcams } from '@/store/gui/webcams'
 import { heightmap } from '@/store/gui/heightmap'
 import { getDefaultPaletteSettings } from '@/plugins/commandPalette'
+import { defaultStoredThemeTokens } from '@/plugins/themeTokens'
+import { defaultShellStoredTokens } from '@/plugins/shellTheme'
 import { getDefaultTemperatureCardSettings } from '@/plugins/temperatureCards'
 import { getDefaultSpoolTrackerSettings } from '@/plugins/spoolTracker'
 import { DEFAULT_INTERFACE_SHELL } from '@/plugins/shellNavigation'
@@ -209,6 +211,8 @@ export const getDefaultState = (): GuiState => {
             dashboardFilesFilter: ['new', 'failed', 'completed'],
             dashboardHistoryLimit: 5,
             hideOtherInstances: false,
+            tokens: defaultStoredThemeTokens(),
+            shellTokens: defaultShellStoredTokens(),
             interfaceShell: DEFAULT_INTERFACE_SHELL,
         },
         spoolTracker: getDefaultSpoolTrackerSettings(),
