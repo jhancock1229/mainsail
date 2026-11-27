@@ -67,7 +67,6 @@ describe('resolvePrintHeroSettings', () => {
             backdrop: 'none',
         })
         expect(resolvePrintHeroSettings({ showTimeline: false }).showTimeline).toBe(false)
-        // stored before the option existed
         expect(resolvePrintHeroSettings({ showTimeline: false }).simplifyStatusPanel).toBe(true)
         expect(resolvePrintHeroSettings({ simplifyStatusPanel: false }).simplifyStatusPanel).toBe(false)
     })

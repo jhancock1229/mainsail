@@ -1,4 +1,3 @@
-// pure logic of the print hero dashboard panel (src/components/panels/PrintHeroPanel.vue)
 import { isRecord } from '@/plugins/helpers'
 import { thumbnailBigMin } from '@/store/variables'
 
@@ -21,13 +20,11 @@ export interface PrintHeroSettings {
     metrics: PrintHeroMetric[]
     backdrop: PrintHeroBackdrop
     showTimeline: boolean
-    // hide what the hero already shows in the status panel above it
     simplifyStatusPanel: boolean
 }
 
 const activePrintStates = ['printing', 'paused']
 const endedPrintStates = ['complete', 'cancelled', 'error']
-// numbers that still mean something after the print has ended
 const endedPrintMetrics: PrintHeroMetric[] = ['progress', 'layer', 'filament', 'elapsed']
 
 const SECONDS_PER_MINUTE = 60
@@ -41,7 +38,6 @@ export const getDefaultPrintHeroSettings = (): PrintHeroSettings => ({
     simplifyStatusPanel: true,
 })
 
-// settings loaded from the database can be missing, incomplete or from another version
 export const resolvePrintHeroSettings = (stored: unknown): PrintHeroSettings => {
     const settings = getDefaultPrintHeroSettings()
     if (!isRecord(stored)) return settings
@@ -83,16 +79,12 @@ export const isPrintHeroVisible = (input: {
     printerState: string
     filename: string
 }): boolean => {
-    // print_stats can be stale while Klipper is not ready
     if (!input.klipperReady || input.filename === '') return false
 
     return activePrintStates.includes(input.printerState) || isPrintEnded(input.printerState)
 }
 
-// The status panel only gives up its thumbnail and numbers while the hero really shows them: the option is on,
-// the hero is a visible panel of the current layout and it is rendering.
 export const shouldSimplifyStatusPanel = (input: {
-    // stored settings of the print hero (gui.view.printHero)
     settings: unknown
     heroInLayout: boolean
     klipperReady: boolean
@@ -115,7 +107,6 @@ export const resolvePrintHeroBackdrop = (
     return 'none'
 }
 
-// path of the largest thumbnail below the gcodes root, null if the file has none that is big enough
 export const getPrintHeroThumbnailPath = (file: unknown): string | null => {
     if (!isRecord(file) || !Array.isArray(file.thumbnails)) return null
 
@@ -154,7 +145,6 @@ export const formatFilamentLength = (millimeters: number): string => {
     return `${millimeters.toFixed(0)} mm`
 }
 
-// mm³/s; retractions (negative velocity) are no flow
 export const calcVolumetricFlow = (filamentDiameter: number, extruderVelocity: number | null): number => {
     if (extruderVelocity === null || extruderVelocity <= 0) return 0
 

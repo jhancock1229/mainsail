@@ -44,7 +44,6 @@
                         <print-hero-settings />
                     </div>
                 </div>
-                <!-- one glass bar for all numbers, so no text lies on the picture itself -->
                 <div class="print-hero__bottom">
                     <div v-if="shows('progress')" class="print-hero__progress">
                         <div class="print-hero__progress-value" :style="{ width: percent + '%' }" />
@@ -125,7 +124,6 @@ import { recordedPrintTimeline, type PrintTimeline } from '@/plugins/printTimeli
 
 const MS_PER_SECOND = 1000
 const DEFAULT_FILAMENT_DIAMETER = 1.75
-// shown in the headline, not as a tile
 const headlineMetrics: PrintHeroMetric[] = ['progress', 'remaining', 'eta']
 
 interface PrintHeroButton {
@@ -179,7 +177,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         return this.$store.state.printer.print_stats?.total_duration ?? 0
     }
 
-    // the job runs, but nothing has been extruded yet (heating, homing, levelling)
     get isWarmingUp(): boolean {
         return this.printer_state === 'printing' && this.printDuration <= 0
     }
@@ -214,7 +211,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         return this.$store.getters['printer/getEstimatedTimeETAFormat'] ?? '--'
     }
 
-    // seconds until the estimated end of the print, 0 if unknown
     get remaining(): number {
         const eta = this.$store.getters['printer/getEstimatedTimeETA'] ?? 0
         if (eta <= 0) return 0
@@ -226,7 +222,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         return formatPrintHeroDuration(this.remaining)
     }
 
-    // for the scale of the timeline; falls back to the slicer estimate while nothing else is known (warm-up)
     get timelineRemaining(): number {
         if (this.isEnded) return 0
         if (this.remaining > 0) return this.remaining
@@ -276,7 +271,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         }
     }
 
-    // progress, time left and finish time; after the print how it ended
     get showHeadline(): boolean {
         return this.isEnded || headlineMetrics.some((metric) => this.shows(metric))
     }
@@ -295,7 +289,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         const webcams: GuiWebcamStateWebcam[] = this.$store.getters['gui/webcams/getWebcams'] ?? []
         const selected = this.$store.state.gui.view.webcam?.currentCam?.dashboard ?? 'all'
 
-        // follows the camera that is selected in the webcam panel of the dashboard
         return webcams.find((webcam) => webcam.name === selected) ?? webcams[0] ?? null
     }
 
@@ -318,7 +311,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     }
 
     get canCancel(): boolean {
-        // same rule as the status panel: cancelling while printing has to be enabled in the settings
         if (this.$store.state.gui.uiSettings.displayCancelPrint) return this.printerIsPrinting
 
         return this.printer_state === 'paused'
@@ -416,7 +408,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 <style scoped>
 .print-hero-panel {
     --print-hero-accent: var(--v-primary-base);
-    /* the stage is sized by the width of the panel, which depends on the dashboard column */
     container-type: inline-size;
     overflow: hidden;
 }
@@ -442,7 +433,7 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     position: relative;
     display: flex;
     flex-direction: column;
-    /* a share of the width instead of aspect-ratio, so the stage can still grow with its content */
+    /* not aspect-ratio: the stage has to grow with its content */
     min-height: clamp(300px, 62.5cqw, 480px);
     color: #fff;
     background: linear-gradient(135deg, #1d2530 0%, #0c0f13 100%);
@@ -469,7 +460,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     overflow: hidden;
 }
 
-/* the picture of every streamer type fills the stage */
 .print-hero__stage--webcam .print-hero__backdrop > div,
 .print-hero__backdrop ::v-deep .webcamBackground {
     width: 100%;
@@ -510,7 +500,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
 .print-hero__scrim {
     position: absolute;
     inset: 0;
-    /* only for the state and the buttons at the top; the numbers have their own bar */
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 28%);
     pointer-events: none;
 }
@@ -668,7 +657,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
     transition: width 0.5s linear;
 }
 
-/* next to the headline where there is room (two columns at least), below it otherwise */
 .print-hero__metrics {
     display: grid;
     flex: 1 1 172px;
@@ -700,7 +688,6 @@ export default class PrintHeroPanel extends Mixins(BaseMixin) {
         font-size: 2.75rem;
     }
 
-    /* a row of its own with room for four numbers */
     .print-hero__metrics {
         flex-basis: 100%;
         grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));

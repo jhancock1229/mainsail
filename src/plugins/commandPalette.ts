@@ -9,16 +9,13 @@ import {
     mdiPlay,
     mdiRestart,
     mdiSnowflake,
+    mdiSwapHorizontal,
 } from '@mdi/js'
 import type { GuiPresetsStatePreset } from '@/store/gui/presets/types'
-
-// Pure logic of the command palette: which commands exist in the current printer state, how they are searched
-// and ranked, and how the keyboard shortcut is recorded and matched. No store, no DOM, so it can be unit tested.
 
 export type PaletteGroup = 'actions' | 'navigation' | 'macros' | 'files' | 'settings'
 export type PaletteSectionKey = 'pinned' | 'recent' | PaletteGroup | 'unavailable'
 
-// order of the groups while browsing without a search term
 export const paletteGroups: PaletteGroup[] = ['actions', 'navigation', 'macros', 'files', 'settings']
 
 export type PaletteRun =
@@ -28,6 +25,7 @@ export type PaletteRun =
     | { type: 'socket'; method: string; loading: string }
     | { type: 'print'; filename: string }
     | { type: 'settings'; tab: string }
+    | { type: 'setting'; name: string; value: string }
 
 export interface PaletteCommand {
     id: string
@@ -36,11 +34,8 @@ export interface PaletteCommand {
     subtitle: string
     icon: string
     keywords: string[]
-    // a text makes the palette ask for confirmation before running the command
     confirmText: string | null
-    // destructive commands are shown in the error colour
     danger: boolean
-    // a reason makes the command unavailable in the current printer state
     disabledReason: string | null
     run: PaletteRun
 }
@@ -54,22 +49,18 @@ export interface PaletteNaviPoint {
 }
 
 export interface PaletteContext {
-    // false while the websocket to Moonraker is down; the printer state in the store is then the last known one
     socketConnected: boolean
-    // 'disconnected' while Klipper is not connected to Moonraker
     klipperState: string
     printerState: string
     naviPoints: PaletteNaviPoint[]
     macros: { name: string; description: string | null }[]
-    // macros the user hid in the macro settings (gui.macros.hiddenMacros)
     hiddenMacros: string[]
-    // filename is the path below the gcodes root
     files: { filename: string; modified?: number | Date | null }[]
     presets: GuiPresetsStatePreset[]
     cooldownGcode: string
-    // uiSettings.confirmOnCoolDown
     confirmOnCoolDown: boolean
     settingsTabs: { name: string; title: string; icon: string }[]
+    interfaceShell?: 'new' | 'classic'
     t: (key: string, values?: Record<string, unknown>) => string
 }
 
@@ -85,11 +76,7 @@ export const MAX_RECENT_COMMANDS = 8
 
 const DEFAULT_MACRO_DESCRIPTION = 'G-Code macro'
 
-// ---------------------------------------------------------------------------------------------------------
-// commands
-// ---------------------------------------------------------------------------------------------------------
-
-const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
+export const presetScripts = (preset: GuiPresetsStatePreset): string[] => {
     const scripts: string[] = []
 
     for (const [name, attributes] of Object.entries(preset.values ?? {})) {
@@ -129,7 +116,6 @@ export interface PaletteFileTreeEntry {
     childrens?: PaletteFileTreeEntry[]
 }
 
-// all printable files below a directory of the file tree, with their path relative to it
 export const collectGcodeFiles = (
     directory: PaletteFileTreeEntry | null | undefined,
     extensions: string[],
@@ -145,7 +131,6 @@ export const collectGcodeFiles = (
             return
         }
 
-        // compared as written, like files/getGcodeFiles: the start print dialog takes its file from that list
         const extension = entry.filename.slice(entry.filename.lastIndexOf('.'))
         if (extensions.includes(extension)) files.push({ filename: path + entry.filename, modified: entry.modified })
     })
@@ -157,11 +142,9 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
     const { t } = context
     const reason = (name: string): string => t(`CommandPalette.Reasons.${name}`)
 
-    // without the websocket nothing reaches the printer, whatever state was last received
     const online = context.socketConnected
     const connected = online && context.klipperState !== 'disconnected'
     const ready = online && context.klipperState === 'ready'
-    // print_stats can be stale while Klipper is not ready, so the print state only counts while it is
     const printing = ready && context.printerState === 'printing'
     const paused = ready && context.printerState === 'paused'
     const busy = printing || paused
@@ -175,7 +158,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
     const add = (
         command: Pick<PaletteCommand, 'id' | 'group' | 'title' | 'icon' | 'run'> & Partial<PaletteCommand>
     ): void => {
-        // ids are keys of the list and of the favourites, so two commands never share one
         let id = command.id
         for (let count = 2; usedIds.has(id); count++) id = `${command.id}~${count}`
         usedIds.add(id)
@@ -191,7 +173,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         })
     }
 
-    // printer actions
     add({
         id: 'action:home',
         group: 'actions',
@@ -236,7 +217,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         icon: mdiSnowflake,
         keywords: ['heaters off', 'temperature'],
         confirmText: context.confirmOnCoolDown ? t('CommandPalette.Confirm.Cooldown') : null,
-        // not during a print, like the presets: the temperature panel disables its preset menu then too
         disabledReason: whileIdle,
         run: { type: 'gcode', scripts: [context.cooldownGcode] },
     })
@@ -263,7 +243,21 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         run: { type: 'socket', method: 'printer.emergency_stop', loading: 'topbarEmergencyStop' },
     })
 
-    // last, so many presets cannot push the other actions out of the shortened list
+    if (context.interfaceShell !== undefined) {
+        const next = context.interfaceShell === 'new' ? 'classic' : 'new'
+
+        add({
+            id: 'action:switchInterface',
+            group: 'actions',
+            title: t(
+                next === 'classic' ? 'CommandPalette.Actions.SwitchToClassic' : 'CommandPalette.Actions.SwitchToNew'
+            ),
+            icon: mdiSwapHorizontal,
+            keywords: ['interface', 'shell', 'layout', 'classic', 'new', 'stock'],
+            run: { type: 'setting', name: 'uiSettings.interfaceShell', value: next },
+        })
+    }
+
     context.presets.forEach((preset) => {
         add({
             id: `preset:${preset.id ?? preset.name}`,
@@ -277,7 +271,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         })
     })
 
-    // pages of the sidebar; custom links can share a target (e.g. "#"), then the title tells them apart
     const naviTarget = (point: PaletteNaviPoint): string | undefined => point.to ?? point.href
     const sharedTarget = (target: string): boolean =>
         context.naviPoints.filter((point) => naviTarget(point) === target).length > 1
@@ -313,7 +306,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
         })
     })
 
-    // gcode files, newest first
     ;[...context.files]
         .sort((a, b) => timestamp(b.modified) - timestamp(a.modified))
         .forEach((file) => {
@@ -325,7 +317,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
                 title: file.filename.slice(slash + 1),
                 subtitle: file.filename.slice(0, slash + 1),
                 icon: mdiFileOutline,
-                // no confirmation here: the start print dialog of Mainsail asks, with its spool and timelapse options
                 disabledReason: whileIdle,
                 run: { type: 'print', filename: file.filename },
             })
@@ -337,7 +328,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
             group: 'settings',
             title: tab.title,
             icon: tab.icon,
-            // the internal name can differ from the title (e.g. "command-palette" for "Commands")
             keywords: [tab.name.replace(/-/g, ' ')],
             run: { type: 'settings', tab: tab.name },
         })
@@ -345,10 +335,6 @@ export const buildPaletteCommands = (context: PaletteContext): PaletteCommand[] 
 
     return commands
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// search and ranking
-// ---------------------------------------------------------------------------------------------------------
 
 export interface FuzzyMatch {
     score: number
@@ -367,8 +353,6 @@ const SCORE_SCATTERED = 60
 const SCORE_INITIALS_MAX = 650
 const LENGTH_PENALTY = 0.5
 const LENGTH_PENALTY_MAX = 40
-// Words for a whole group, e.g. "print benchy" or "settings webcams". They only count from a few letters on and
-// score below every match of a title, otherwise a short search term would list whole groups.
 const GROUP_KEYWORDS: Record<PaletteGroup, string[]> = {
     actions: ['action', 'printer'],
     navigation: ['go to', 'goto', 'open', 'page'],
@@ -378,10 +362,8 @@ const GROUP_KEYWORDS: Record<PaletteGroup, string[]> = {
 }
 const MIN_GROUP_KEYWORD_LENGTH = 4
 const SCORE_GROUP_KEYWORD = 300
-// titles count fully, keywords and subtitles count less and only when they contain the search term as it is
 const SECONDARY_WEIGHT = 0.6
 const MIN_SECONDARY_SCORE = SCORE_INSIDE - LENGTH_PENALTY_MAX
-// small enough to only reorder matches of the same kind (see the SCORE_ steps above)
 const BOOST_PINNED = 80
 const BOOST_RECENT = 60
 
@@ -392,7 +374,6 @@ const isBoundary = (text: string, index: number): boolean => {
     const current = text[index]
     if (/[\s_\-./:]/.test(previous)) return true
 
-    // camelCase
     return previous === previous.toLowerCase() && current !== current.toLowerCase() && /[a-z]/i.test(previous)
 }
 
@@ -400,8 +381,6 @@ const range = (start: number, length: number): number[] => Array.from({ length }
 
 const lengthPenalty = (text: string): number => Math.min(LENGTH_PENALTY_MAX, text.length * LENGTH_PENALTY)
 
-// position of the next query character: directly after the previous one, else at the next start of a word, else
-// anywhere behind it
 const nextInitial = (char: string, text: string, lower: string, from: number): number => {
     if (lower[from] === char) return from
 
@@ -415,8 +394,6 @@ const nextInitial = (char: string, text: string, lower: string, from: number): n
     return fallback
 }
 
-// Matches the characters in order, starting at the beginning of a word (e.g. "lf" -> "LOAD_FILAMENT"). Every
-// character should continue the previous one or start a word; a character in the middle of a word costs score.
 const matchInitials = (query: string, text: string, lower: string, start: number): FuzzyMatch | null => {
     const positions: number[] = []
     let score = SCORE_INITIALS
@@ -434,7 +411,6 @@ const matchInitials = (query: string, text: string, lower: string, start: number
         positions.push(index)
     }
 
-    // too many characters from the middle of words, the text only contains the letters by chance
     if (score < SCORE_INITIALS) return null
 
     return { score: Math.min(SCORE_INITIALS_MAX, score), positions }
@@ -485,7 +461,6 @@ export const highlightSegments = (title: string, positions: number[]): { text: s
 
 export interface PaletteResult {
     command: PaletteCommand
-    // matched characters of the title
     positions: number[]
     pinned: boolean
     score: number
@@ -494,16 +469,13 @@ export interface PaletteResult {
 export interface PaletteSection {
     key: PaletteSectionKey
     results: PaletteResult[]
-    // number of commands before the list was shortened
     total: number
 }
 
 export interface PaletteSearchOptions {
     pinned: string[]
     recent: string[]
-    // commands shown per group while browsing without a search term
     browseLimit?: number
-    // commands shown per group for a search term
     searchLimit?: number
 }
 
@@ -534,7 +506,6 @@ const browsePaletteCommands = (commands: PaletteCommand[], options: PaletteSearc
         return results
     }
 
-    // a pinned command keeps its place while it is unavailable
     const sections = [
         section('pinned', pick(options.pinned, true, true)),
         section('recent', pick(options.recent, false, false)),
@@ -547,8 +518,6 @@ const browsePaletteCommands = (commands: PaletteCommand[], options: PaletteSearc
     return sections.filter((entry) => entry.results.length > 0)
 }
 
-// A group keyword of several words (e.g. "go to") cannot match a single search term, so it is looked for in front
-// of the whole query. Returns the rest of the query, or null when the query does not start with such a keyword.
 const stripGroupPhrase = (query: string, group: PaletteGroup): string | null => {
     for (const keyword of GROUP_KEYWORDS[group]) {
         if (!keyword.includes(' ')) continue
@@ -624,7 +593,6 @@ export const searchPaletteCommands = (
     const available = results.filter((result) => result.command.disabledReason === null)
     const unavailable = results.filter((result) => result.command.disabledReason !== null)
 
-    // results are sorted, so the first one of a group is its best match
     const groups = [...new Set(available.map((result) => result.command.group))]
     const sections = groups.map((group) =>
         section(
@@ -642,7 +610,6 @@ export const flattenPaletteSections = (sections: PaletteSection[]): PaletteResul
     return sections.flatMap((entry) => entry.results)
 }
 
-// index of the next command that can be run, -1 when there is none
 export const nextSelectableIndex = (
     results: { command: { disabledReason: string | null } }[],
     current: number,
@@ -658,9 +625,6 @@ export const nextSelectableIndex = (
     return -1
 }
 
-// The selection is a command, not a position: the list changes while the palette is open (a print ends, a command
-// is pinned). When the selected command is gone or unavailable nothing is selected, so Enter cannot run the command
-// that moved into its place.
 export const keepSelection = (
     results: { command: { id: string; disabledReason: string | null } }[],
     selectedId: string | null
@@ -670,10 +634,6 @@ export const keepSelection = (
     return selected && selected.command.disabledReason === null ? selected.command.id : null
 }
 
-// ---------------------------------------------------------------------------------------------------------
-// recent and pinned commands
-// ---------------------------------------------------------------------------------------------------------
-
 export const addRecentCommand = (recent: string[], id: string, max = MAX_RECENT_COMMANDS): string[] => {
     return [id, ...recent.filter((entry) => entry !== id)].slice(0, max)
 }
@@ -681,10 +641,6 @@ export const addRecentCommand = (recent: string[], id: string, max = MAX_RECENT_
 export const togglePinnedCommand = (pinned: string[], id: string): string[] => {
     return pinned.includes(id) ? pinned.filter((entry) => entry !== id) : [...pinned, id]
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// keyboard shortcut
-// ---------------------------------------------------------------------------------------------------------
 
 export interface ShortcutEvent {
     key: string
@@ -713,7 +669,7 @@ const UNSUPPORTED_KEYS = [
     'pageup',
     'pagedown',
 ]
-// taken by the browser (cannot be intercepted reliably) or by Mainsail itself (editor save and search, copy and paste)
+// browser shortcuts cannot be intercepted reliably
 const RESERVED_SHORTCUTS = [
     'mod+a',
     'mod+c',
@@ -738,7 +694,6 @@ const RESERVED_SHORTCUTS = [
     'f12',
 ]
 const MODIFIER_ORDER = ['mod', 'ctrl', 'meta', 'alt', 'shift']
-// keys that have a symbol on macOS and a translated name (CommandPalette.Keys.*) elsewhere
 const MAC_KEY_SYMBOLS: Record<string, string> = { mod: '⌘', ctrl: '⌃', meta: '⌘', alt: '⌥', shift: '⇧' }
 const KEY_NAMES: Record<string, string> = {
     mod: 'Ctrl',
@@ -748,7 +703,6 @@ const KEY_NAMES: Record<string, string> = {
     shift: 'Shift',
     space: 'Space',
 }
-// physical keys (US layout) for presses that do not report a usable character, e.g. Option+E on macOS ("Dead")
 const CODE_KEYS: Record<string, string> = {
     Backquote: '`',
     Minus: '-',
@@ -769,12 +723,10 @@ const keyFromCode = (code: string): string | null => {
     return CODE_KEYS[code] ?? null
 }
 
-// "mod" is the main modifier of the platform: Cmd on macOS, Ctrl everywhere else
 export const shortcutFromEvent = (event: ShortcutEvent, isMac: boolean): string | null => {
     let key = (event.key ?? '').toLowerCase()
 
-    // Alt changes the typed character (Option+P is "π" on macOS, "@" is Option+L on a German keyboard) or starts a
-    // dead key (Option+E), then the physical key is what the user pressed
+    // with Alt, event.key is the altered character (Option+P is "π" on macOS) or "Dead"
     const code = event.code ?? ''
     const letterOrDigit = /^(Key[A-Z]|Digit\d)$/.test(code)
     if (event.altKey && letterOrDigit && !/^[a-z0-9]$/.test(key)) key = code.slice(-1).toLowerCase()
@@ -794,9 +746,6 @@ export const shortcutFromEvent = (event: ShortcutEvent, isMac: boolean): string 
     return [...parts, key].join('+')
 }
 
-// The setting is shared by all browsers of a printer, but Control (macOS) and the Windows key (elsewhere) have no
-// counterpart on the other platform. There they fall together with the main modifier, so every stored shortcut
-// can be pressed everywhere.
 export const normalizeShortcut = (shortcut: string, isMac: boolean): string => {
     const parts = shortcut.split('+')
     const foreign = isMac ? 'meta' : 'ctrl'
@@ -821,14 +770,12 @@ export const validateShortcut = (shortcut: string): ShortcutError | null => {
     const hasModifier = modifiers.some((modifier) => modifier !== 'shift')
     if (!key || (!hasModifier && !isFunctionKey)) return 'NeedsModifier'
 
-    // also what the shortcut turns into on the other platform must be free
     const variants = [shortcut, normalizeShortcut(shortcut, true), normalizeShortcut(shortcut, false)]
     if (variants.some((variant) => RESERVED_SHORTCUTS.includes(variant))) return 'Reserved'
 
     return null
 }
 
-// labels of the keys to press on this platform; translate gets keys like "CommandPalette.Keys.Ctrl"
 export const formatShortcut = (shortcut: string, isMac: boolean, translate: (key: string) => string): string[] => {
     return normalizeShortcut(shortcut, isMac)
         .split('+')
@@ -841,17 +788,12 @@ export const formatShortcut = (shortcut: string, isMac: boolean, translate: (key
         })
 }
 
-// the search and replace fields of the code editor (CodeMirror panels) keep their own keyboard handling
 export const isEditorSearchTarget = (target: unknown): boolean => {
     const element = target as { closest?: (selector: string) => unknown } | null
     if (typeof element?.closest !== 'function') return false
 
     return element.closest('.cm-panels') !== null
 }
-
-// ---------------------------------------------------------------------------------------------------------
-// settings
-// ---------------------------------------------------------------------------------------------------------
 
 export const getDefaultPaletteSettings = (): PaletteSettings => ({
     enabled: true,
@@ -866,7 +808,6 @@ const stringList = (value: unknown): string[] => {
     return [...new Set(value.filter((entry): entry is string => typeof entry === 'string' && entry !== ''))]
 }
 
-// settings loaded from the database can lack keys (saved by an older version) or hold broken values
 export const sanitizePaletteSettings = (raw: unknown): PaletteSettings => {
     const defaults = getDefaultPaletteSettings()
     if (typeof raw !== 'object' || raw === null) return defaults

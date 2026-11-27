@@ -53,7 +53,6 @@ describe('detectPrinterEvents', () => {
     it('detects a failed print', () => {
         expect(names(snapshot({ printState: 'printing' }), snapshot({ printState: 'error' }))).toEqual(['printFailed'])
         expect(names(snapshot({ printState: 'paused' }), snapshot({ printState: 'error' }))).toEqual(['printFailed'])
-        // a print that fails right at the start can skip the printing state between two updates
         expect(names(snapshot(), snapshot({ printState: 'error' }))).toEqual(['printFailed'])
     })
 
@@ -71,7 +70,6 @@ describe('detectPrinterEvents', () => {
     })
 
     it('reports a shutdown during a print as a Klipper error and a failed print', () => {
-        // which of the two is told is up to the rules, see dropFollowUpEvents
         const both = ['klipperError', 'printFailed']
 
         expect(names(snapshot({ printState: 'printing' }), snapshot({ klipperState: 'shutdown' }))).toEqual(both)
@@ -85,11 +83,9 @@ describe('detectPrinterEvents', () => {
         expect(names(snapshot({ printState: 'complete' }), snapshot({ klipperState: 'error' }))).toEqual([
             'klipperError',
         ])
-        // the failed print was reported when it failed
         expect(names(snapshot({ printState: 'error' }), snapshot({ klipperState: 'shutdown' }))).toEqual([
             'klipperError',
         ])
-        // print data from before Klipper was ready is stale
         expect(
             names(snapshot({ klipperState: 'startup', printState: 'printing' }), snapshot({ klipperState: 'error' }))
         ).toEqual(['klipperError'])
@@ -125,7 +121,6 @@ describe('detectPrinterEvents', () => {
     })
 
     it('does not report filament that is pulled out while the print is paused', () => {
-        // e.g. a colour change
         const before = snapshot({ printState: 'paused', filamentSensors: { runout_sensor: true } })
 
         expect(names(before, snapshot({ printState: 'paused', filamentSensors: { runout_sensor: false } }))).toEqual([])
@@ -191,7 +186,6 @@ describe('dropFollowUpEvents', () => {
     })
 
     it('keeps the failed print when no Klipper error was told', () => {
-        // a silenced Klipper error is not passed in and not recorded
         expect(dropFollowUpEvents(failed, {}, 5000)).toEqual(failed)
         expect(dropFollowUpEvents(failed, { klipperError: 1000 }, 120000)).toEqual(failed)
     })
@@ -211,8 +205,6 @@ describe('isEventStillCurrent', () => {
     })
 
     it('rejects the pause of a timelapse frame whose flag and print state arrive in different updates', () => {
-        // timelapse.cfg resumes the print first and clears is_paused right after: for a moment the print is
-        // still "paused" while the flag is gone already
         const frame = (state: string, isPaused: boolean) =>
             buildPrinterSnapshot('ready', {
                 print_stats: { state },
@@ -372,7 +364,6 @@ describe('partitionPendingEvents', () => {
         const first = pending('printPaused', 1)
         const second = pending('printPaused', 2)
 
-        // the resume ends the first pause, so it cannot be confirmed by the second one
         const afterResume = partitionPendingEvents([first], snapshot({ printState: 'printing' }))
         expect(afterResume.kept).toEqual([])
 

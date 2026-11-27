@@ -105,7 +105,6 @@ describe('gui/getPanels with layout states', () => {
         state.dashboard.desktopLayout2 = [{ name: 'miniconsole', visible: true }]
         const g = createGetters(state)
 
-        // webcam and temperature are not stored and get appended to the first column
         expect(names(g.getPanels('desktop', 1, true))).toEqual(['toolhead-control', 'webcam', 'temperature'])
         expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual([
             'webcam',
@@ -117,7 +116,6 @@ describe('gui/getPanels with layout states', () => {
     it('puts the print hero on top in every state, also for layouts saved before the panel existed', () => {
         const g = createGetters(createState(), [...allPossiblePanels, 'print-hero'])
 
-        // not stored: added in front of the first column, so it does not jump when the print ends
         expect(names(g.getPanels('desktop', 1, true))).toEqual(['print-hero', 'webcam', 'toolhead-control'])
         expect(names(g.getPanels('desktop', 1, true, 'printing'))).toEqual(['print-hero', 'webcam', 'toolhead-control'])
         expect(names(g.getPanels('desktop', 1, true, 'error'))).toEqual(['print-hero', 'webcam', 'toolhead-control'])
@@ -372,16 +370,12 @@ describe('webcam panel while the print hero shows the webcam', () => {
     })
 
     it('knows that the hero does not show the webcam', () => {
-        // no camera
         expect(createGetters(createState(), withHero).getPrintHeroShowsWebcam('desktop')).toBe(false)
-        // another backdrop
         for (const backdrop of ['thumbnail', 'none']) {
             const g = createGetters(withView({ backdrop }), withHero, ['cam'])
             expect(g.getPrintHeroShowsWebcam('desktop')).toBe(false)
         }
-        // no hero panel
         expect(createGetters(createState(), allPossiblePanels, ['cam']).getPrintHeroShowsWebcam('desktop')).toBe(false)
-        // hero hidden by the user
         const hidden = createState()
         hidden.dashboard.desktopLayout2 = [...hidden.dashboard.desktopLayout2, { name: 'print-hero', visible: false }]
         expect(createGetters(hidden, withHero, ['cam']).getPrintHeroShowsWebcam('desktop')).toBe(false)
@@ -485,7 +479,6 @@ describe('gui/getPrintHeroInLayout', () => {
 
         expect(g.getPrintHeroInLayout('mobile')).toBe(false)
         expect(g.getPrintHeroInLayout('mobile', 'printing')).toBe(false)
-        // each viewport has its own layout
         expect(g.getPrintHeroInLayout('desktop', 'printing')).toBe(true)
     })
 

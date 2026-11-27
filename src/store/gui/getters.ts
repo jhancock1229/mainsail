@@ -130,8 +130,6 @@ export const getters: GetterTree<GuiState, RootState> = {
             })
         },
 
-    // The print hero panel is shown in this viewport with the webcam as its backdrop, and the webcam panel has
-    // nothing to add to it. With several cameras the webcam panel shows more than the hero (grid, switcher).
     getPrintHeroShowsWebcam:
         (state, getters) =>
         (viewport: string): boolean => {
@@ -141,7 +139,6 @@ export const getters: GetterTree<GuiState, RootState> = {
 
             const idlePanels = getters['getAllPanelsFromViewport'](viewport, 'idle') as GuiStateLayoutoption[]
 
-            // a hero that is missing from a saved layout gets added as visible, see getPanels
             return idlePanels.find((panel) => panel.name === 'print-hero')?.visible ?? true
         },
 
@@ -154,12 +151,10 @@ export const getters: GetterTree<GuiState, RootState> = {
             return getViewportLayoutKeys(viewport).some((layoutKey) => Array.isArray(customLayouts[layoutKey]))
         },
 
-    // the print hero is a visible panel of the layout that is shown for the viewport and printer state
     getPrintHeroInLayout:
         (state, getters) =>
         (viewport: string, layoutState: DashboardLayoutState = 'idle'): boolean => {
             const columnCount = getViewportLayoutKeys(viewport).length
-            // a viewport with a single column has no column number (mobileLayout)
             const columns = columnCount === 1 ? [0] : Array.from({ length: columnCount }, (_, index) => index + 1)
 
             return columns.some((column) => {
@@ -181,8 +176,6 @@ export const getters: GetterTree<GuiState, RootState> = {
                 column ? `${viewport}Layout${column}` : `${viewport}Layout`
             ) as GuiStateDashboardLayoutKey
 
-            // a derived state layout is built from the idle layout after the missing panels are added, so the
-            // derive rules apply to them too
             const isDerived =
                 layoutState !== 'idle' && !Array.isArray(state.dashboard.stateLayouts?.[layoutState]?.[layoutName])
             const sourceState = isDerived ? 'idle' : layoutState
@@ -204,8 +197,6 @@ export const getters: GetterTree<GuiState, RootState> = {
                             visible: true,
                         })
                 })
-                // The print hero goes in front, also in layouts that were saved before it existed. At the end
-                // of the column it would jump from the top to the bottom when the print ends.
                 const isHero = (panel: GuiStateLayoutoption) => panel.name === 'print-hero'
                 panels = [
                     ...missingPanels.filter(isHero),

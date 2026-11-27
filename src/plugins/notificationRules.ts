@@ -1,4 +1,3 @@
-// Settings of the error explainer and the printer event notifications (gui store key "alerts").
 import { isRecord } from '@/plugins/helpers'
 import { printerEventNames } from '@/plugins/printerEvents'
 import type { PrinterEventName, PrinterEventSeverity } from '@/plugins/printerEvents'
@@ -7,7 +6,6 @@ export const notificationChannels = ['toast', 'sound', 'browser'] as const
 
 export type NotificationChannel = (typeof notificationChannels)[number]
 
-// all channels off means the event is silent
 export type NotificationRule = Record<NotificationChannel, boolean>
 
 export interface AlertSettings {
@@ -37,7 +35,6 @@ export const getDefaultAlertSettings = (): AlertSettings => {
 
 const booleanOr = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback)
 
-// settings from the database can be incomplete (saved by an older version) or broken
 export const resolveAlertSettings = (stored: unknown): AlertSettings => {
     const settings = getDefaultAlertSettings()
     if (!isRecord(stored)) return settings
@@ -64,15 +61,12 @@ export const getBrowserNotificationStatus = (environment: {
     permission: string
 }): BrowserNotificationStatus => {
     if (!environment.hasApi) return 'unsupported'
-    // browsers only allow notifications on https and localhost
     if (!environment.secureContext) return 'insecure'
     if (environment.permission === 'granted' || environment.permission === 'denied') return environment.permission
 
     return 'default'
 }
 
-// The settings are shared by all browsers, the permission is not: an event with a browser notification falls
-// back to a toast in a browser that cannot show it, so it does not get lost.
 export const resolveChannels = (
     settings: AlertSettings,
     event: PrinterEventName,
@@ -109,5 +103,4 @@ export const getSoundPattern = (severity: PrinterEventSeverity): SoundNote[] => 
 
 const htmlEntities: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
-// toasts render their message as HTML
 export const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (char) => htmlEntities[char])

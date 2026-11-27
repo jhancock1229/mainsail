@@ -10,7 +10,6 @@ import {
 
 @Component
 export default class TemperatureCardsMixin extends Vue {
-    // settings stored before the cards existed lack this block, so every access goes through the fallbacks
     get temperatureCardSettings(): TemperatureCardSettings {
         return normalizeTemperatureCardSettings(this.$store.state.gui?.view?.temperatureCards)
     }
@@ -27,7 +26,6 @@ export default class TemperatureCardsMixin extends Vue {
         return resolveSparklineWindow(this.temperatureCardSettings.sparklineWindow, this.temperatureStoreSize)
     }
 
-    // all cards in the order of the user, including the ones the user has hidden
     get temperatureCardObjects(): string[] {
         const names = getTemperatureCardObjects({
             heaters: this.$store.state.printer?.heaters?.available_heaters ?? [],

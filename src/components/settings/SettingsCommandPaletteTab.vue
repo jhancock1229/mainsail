@@ -196,7 +196,6 @@ export default class SettingsCommandPaletteTab extends Mixins(BaseMixin, ThemeMi
             const entry = this.commandEntries.find((command) => command.id === id)
             if (entry) return entry
 
-            // e.g. a macro or file that was removed from the printer, it can come back
             return {
                 id,
                 title: id.slice(id.indexOf(':') + 1),
@@ -224,7 +223,6 @@ export default class SettingsCommandPaletteTab extends Mixins(BaseMixin, ThemeMi
     addFavourite(id: string | null): void {
         if (id && !this.paletteSettings.pinned.includes(id)) this.togglePalettePin(id)
 
-        // empty the field for the next command
         this.$nextTick(() => (this.commandToAdd = null))
     }
 
@@ -243,7 +241,6 @@ export default class SettingsCommandPaletteTab extends Mixins(BaseMixin, ThemeMi
         this.recording = true
         this.shortcutError = null
         commandPaletteBus.recordingShortcut = true
-        // capture phase, so the keys do not reach the settings dialog or the page
         window.addEventListener('keydown', this.onRecordKeydown, true)
         window.addEventListener('mousedown', this.onRecordMousedown, true)
     }
@@ -264,7 +261,6 @@ export default class SettingsCommandPaletteTab extends Mixins(BaseMixin, ThemeMi
         if (event.key === 'Escape') return this.stopRecording()
 
         const shortcut = shortcutFromEvent(event, this.isMac)
-        // a modifier alone, the combination is not complete yet
         if (shortcut === null) return
 
         this.shortcutError = validateShortcut(shortcut)
@@ -274,7 +270,6 @@ export default class SettingsCommandPaletteTab extends Mixins(BaseMixin, ThemeMi
         this.stopRecording()
     }
 
-    // a click anywhere else ends the recording
     onRecordMousedown(event: MouseEvent): void {
         if (this.shortcutButton?.$el.contains(event.target as Node)) return
 

@@ -69,7 +69,6 @@ const SECONDS_PER_MINUTE = 60
 interface CardOption {
     objectName: string
     label: string
-    // only set for cards that share their name with another card (heater_generic chamber, temperature_sensor chamber)
     type: string | null
     visible: boolean
 }
@@ -138,7 +137,6 @@ export default class TemperaturePanelSettingsCards extends Mixins(BaseMixin, Tem
 </script>
 
 <style scoped>
-/* the buttons move below the label when the menu is too narrow for both (phones, longer translations) */
 .temperature-settings-cards__row {
     flex-wrap: wrap;
     row-gap: 4px;
